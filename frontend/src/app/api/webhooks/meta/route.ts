@@ -18,11 +18,22 @@ import {
   type MetaWebhookEvent,
 } from "../../../../lib/meta-api";
 
-// Initialize Convex client
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+// Lazily initialize Convex client (avoids build-time errors)
+let convexClient: ConvexHttpClient | null = null;
+
+function getConvexClient(): ConvexHttpClient {
+  if (!convexClient) {
+    const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+    if (!url) {
+      throw new Error("NEXT_PUBLIC_CONVEX_URL not configured");
+    }
+    convexClient = new ConvexHttpClient(url);
+  }
+  return convexClient;
+}
 
 // Webhook verification token (you set this when configuring webhooks in Meta)
-const WEBHOOK_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN!;
+const WEBHOOK_VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || "";
 
 /**
  * GET - Webhook Verification
@@ -164,7 +175,7 @@ export async function POST(request: NextRequest) {
 
       // Send to Convex to store the message
       try {
-        await convex.mutation(api.messages.receiveFromMeta, {
+        await getConvexClient().mutation(api.messages.receiveFromMeta, {
           channel: event.channel,
           platformUserId: event.senderId,
           firstName,
