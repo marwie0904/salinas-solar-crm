@@ -1,6 +1,8 @@
 "use client";
 
-import { ContactSource, PipelineStage, getFullName } from "@/lib/types";
+import { useQuery } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import { ContactSource, PipelineStage, PIPELINE_STAGE_LABELS, PIPELINE_STAGE_DESCRIPTIONS } from "@/lib/types";
 import {
   Table,
   TableBody,
@@ -12,119 +14,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, Phone, Mail, Building2 } from "lucide-react";
+import { Search, Plus, Phone, Mail, Building2, Loader2, HelpCircle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
-// Local mock interface (will be replaced with Convex queries)
-interface MockContact {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  source: ContactSource;
-  opportunityId?: string;
-  opportunityName?: string;
-  opportunityStage?: PipelineStage;
-  createdAt: number;
-  updatedAt: number;
-}
-
-// Mock data for contacts
-const mockContacts: MockContact[] = [
-  {
-    _id: "c1",
-    firstName: "Maria",
-    lastName: "Santos",
-    email: "maria.santos@email.com",
-    phone: "+63 917 123 4567",
-    address: "123 Solar Street, Salinas, Cavite",
-    source: "website",
-    opportunityId: "opp1",
-    opportunityName: "Santos Residence Solar Installation",
-    opportunityStage: "proposal",
-    createdAt: Date.parse("2024-01-15T08:00:00Z"),
-    updatedAt: Date.parse("2024-01-20T10:30:00Z"),
-  },
-  {
-    _id: "c2",
-    firstName: "Juan",
-    lastName: "Dela Cruz",
-    email: "juan.delacruz@company.com",
-    phone: "+63 918 234 5678",
-    address: "456 Green Ave, Bacoor, Cavite",
-    source: "referral",
-    opportunityId: "opp2",
-    opportunityName: "Dela Cruz Commercial Project",
-    opportunityStage: "negotiation",
-    createdAt: Date.parse("2024-01-10T09:00:00Z"),
-    updatedAt: Date.parse("2024-01-18T14:00:00Z"),
-  },
-  {
-    _id: "c3",
-    firstName: "Ana",
-    lastName: "Reyes",
-    phone: "+63 919 345 6789",
-    source: "facebook",
-    opportunityId: "opp3",
-    opportunityName: "Reyes Home Solar System",
-    opportunityStage: "qualified",
-    createdAt: Date.parse("2024-01-20T11:00:00Z"),
-    updatedAt: Date.parse("2024-01-22T09:00:00Z"),
-  },
-  {
-    _id: "c4",
-    firstName: "Pedro",
-    lastName: "Garcia",
-    email: "pedro.garcia@gmail.com",
-    source: "google_ads",
-    opportunityId: "opp4",
-    opportunityName: "Garcia Building Rooftop Solar",
-    opportunityStage: "new_lead",
-    createdAt: Date.parse("2024-01-22T13:00:00Z"),
-    updatedAt: Date.parse("2024-01-22T13:00:00Z"),
-  },
-  {
-    _id: "c5",
-    firstName: "Elena",
-    lastName: "Cruz",
-    email: "elena.cruz@business.com",
-    phone: "+63 920 456 7890",
-    address: "789 Energy Road, Imus, Cavite",
-    source: "walk_in",
-    opportunityId: "opp5",
-    opportunityName: "Cruz Factory Solar Installation",
-    opportunityStage: "closed_won",
-    createdAt: Date.parse("2024-01-05T10:00:00Z"),
-    updatedAt: Date.parse("2024-01-25T16:00:00Z"),
-  },
-  {
-    _id: "c6",
-    firstName: "Roberto",
-    lastName: "Lim",
-    email: "roberto.lim@email.com",
-    phone: "+63 921 567 8901",
-    source: "cold_call",
-    createdAt: Date.parse("2024-01-23T08:30:00Z"),
-    updatedAt: Date.parse("2024-01-23T08:30:00Z"),
-  },
-  {
-    _id: "c7",
-    firstName: "Carmen",
-    lastName: "Villanueva",
-    email: "carmen.v@company.ph",
-    phone: "+63 922 678 9012",
-    address: "321 Sun Boulevard, Dasmarinas, Cavite",
-    source: "referral",
-    opportunityId: "opp6",
-    opportunityName: "Villanueva Warehouse Project",
-    opportunityStage: "contacted",
-    createdAt: Date.parse("2024-01-18T14:00:00Z"),
-    updatedAt: Date.parse("2024-01-21T11:00:00Z"),
-  },
-];
 
 const sourceLabels: Record<ContactSource, string> = {
   website: "Website",
@@ -136,37 +33,32 @@ const sourceLabels: Record<ContactSource, string> = {
   other: "Other",
 };
 
-const stageLabels: Record<PipelineStage, string> = {
-  new_lead: "New Lead",
-  contacted: "Contacted",
-  qualified: "Qualified",
-  proposal: "Proposal",
-  negotiation: "Negotiation",
-  closed_won: "Closed Won",
-  closed_lost: "Closed Lost",
-};
-
 const stageColors: Record<PipelineStage, string> = {
-  new_lead: "bg-slate-500",
-  contacted: "bg-blue-500",
-  qualified: "bg-purple-500",
-  proposal: "bg-amber-500",
-  negotiation: "bg-orange-500",
-  closed_won: "bg-green-500",
-  closed_lost: "bg-red-500",
+  inbox: "bg-slate-500",
+  scheduled_discovery_call: "bg-blue-500",
+  discovery_call: "bg-cyan-500",
+  no_show_discovery_call: "bg-red-400",
+  field_inspection: "bg-purple-500",
+  to_follow_up: "bg-amber-500",
+  contract_drafting: "bg-orange-500",
+  contract_signing: "bg-indigo-500",
+  closed: "bg-green-500",
 };
 
 export default function ContactsPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredContacts = mockContacts.filter((contact) => {
-    const fullName = getFullName(contact.firstName, contact.lastName);
+  // Fetch contacts from Convex
+  const contacts = useQuery(api.contacts.listWithOpportunities, {});
+
+  const filteredContacts = contacts?.filter((contact) => {
+    const fullName = contact.fullName;
     return (
       fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.phone?.includes(searchQuery) ||
-      contact.opportunityName
+      contact.opportunity?.name
         ?.toLowerCase()
         .includes(searchQuery.toLowerCase())
     );
@@ -216,70 +108,93 @@ export default function ContactsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredContacts.map((contact) => (
-              <TableRow
-                key={contact._id}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleContactClick(contact._id)}
-              >
-                <TableCell className="font-medium">
-                  {getFullName(contact.firstName, contact.lastName)}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">{sourceLabels[contact.source]}</Badge>
-                </TableCell>
-                <TableCell>
-                  {contact.phone ? (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>{contact.phone}</span>
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {contact.email ? (
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>{contact.email}</span>
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {contact.opportunityName ? (
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="max-w-[200px] truncate">
-                        {contact.opportunityName}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {contact.opportunityStage ? (
-                    <Badge
-                      className={`${stageColors[contact.opportunityStage]} text-white`}
-                    >
-                      {stageLabels[contact.opportunityStage]}
-                    </Badge>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
+            {contacts === undefined ? (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className="text-center py-8"
+                >
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading contacts...
+                  </div>
                 </TableCell>
               </TableRow>
-            ))}
-            {filteredContacts.length === 0 && (
+            ) : filteredContacts && filteredContacts.length > 0 ? (
+              filteredContacts.map((contact) => (
+                <TableRow
+                  key={contact._id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleContactClick(contact._id)}
+                >
+                  <TableCell className="font-medium">
+                    {contact.fullName}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{sourceLabels[contact.source]}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {contact.phone ? (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{contact.phone}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {contact.email ? (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{contact.email}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {contact.opportunity ? (
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="max-w-[200px] truncate">
+                          {contact.opportunity.name}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {contact.opportunity?.stage ? (
+                      <div className="flex items-center gap-1.5">
+                        <Badge
+                          className={`${stageColors[contact.opportunity.stage]} text-white`}
+                        >
+                          {PIPELINE_STAGE_LABELS[contact.opportunity.stage]}
+                        </Badge>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[280px]">
+                            <p>{PIPELINE_STAGE_DESCRIPTIONS[contact.opportunity.stage]}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
               <TableRow>
                 <TableCell
                   colSpan={6}
                   className="text-center py-8 text-muted-foreground"
                 >
-                  No contacts found
+                  {searchQuery ? "No contacts found matching your search" : "No contacts yet"}
                 </TableCell>
               </TableRow>
             )}

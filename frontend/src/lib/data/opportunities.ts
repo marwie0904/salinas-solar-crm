@@ -95,7 +95,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "1",
     name: "Santos Residence - 5kW System",
-    stage: "new_lead",
+    stage: "inbox",
     estimatedValue: 150000,
     contact: {
       _id: "c1",
@@ -134,7 +134,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "2",
     name: "Rodriguez Commercial Building",
-    stage: "contacted",
+    stage: "scheduled_discovery_call",
     estimatedValue: 450000,
     contact: {
       _id: "c2",
@@ -195,7 +195,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "3",
     name: "Dela Cruz Family Home",
-    stage: "qualified",
+    stage: "discovery_call",
     estimatedValue: 180000,
     contact: {
       _id: "c3",
@@ -249,7 +249,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "4",
     name: "Mendoza Warehouse Project",
-    stage: "proposal",
+    stage: "contract_drafting",
     estimatedValue: 850000,
     contact: {
       _id: "c4",
@@ -310,7 +310,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "5",
     name: "Villanueva Residence",
-    stage: "negotiation",
+    stage: "contract_signing",
     estimatedValue: 220000,
     contact: {
       _id: "c5",
@@ -367,7 +367,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "6",
     name: "Tan Office Building",
-    stage: "closed_won",
+    stage: "closed",
     estimatedValue: 380000,
     contact: {
       _id: "c6",
@@ -433,7 +433,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "7",
     name: "Garcia Condo Unit",
-    stage: "closed_lost",
+    stage: "no_show_discovery_call",
     estimatedValue: 95000,
     contact: {
       _id: "c7",
@@ -462,7 +462,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "8",
     name: "Reyes Farm Solar",
-    stage: "qualified",
+    stage: "field_inspection",
     estimatedValue: 520000,
     contact: {
       _id: "c8",

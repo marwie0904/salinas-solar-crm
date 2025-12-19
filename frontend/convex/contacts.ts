@@ -166,6 +166,52 @@ export const getBySource = query({
 });
 
 /**
+ * List contacts with their primary opportunity (for table view)
+ */
+export const listWithOpportunities = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    let query = ctx.db
+      .query("contacts")
+      .withIndex("by_deleted_created", (q) => q.eq("isDeleted", false))
+      .order("desc");
+
+    const contacts = args.limit
+      ? await query.take(args.limit)
+      : await query.collect();
+
+    // Fetch primary opportunity for each contact
+    const contactsWithOpportunities = await Promise.all(
+      contacts.map(async (contact) => {
+        // Get the first active opportunity for this contact
+        const opportunity = await ctx.db
+          .query("opportunities")
+          .withIndex("by_contact_deleted", (q) =>
+            q.eq("contactId", contact._id).eq("isDeleted", false)
+          )
+          .first();
+
+        return {
+          ...contact,
+          fullName: getFullName(contact.firstName, contact.lastName),
+          opportunity: opportunity
+            ? {
+                _id: opportunity._id,
+                name: opportunity.name,
+                stage: opportunity.stage,
+              }
+            : null,
+        };
+      })
+    );
+
+    return contactsWithOpportunities;
+  },
+});
+
+/**
  * Get recently created contacts
  */
 export const getRecent = query({
@@ -221,7 +267,7 @@ export const getWithUnreadMessages = query({
 // ============================================
 
 /**
- * Create a new contact
+ * Create a new contact (with auto opportunity creation)
  */
 export const create = mutation({
   args: {
@@ -235,6 +281,7 @@ export const create = mutation({
     preferredMessageChannel: v.optional(messageChannel),
     notes: v.optional(v.string()),
     createdBy: v.optional(v.id("users")),
+    skipOpportunity: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const timestamp = now();
@@ -256,6 +303,29 @@ export const create = mutation({
     });
 
     await logCreation(ctx, "contact", contactId, args.createdBy);
+
+    // Auto-create opportunity unless skipped
+    if (!args.skipOpportunity) {
+      // Get total opportunity count for numbering
+      const allOpportunities = await ctx.db.query("opportunities").collect();
+      const opportunityNumber = allOpportunities.length + 1;
+
+      const contactName = getFullName(args.firstName, args.lastName);
+      const opportunityName = `Opportunity #${opportunityNumber}: ${contactName}`;
+
+      const opportunityId = await ctx.db.insert("opportunities", {
+        name: opportunityName,
+        contactId,
+        stage: "inbox",
+        estimatedValue: 0,
+        isDeleted: false,
+        createdBy: args.createdBy,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+
+      await logCreation(ctx, "opportunity", opportunityId, args.createdBy);
+    }
 
     return contactId;
   },

@@ -1,7 +1,7 @@
 "use client";
 
-import { PipelineStage } from "@/lib/types";
-import { MockOpportunity } from "@/lib/data/opportunities";
+import { PipelineStage, PIPELINE_STAGE_LABELS, PIPELINE_STAGE_DESCRIPTIONS } from "@/lib/types";
+import type { PipelineOpportunity } from "@/app/(dashboard)/pipeline/page";
 import { OpportunityCard } from "./opportunity-card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -23,22 +23,29 @@ import {
 import { useDroppable } from "@dnd-kit/core";
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calendar, User, DollarSign } from "lucide-react";
+import { Calendar, User, DollarSign, HelpCircle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface PipelineKanbanProps {
-  opportunities: MockOpportunity[];
-  onOpportunityClick: (opportunity: MockOpportunity) => void;
+  opportunities: PipelineOpportunity[];
+  onOpportunityClick: (opportunity: PipelineOpportunity) => void;
   onStageChange: (opportunityId: string, newStage: PipelineStage) => void;
 }
 
-const stages: { stage: PipelineStage; label: string; color: string }[] = [
-  { stage: "new_lead", label: "New Lead", color: "bg-slate-500" },
-  { stage: "contacted", label: "Contacted", color: "bg-blue-500" },
-  { stage: "qualified", label: "Qualified", color: "bg-purple-500" },
-  { stage: "proposal", label: "Proposal", color: "bg-amber-500" },
-  { stage: "negotiation", label: "Negotiation", color: "bg-orange-500" },
-  { stage: "closed_won", label: "Closed Won", color: "bg-green-500" },
-  { stage: "closed_lost", label: "Closed Lost", color: "bg-red-500" },
+const stages: { stage: PipelineStage; color: string }[] = [
+  { stage: "inbox", color: "bg-slate-500" },
+  { stage: "scheduled_discovery_call", color: "bg-blue-500" },
+  { stage: "discovery_call", color: "bg-cyan-500" },
+  { stage: "no_show_discovery_call", color: "bg-red-400" },
+  { stage: "field_inspection", color: "bg-purple-500" },
+  { stage: "to_follow_up", color: "bg-amber-500" },
+  { stage: "contract_drafting", color: "bg-orange-500" },
+  { stage: "contract_signing", color: "bg-indigo-500" },
+  { stage: "closed", color: "bg-green-500" },
 ];
 
 function DroppableColumn({
@@ -56,7 +63,7 @@ function DroppableColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex-1 space-y-3 min-h-[400px] p-2 rounded-lg transition-colors",
+        "flex-1 space-y-3 p-2 rounded-lg transition-colors overflow-y-auto",
         isOver ? "bg-[#ff5603]/10 ring-2 ring-[#ff5603]/30" : "bg-muted/30"
       )}
     >
@@ -65,7 +72,7 @@ function DroppableColumn({
   );
 }
 
-function DragOverlayCard({ opportunity }: { opportunity: MockOpportunity }) {
+function DragOverlayCard({ opportunity }: { opportunity: PipelineOpportunity }) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-PH", {
       style: "currency",
@@ -94,10 +101,12 @@ function DragOverlayCard({ opportunity }: { opportunity: MockOpportunity }) {
               </span>
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <User className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>{opportunity.contact.firstName} {opportunity.contact.lastName}</span>
-          </div>
+          {opportunity.contact && (
+            <div className="flex items-center gap-2">
+              <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>{opportunity.contact.firstName} {opportunity.contact.lastName}</span>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <DollarSign className="h-3.5 w-3.5 text-green-600" />
             <span className="font-medium text-foreground">
@@ -115,7 +124,7 @@ function StaticOpportunityCard({
   opportunity,
   onClick,
 }: {
-  opportunity: MockOpportunity;
+  opportunity: PipelineOpportunity;
   onClick: () => void;
 }) {
   const formatCurrency = (value: number) => {
@@ -149,10 +158,12 @@ function StaticOpportunityCard({
               </span>
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <User className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>{opportunity.contact.firstName} {opportunity.contact.lastName}</span>
-          </div>
+          {opportunity.contact && (
+            <div className="flex items-center gap-2">
+              <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>{opportunity.contact.firstName} {opportunity.contact.lastName}</span>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <DollarSign className="h-3.5 w-3.5 text-green-600" />
             <span className="font-medium text-foreground">
@@ -261,7 +272,7 @@ export function PipelineKanban({
   // Render static version during SSR
   if (!isMounted) {
     return (
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-220px)]">
         {stages.map((stageConfig) => {
           const stageOpportunities = getOpportunitiesByStage(stageConfig.stage);
           const stageTotal = getStageTotal(stageConfig.stage);
@@ -276,7 +287,15 @@ export function PipelineKanban({
                   <div
                     className={cn("w-3 h-3 rounded-full", stageConfig.color)}
                   />
-                  <h3 className="font-semibold text-sm">{stageConfig.label}</h3>
+                  <h3 className="font-semibold text-sm">{PIPELINE_STAGE_LABELS[stageConfig.stage]}</h3>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[250px]">
+                      <p>{PIPELINE_STAGE_DESCRIPTIONS[stageConfig.stage]}</p>
+                    </TooltipContent>
+                  </Tooltip>
                   <Badge variant="secondary" className="ml-auto text-xs">
                     {stageOpportunities.length}
                   </Badge>
@@ -285,7 +304,7 @@ export function PipelineKanban({
                   {formatCurrency(stageTotal)}
                 </p>
               </div>
-              <div className="flex-1 space-y-3 min-h-[400px] p-2 bg-muted/30 rounded-lg">
+              <div className="flex-1 space-y-3 p-2 bg-muted/30 rounded-lg overflow-y-auto">
                 {stageOpportunities.map((opportunity) => (
                   <StaticOpportunityCard
                     key={opportunity._id}
@@ -315,7 +334,7 @@ export function PipelineKanban({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-220px)]">
         {stages.map((stageConfig) => {
           const stageOpportunities = getOpportunitiesByStage(stageConfig.stage);
           const stageTotal = getStageTotal(stageConfig.stage);
@@ -331,7 +350,15 @@ export function PipelineKanban({
                   <div
                     className={cn("w-3 h-3 rounded-full", stageConfig.color)}
                   />
-                  <h3 className="font-semibold text-sm">{stageConfig.label}</h3>
+                  <h3 className="font-semibold text-sm">{PIPELINE_STAGE_LABELS[stageConfig.stage]}</h3>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[250px]">
+                      <p>{PIPELINE_STAGE_DESCRIPTIONS[stageConfig.stage]}</p>
+                    </TooltipContent>
+                  </Tooltip>
                   <Badge variant="secondary" className="ml-auto text-xs">
                     {stageOpportunities.length}
                   </Badge>

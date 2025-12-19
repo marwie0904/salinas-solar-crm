@@ -6,13 +6,15 @@ import { v } from "convex/values";
 // ============================================
 
 export const pipelineStage = v.union(
-  v.literal("new_lead"),
-  v.literal("contacted"),
-  v.literal("qualified"),
-  v.literal("proposal"),
-  v.literal("negotiation"),
-  v.literal("closed_won"),
-  v.literal("closed_lost")
+  v.literal("inbox"),
+  v.literal("scheduled_discovery_call"),
+  v.literal("discovery_call"),
+  v.literal("no_show_discovery_call"),
+  v.literal("field_inspection"),
+  v.literal("to_follow_up"),
+  v.literal("contract_drafting"),
+  v.literal("contract_signing"),
+  v.literal("closed")
 );
 
 export const taskStatus = v.union(

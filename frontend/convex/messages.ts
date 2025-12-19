@@ -419,6 +419,27 @@ export const receiveFromMeta = mutation({
         firstName: args.firstName,
         lastName: args.lastName,
       });
+
+      // Auto-create opportunity for new contact
+      const allOpportunities = await ctx.db.query("opportunities").collect();
+      const opportunityNumber = allOpportunities.length + 1;
+      const contactName = getFullName(args.firstName, args.lastName);
+      const opportunityName = `Opportunity #${opportunityNumber}: ${contactName}`;
+
+      const opportunityId = await ctx.db.insert("opportunities", {
+        name: opportunityName,
+        contactId,
+        stage: "inbox",
+        estimatedValue: 0,
+        isDeleted: false,
+        createdAt: currentTime,
+        updatedAt: currentTime,
+      });
+
+      await logActivity(ctx, "opportunity", opportunityId, "created", {
+        source: `${args.channel}_message`,
+        contactId,
+      });
     } else {
       // Update platform ID if not set (contact was created through other means)
       if (args.channel === "facebook" && !contact.facebookPsid) {

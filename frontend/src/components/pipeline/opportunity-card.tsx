@@ -1,6 +1,6 @@
 "use client";
 
-import { MockOpportunity } from "@/lib/data/opportunities";
+import type { PipelineOpportunity } from "@/app/(dashboard)/pipeline/page";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, User, DollarSign } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
@@ -8,7 +8,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 
 interface OpportunityCardProps {
-  opportunity: MockOpportunity;
+  opportunity: PipelineOpportunity;
   onClick: () => void;
 }
 
@@ -77,10 +77,12 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
           )}
 
           {/* Associated Contact */}
-          <div className="flex items-center gap-2">
-            <User className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>{opportunity.contact.firstName} {opportunity.contact.lastName}</span>
-          </div>
+          {opportunity.contact && (
+            <div className="flex items-center gap-2">
+              <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>{opportunity.contact.firstName} {opportunity.contact.lastName}</span>
+            </div>
+          )}
 
           {/* Estimated Value */}
           <div className="flex items-center gap-2">

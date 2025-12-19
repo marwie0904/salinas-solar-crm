@@ -26,13 +26,15 @@ export const getPipelineValue = query({
       .collect();
 
     const stages = [
-      "new_lead",
-      "contacted",
-      "qualified",
-      "proposal",
-      "negotiation",
-      "closed_won",
-      "closed_lost",
+      "inbox",
+      "scheduled_discovery_call",
+      "discovery_call",
+      "no_show_discovery_call",
+      "field_inspection",
+      "to_follow_up",
+      "contract_drafting",
+      "contract_signing",
+      "closed",
     ];
 
     const byStage = stages.map((stage) => {
@@ -49,7 +51,7 @@ export const getPipelineValue = query({
     });
 
     const activePipeline = opportunities.filter(
-      (o) => o.stage !== "closed_won" && o.stage !== "closed_lost"
+      (o) => o.stage !== "closed"
     );
     const totalActiveValue = activePipeline.reduce(
       (sum, o) => sum + o.estimatedValue,
@@ -66,7 +68,7 @@ export const getPipelineValue = query({
 });
 
 /**
- * Get conversion rate (closed won vs total closed)
+ * Get conversion rate (closed vs total opportunities)
  */
 export const getConversionRate = query({
   args: {},
@@ -76,25 +78,20 @@ export const getConversionRate = query({
       .withIndex("by_deleted", (q) => q.eq("isDeleted", false))
       .collect();
 
-    const closedWon = opportunities.filter((o) => o.stage === "closed_won");
-    const closedLost = opportunities.filter((o) => o.stage === "closed_lost");
-    const totalClosed = closedWon.length + closedLost.length;
+    const closed = opportunities.filter((o) => o.stage === "closed");
+    const totalOpportunities = opportunities.length;
 
     const conversionRate =
-      totalClosed > 0 ? (closedWon.length / totalClosed) * 100 : 0;
+      totalOpportunities > 0 ? (closed.length / totalOpportunities) * 100 : 0;
 
-    const wonValue = closedWon.reduce((sum, o) => sum + o.estimatedValue, 0);
-    const lostValue = closedLost.reduce((sum, o) => sum + o.estimatedValue, 0);
+    const closedValue = closed.reduce((sum, o) => sum + o.estimatedValue, 0);
 
     return {
-      closedWonCount: closedWon.length,
-      closedLostCount: closedLost.length,
-      totalClosedCount: totalClosed,
+      closedCount: closed.length,
+      totalCount: totalOpportunities,
       conversionRate: Math.round(conversionRate * 100) / 100,
-      wonValue,
-      lostValue,
-      formattedWonValue: formatPHP(wonValue),
-      formattedLostValue: formatPHP(lostValue),
+      closedValue,
+      formattedClosedValue: formatPHP(closedValue),
     };
   },
 });
@@ -327,25 +324,17 @@ export const getClosedLeadsThisMonth = query({
       .filter((q) =>
         q.and(
           q.gte(q.field("updatedAt"), monthStart),
-          q.or(
-            q.eq(q.field("stage"), "closed_won"),
-            q.eq(q.field("stage"), "closed_lost")
-          )
+          q.eq(q.field("stage"), "closed")
         )
       )
       .collect();
 
-    const won = opportunities.filter((o) => o.stage === "closed_won");
-    const lost = opportunities.filter((o) => o.stage === "closed_lost");
+    const closedValue = opportunities.reduce((sum, o) => sum + o.estimatedValue, 0);
 
     return {
       totalClosed: opportunities.length,
-      won: won.length,
-      lost: lost.length,
-      wonValue: won.reduce((sum, o) => sum + o.estimatedValue, 0),
-      formattedWonValue: formatPHP(
-        won.reduce((sum, o) => sum + o.estimatedValue, 0)
-      ),
+      closedValue,
+      formattedClosedValue: formatPHP(closedValue),
     };
   },
 });
@@ -384,7 +373,7 @@ export const getDashboardSummary = query({
       .filter((q) =>
         q.and(
           q.gte(q.field("updatedAt"), monthStart),
-          q.eq(q.field("stage"), "closed_won")
+          q.eq(q.field("stage"), "closed")
         )
       )
       .collect();

@@ -10,6 +10,7 @@ import {
   InvoiceStatus,
   TaskStatus,
   getFullName,
+  PIPELINE_STAGE_LABELS,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -123,7 +124,7 @@ const getMockContact = (id: string): MockContact => ({
   source: "website",
   opportunityId: "opp1",
   opportunityName: "Santos Residence Solar Installation",
-  opportunityStage: "proposal",
+  opportunityStage: "contract_drafting",
   messages: [
     {
       _id: "m1",
@@ -275,24 +276,16 @@ const sourceLabels: Record<ContactSource, string> = {
   other: "Other",
 };
 
-const stageLabels: Record<PipelineStage, string> = {
-  new_lead: "New Lead",
-  contacted: "Contacted",
-  qualified: "Qualified",
-  proposal: "Proposal",
-  negotiation: "Negotiation",
-  closed_won: "Closed Won",
-  closed_lost: "Closed Lost",
-};
-
 const stageColors: Record<PipelineStage, string> = {
-  new_lead: "bg-slate-500",
-  contacted: "bg-blue-500",
-  qualified: "bg-purple-500",
-  proposal: "bg-amber-500",
-  negotiation: "bg-orange-500",
-  closed_won: "bg-green-500",
-  closed_lost: "bg-red-500",
+  inbox: "bg-slate-500",
+  scheduled_discovery_call: "bg-blue-500",
+  discovery_call: "bg-cyan-500",
+  no_show_discovery_call: "bg-red-400",
+  field_inspection: "bg-purple-500",
+  to_follow_up: "bg-amber-500",
+  contract_drafting: "bg-orange-500",
+  contract_signing: "bg-indigo-500",
+  closed: "bg-green-500",
 };
 
 const invoiceStatusColors: Record<InvoiceStatus, string> = {
@@ -679,7 +672,7 @@ export default function ContactDetailPage({
                         stageColors[contact.opportunityStage]
                       )}
                     >
-                      {stageLabels[contact.opportunityStage]}
+                      {PIPELINE_STAGE_LABELS[contact.opportunityStage]}
                     </Badge>
                   </div>
                 )}

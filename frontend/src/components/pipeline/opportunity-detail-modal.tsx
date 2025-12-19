@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { PipelineStage } from "@/lib/types";
-import { MockOpportunity } from "@/lib/data/opportunities";
+import { useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { PipelineStage, PIPELINE_STAGE_LABELS } from "@/lib/types";
+import type { PipelineOpportunity } from "@/app/(dashboard)/pipeline/page";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -30,31 +31,31 @@ import {
   Receipt,
   MessageSquare,
   CheckSquare,
-  Upload,
   Trash2,
   ClipboardList,
-  Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface OpportunityDetailModalProps {
-  opportunity: MockOpportunity | null;
+  opportunity: PipelineOpportunity | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (opportunity: MockOpportunity) => void;
+  onSave: (opportunity: PipelineOpportunity) => void;
   onDelete: (opportunityId: string) => void;
 }
 
 type NavItem = "details" | "messages" | "tasks" | "documents" | "invoices";
 
 const stageOptions: { value: PipelineStage; label: string }[] = [
-  { value: "new_lead", label: "New Lead" },
-  { value: "contacted", label: "Contacted" },
-  { value: "qualified", label: "Qualified" },
-  { value: "proposal", label: "Proposal" },
-  { value: "negotiation", label: "Negotiation" },
-  { value: "closed_won", label: "Closed Won" },
-  { value: "closed_lost", label: "Closed Lost" },
+  { value: "inbox", label: PIPELINE_STAGE_LABELS.inbox },
+  { value: "scheduled_discovery_call", label: PIPELINE_STAGE_LABELS.scheduled_discovery_call },
+  { value: "discovery_call", label: PIPELINE_STAGE_LABELS.discovery_call },
+  { value: "no_show_discovery_call", label: PIPELINE_STAGE_LABELS.no_show_discovery_call },
+  { value: "field_inspection", label: PIPELINE_STAGE_LABELS.field_inspection },
+  { value: "to_follow_up", label: PIPELINE_STAGE_LABELS.to_follow_up },
+  { value: "contract_drafting", label: PIPELINE_STAGE_LABELS.contract_drafting },
+  { value: "contract_signing", label: PIPELINE_STAGE_LABELS.contract_signing },
+  { value: "closed", label: PIPELINE_STAGE_LABELS.closed },
 ];
 
 const navItems: { id: NavItem; label: string; icon: React.ElementType }[] = [
@@ -65,13 +66,6 @@ const navItems: { id: NavItem; label: string; icon: React.ElementType }[] = [
   { id: "invoices", label: "Invoices", icon: Receipt },
 ];
 
-const invoiceStatusColors: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  sent: "bg-blue-100 text-blue-700",
-  paid: "bg-green-100 text-green-700",
-  overdue: "bg-red-100 text-red-700",
-};
-
 export function OpportunityDetailModal({
   opportunity,
   open,
@@ -79,9 +73,13 @@ export function OpportunityDetailModal({
   onSave,
   onDelete,
 }: OpportunityDetailModalProps) {
-  const [editedOpportunity, setEditedOpportunity] = useState<MockOpportunity | null>(null);
+  const [editedOpportunity, setEditedOpportunity] = useState<PipelineOpportunity | null>(null);
   const [activeNav, setActiveNav] = useState<NavItem>("details");
-  const [newMessage, setNewMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const updateOpportunity = useMutation(api.opportunities.update);
+  const updateStage = useMutation(api.opportunities.updateStage);
+  const removeOpportunity = useMutation(api.opportunities.remove);
 
   useEffect(() => {
     if (opportunity) {
@@ -101,27 +99,47 @@ export function OpportunityDetailModal({
     }).format(value);
   };
 
-  const handleSave = () => {
-    if (editedOpportunity) {
+  const handleSave = async () => {
+    if (!editedOpportunity) return;
+
+    setIsSaving(true);
+    try {
+      // Update stage if changed
+      if (editedOpportunity.stage !== opportunity?.stage) {
+        await updateStage({
+          id: editedOpportunity._id,
+          stage: editedOpportunity.stage,
+        });
+      }
+
+      // Update other fields
+      await updateOpportunity({
+        id: editedOpportunity._id,
+        estimatedValue: editedOpportunity.estimatedValue,
+        notes: editedOpportunity.notes,
+      });
+
       onSave(editedOpportunity);
       onOpenChange(false);
+    } catch (error) {
+      console.error("Failed to save opportunity:", error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleDelete = () => {
-    if (editedOpportunity && confirm("Are you sure you want to delete this opportunity?")) {
-      onDelete(editedOpportunity._id);
-      onOpenChange(false);
-    }
-  };
+  const handleDelete = async () => {
+    if (!editedOpportunity) return;
 
-  const formatDate = (timestamp: number | undefined) => {
-    if (!timestamp) return "—";
-    return new Date(timestamp).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    if (confirm("Are you sure you want to delete this opportunity?")) {
+      try {
+        await removeOpportunity({ id: editedOpportunity._id });
+        onDelete(editedOpportunity._id);
+        onOpenChange(false);
+      } catch (error) {
+        console.error("Failed to delete opportunity:", error);
+      }
+    }
   };
 
   const renderDetails = () => (
@@ -132,20 +150,32 @@ export function OpportunityDetailModal({
           <User className="h-4 w-4 text-[#ff5603]" />
           Associated Contact
         </label>
-        <div className="p-4 bg-muted/50 rounded-lg">
-          <p className="font-medium">{editedOpportunity.contact.firstName} {editedOpportunity.contact.lastName}</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            {editedOpportunity.contact.email}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {editedOpportunity.contact.phone}
-          </p>
-          {editedOpportunity.contact.address && (
-            <p className="text-sm text-muted-foreground mt-2">
-              {editedOpportunity.contact.address}
+        {editedOpportunity.contact ? (
+          <div className="p-4 bg-muted/50 rounded-lg">
+            <p className="font-medium">
+              {editedOpportunity.contact.firstName} {editedOpportunity.contact.lastName}
             </p>
-          )}
-        </div>
+            {editedOpportunity.contact.email && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {editedOpportunity.contact.email}
+              </p>
+            )}
+            {editedOpportunity.contact.phone && (
+              <p className="text-sm text-muted-foreground">
+                {editedOpportunity.contact.phone}
+              </p>
+            )}
+            {editedOpportunity.contact.address && (
+              <p className="text-sm text-muted-foreground mt-2">
+                {editedOpportunity.contact.address}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+            No contact associated
+          </div>
+        )}
       </div>
 
       {/* Scheduled Appointment */}
@@ -221,200 +251,29 @@ export function OpportunityDetailModal({
     </div>
   );
 
-  const renderMessages = () => (
-    <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1 pr-4">
-        <div className="space-y-3">
-          {editedOpportunity.messages.length > 0 ? (
-            editedOpportunity.messages.map((message) => (
-              <div
-                key={message._id}
-                className={cn(
-                  "p-3 rounded-lg text-sm max-w-[80%]",
-                  message.isOutgoing
-                    ? "bg-[#ff5603] text-white ml-auto"
-                    : "bg-muted mr-auto"
-                )}
-              >
-                <div className="flex items-center justify-between mb-1 gap-4">
-                  <span className={cn("font-medium text-xs", message.isOutgoing ? "text-white/80" : "text-muted-foreground")}>
-                    {message.senderName}
-                  </span>
-                  <span className={cn("text-xs", message.isOutgoing ? "text-white/70" : "text-muted-foreground")}>
-                    {new Date(message.createdAt).toLocaleString()}
-                  </span>
-                </div>
-                <p>{message.content}</p>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No messages yet</p>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
-      <div className="flex gap-2 mt-4 pt-4 border-t">
-        <Textarea
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type a message..."
-          className="resize-none min-h-[80px]"
-        />
-        <Button className="bg-[#ff5603] hover:bg-[#e64d00] self-end">
-          <Send className="h-4 w-4" />
-        </Button>
+  const renderPlaceholder = (icon: React.ElementType, message: string) => {
+    const Icon = icon;
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <Icon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+        <p>{message}</p>
+        <p className="text-sm mt-2">Coming soon</p>
       </div>
-    </div>
-  );
-
-  const renderTasks = () => (
-    <div className="space-y-3">
-      {editedOpportunity.tasks.length > 0 ? (
-        editedOpportunity.tasks.map((task) => {
-          const isCompleted = task.status === "completed";
-          return (
-          <div
-            key={task._id}
-            className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
-          >
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={isCompleted}
-                readOnly
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <div>
-                <p
-                  className={cn(
-                    "font-medium",
-                    isCompleted && "line-through text-muted-foreground"
-                  )}
-                >
-                  {task.title}
-                </p>
-                {task.description && (
-                  <p className="text-sm text-muted-foreground">
-                    {task.description}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">
-                  Due: {formatDate(task.dueDate)} • Assigned to: {task.assignedUserName || "—"}
-                </p>
-              </div>
-            </div>
-            <Badge
-              variant="secondary"
-              className={cn(
-                task.status === "pending" && "bg-gray-100 text-gray-700",
-                task.status === "doing" && "bg-yellow-100 text-yellow-700",
-                task.status === "completed" && "bg-green-100 text-green-700"
-              )}
-            >
-              {task.status}
-            </Badge>
-          </div>
-        )})
-      ) : (
-        <div className="text-center py-12 text-muted-foreground">
-          <CheckSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-          <p>No tasks associated</p>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderDocuments = () => (
-    <div className="space-y-4">
-      <div className="border-2 border-dashed rounded-lg p-8 text-center">
-        <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-        <p className="text-sm text-muted-foreground mb-2">
-          Drop files here or click to upload
-        </p>
-        <Button variant="outline" size="sm">
-          Browse Files
-        </Button>
-      </div>
-
-      {editedOpportunity.documents.length > 0 ? (
-        <div className="space-y-2">
-          {editedOpportunity.documents.map((doc) => (
-            <div
-              key={doc._id}
-              className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-            >
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium text-sm">{doc.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Uploaded: {formatDate(doc.createdAt)}
-                  </p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm">
-                Download
-              </Button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-8 text-muted-foreground">
-          <p className="text-sm">No documents uploaded yet</p>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderInvoices = () => (
-    <div className="space-y-3">
-      {editedOpportunity.invoices.length > 0 ? (
-        editedOpportunity.invoices.map((invoice) => (
-          <div
-            key={invoice._id}
-            className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
-          >
-            <div>
-              <p className="font-medium">{invoice.invoiceNumber}</p>
-              <p className="text-sm text-muted-foreground">
-                Due: {formatDate(invoice.dueDate)}
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="font-semibold text-lg">
-                {formatCurrency(invoice.total)}
-              </span>
-              <Badge
-                className={cn("capitalize", invoiceStatusColors[invoice.status])}
-              >
-                {invoice.status}
-              </Badge>
-            </div>
-          </div>
-        ))
-      ) : (
-        <div className="text-center py-12 text-muted-foreground">
-          <Receipt className="h-12 w-12 mx-auto mb-3 opacity-50" />
-          <p>No invoices associated</p>
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderContent = () => {
     switch (activeNav) {
       case "details":
         return renderDetails();
       case "messages":
-        return renderMessages();
+        return renderPlaceholder(MessageSquare, "Messages will appear here");
       case "tasks":
-        return renderTasks();
+        return renderPlaceholder(CheckSquare, "Tasks will appear here");
       case "documents":
-        return renderDocuments();
+        return renderPlaceholder(FileText, "Documents will appear here");
       case "invoices":
-        return renderInvoices();
+        return renderPlaceholder(Receipt, "Invoices will appear here");
       default:
         return renderDetails();
     }
@@ -437,7 +296,7 @@ export function OpportunityDetailModal({
                     setEditedOpportunity({ ...editedOpportunity, stage: value })
                   }
                 >
-                  <SelectTrigger className="w-[160px] h-8 text-sm">
+                  <SelectTrigger className="w-[200px] h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -461,16 +320,6 @@ export function OpportunityDetailModal({
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeNav === item.id;
-                const count =
-                  item.id === "messages"
-                    ? editedOpportunity.messages.length
-                    : item.id === "tasks"
-                    ? editedOpportunity.tasks.length
-                    : item.id === "documents"
-                    ? editedOpportunity.documents.length
-                    : item.id === "invoices"
-                    ? editedOpportunity.invoices.length
-                    : null;
 
                 return (
                   <li key={item.id}>
@@ -485,19 +334,6 @@ export function OpportunityDetailModal({
                     >
                       <Icon className="h-4 w-4 flex-shrink-0" />
                       <span className="flex-1">{item.label}</span>
-                      {count !== null && count > 0 && (
-                        <Badge
-                          variant="secondary"
-                          className={cn(
-                            "h-5 min-w-[20px] text-xs",
-                            isActive
-                              ? "bg-white/20 text-white"
-                              : "bg-muted-foreground/20"
-                          )}
-                        >
-                          {count}
-                        </Badge>
-                      )}
                     </button>
                   </li>
                 );
@@ -526,9 +362,10 @@ export function OpportunityDetailModal({
           </Button>
           <Button
             onClick={handleSave}
+            disabled={isSaving}
             className="bg-[#ff5603] hover:bg-[#e64d00]"
           >
-            Save Changes
+            {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </DialogContent>

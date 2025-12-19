@@ -15,13 +15,15 @@ import {
 // ============================================
 
 type PipelineStage =
-  | "new_lead"
-  | "contacted"
-  | "qualified"
-  | "proposal"
-  | "negotiation"
-  | "closed_won"
-  | "closed_lost";
+  | "inbox"
+  | "scheduled_discovery_call"
+  | "discovery_call"
+  | "no_show_discovery_call"
+  | "field_inspection"
+  | "to_follow_up"
+  | "contract_drafting"
+  | "contract_signing"
+  | "closed";
 
 // ============================================
 // QUERIES
@@ -160,6 +162,74 @@ export const getWithRelations = query({
 });
 
 /**
+ * List opportunities for pipeline view (with contact and scheduled appointment)
+ */
+export const listForPipeline = query({
+  args: {},
+  handler: async (ctx) => {
+    const opportunities = await ctx.db
+      .query("opportunities")
+      .withIndex("by_deleted", (q) => q.eq("isDeleted", false))
+      .order("desc")
+      .collect();
+
+    const enriched = await Promise.all(
+      opportunities.map(async (opp) => {
+        // Get contact
+        const contact = await ctx.db.get(opp.contactId);
+
+        // Get next scheduled appointment (pending, not completed/cancelled)
+        const appointment = await ctx.db
+          .query("appointments")
+          .withIndex("by_opportunity", (q) => q.eq("opportunityId", opp._id))
+          .filter((q) =>
+            q.and(
+              q.eq(q.field("isDeleted"), false),
+              q.eq(q.field("status"), "pending")
+            )
+          )
+          .order("asc")
+          .first();
+
+        return {
+          _id: opp._id,
+          name: opp.name,
+          stage: opp.stage,
+          estimatedValue: opp.estimatedValue,
+          notes: opp.notes,
+          createdAt: opp.createdAt,
+          updatedAt: opp.updatedAt,
+          contact: contact
+            ? {
+                _id: contact._id,
+                firstName: contact.firstName,
+                lastName: contact.lastName,
+                email: contact.email,
+                phone: contact.phone,
+                address: contact.address,
+                source: contact.source,
+              }
+            : null,
+          scheduledAppointment: appointment
+            ? {
+                _id: appointment._id,
+                title: appointment.title,
+                date: appointment.date,
+                time: appointment.time,
+                location: appointment.location,
+                status: appointment.status,
+                appointmentType: appointment.appointmentType,
+              }
+            : null,
+        };
+      })
+    );
+
+    return enriched;
+  },
+});
+
+/**
  * Get opportunities by stage (for pipeline view)
  */
 export const getByStage = query({
@@ -203,13 +273,15 @@ export const getPipelineSummary = query({
       .collect();
 
     const stages: PipelineStage[] = [
-      "new_lead",
-      "contacted",
-      "qualified",
-      "proposal",
-      "negotiation",
-      "closed_won",
-      "closed_lost",
+      "inbox",
+      "scheduled_discovery_call",
+      "discovery_call",
+      "no_show_discovery_call",
+      "field_inspection",
+      "to_follow_up",
+      "contract_drafting",
+      "contract_signing",
+      "closed",
     ];
 
     const summary = stages.map((stage) => {
@@ -307,7 +379,7 @@ export const create = mutation({
     const opportunityId = await ctx.db.insert("opportunities", {
       name: args.name,
       contactId: args.contactId,
-      stage: args.stage ?? "new_lead",
+      stage: args.stage ?? "inbox",
       estimatedValue: args.estimatedValue,
       notes: args.notes,
       expectedCloseDate: args.expectedCloseDate,
@@ -382,8 +454,8 @@ export const updateStage = mutation({
       updatedAt: now(),
     };
 
-    // Add lost reason if moving to closed_lost
-    if (args.stage === "closed_lost" && args.lostReason) {
+    // Add lost reason if provided
+    if (args.lostReason) {
       updates.lostReason = args.lostReason;
     }
 
