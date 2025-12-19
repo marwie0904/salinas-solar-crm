@@ -87,20 +87,7 @@ export async function POST(request: NextRequest) {
     // Log the raw payload for debugging
     console.log("[Meta Webhook] Raw payload received:", rawBody.substring(0, 500));
 
-    // Verify the signature (skip if META_APP_SECRET not configured for testing)
-    const signature = request.headers.get("x-hub-signature-256");
-    const appSecret = process.env.META_APP_SECRET;
-
-    if (appSecret && !verifyWebhookSignature(rawBody, signature)) {
-      console.warn("[Meta Webhook] Invalid signature - rejecting");
-      return new NextResponse("Invalid signature", { status: 401 });
-    }
-
-    if (!appSecret) {
-      console.warn("[Meta Webhook] META_APP_SECRET not configured - skipping signature verification");
-    }
-
-    // Parse the payload
+    // Parse the payload first to determine which secret to use
     const payload: MetaWebhookEvent = JSON.parse(rawBody);
 
     console.log("[Meta Webhook] Parsed event", {
@@ -108,8 +95,31 @@ export async function POST(request: NextRequest) {
       isInstagram: payload.object === "instagram",
       isFacebook: payload.object === "page",
       entries: payload.entry?.length || 0,
-      rawEntries: JSON.stringify(payload.entry).substring(0, 500),
     });
+
+    // Verify the signature using the appropriate secret
+    // Instagram may use a different app secret than Facebook
+    const signature = request.headers.get("x-hub-signature-256");
+    const metaAppSecret = process.env.META_APP_SECRET;
+    const instagramAppSecret = process.env.INSTAGRAM_APP_SECRET;
+
+    // Use Instagram secret for Instagram webhooks if available, otherwise fall back to Meta secret
+    const appSecret = payload.object === "instagram" && instagramAppSecret
+      ? instagramAppSecret
+      : metaAppSecret;
+
+    if (appSecret) {
+      if (!verifyWebhookSignature(rawBody, signature, appSecret)) {
+        console.warn("[Meta Webhook] Invalid signature - rejecting", {
+          object: payload.object,
+          usedInstagramSecret: payload.object === "instagram" && !!instagramAppSecret,
+        });
+        return new NextResponse("Invalid signature", { status: 401 });
+      }
+      console.log("[Meta Webhook] Signature verified successfully");
+    } else {
+      console.warn("[Meta Webhook] No app secret configured - skipping signature verification");
+    }
 
     // Parse and process events
     const events = parseWebhookPayload(payload);

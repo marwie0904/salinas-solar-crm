@@ -102,18 +102,25 @@ export type MessageTag =
 /**
  * Verify the webhook signature from Meta
  * Uses X-Hub-Signature-256 header
+ *
+ * @param payload - The raw request body
+ * @param signature - The X-Hub-Signature-256 header value
+ * @param appSecret - The app secret to use (defaults to META_APP_SECRET env var)
  */
 export function verifyWebhookSignature(
   payload: string,
-  signature: string | null
+  signature: string | null,
+  appSecret?: string
 ): boolean {
-  if (!signature || !META_APP_SECRET) {
+  const secret = appSecret || META_APP_SECRET;
+
+  if (!signature || !secret) {
     return false;
   }
 
   const expectedSignature =
     "sha256=" +
-    crypto.createHmac("sha256", META_APP_SECRET).update(payload).digest("hex");
+    crypto.createHmac("sha256", secret).update(payload).digest("hex");
 
   return crypto.timingSafeEqual(
     Buffer.from(signature),
