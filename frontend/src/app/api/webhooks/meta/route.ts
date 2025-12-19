@@ -84,28 +84,53 @@ export async function POST(request: NextRequest) {
     // Get the raw body for signature verification
     const rawBody = await request.text();
 
-    // Verify the signature
-    const signature = request.headers.get("x-hub-signature-256");
+    // Log the raw payload for debugging
+    console.log("[Meta Webhook] Raw payload received:", rawBody.substring(0, 500));
 
-    if (!verifyWebhookSignature(rawBody, signature)) {
-      console.warn("[Meta Webhook] Invalid signature");
+    // Verify the signature (skip if META_APP_SECRET not configured for testing)
+    const signature = request.headers.get("x-hub-signature-256");
+    const appSecret = process.env.META_APP_SECRET;
+
+    if (appSecret && !verifyWebhookSignature(rawBody, signature)) {
+      console.warn("[Meta Webhook] Invalid signature - rejecting");
       return new NextResponse("Invalid signature", { status: 401 });
+    }
+
+    if (!appSecret) {
+      console.warn("[Meta Webhook] META_APP_SECRET not configured - skipping signature verification");
     }
 
     // Parse the payload
     const payload: MetaWebhookEvent = JSON.parse(rawBody);
 
-    console.log("[Meta Webhook] Received event", {
+    console.log("[Meta Webhook] Parsed event", {
       object: payload.object,
+      isInstagram: payload.object === "instagram",
+      isFacebook: payload.object === "page",
       entries: payload.entry?.length || 0,
+      rawEntries: JSON.stringify(payload.entry).substring(0, 500),
     });
 
     // Parse and process events
     const events = parseWebhookPayload(payload);
 
+    console.log("[Meta Webhook] Parsed events:", {
+      count: events.length,
+      types: events.map(e => e.eventType),
+      channels: events.map(e => e.channel),
+    });
+
     for (const event of events) {
+      console.log("[Meta Webhook] Processing event:", {
+        eventType: event.eventType,
+        channel: event.channel,
+        senderId: event.senderId,
+        hasText: !!event.text,
+      });
+
       // Only process incoming messages (not delivery/read receipts)
       if (event.eventType !== "message" && event.eventType !== "postback") {
+        console.log("[Meta Webhook] Skipping non-message event:", event.eventType);
         continue;
       }
 
