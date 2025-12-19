@@ -474,7 +474,7 @@ export const receiveFromMeta = mutation({
       const contactData: {
         firstName: string;
         lastName: string;
-        source: "facebook" | "other";
+        source: "facebook" | "instagram";
         preferredMessageChannel: "facebook" | "instagram";
         facebookPsid?: string;
         instagramScopedId?: string;
@@ -484,7 +484,7 @@ export const receiveFromMeta = mutation({
       } = {
         firstName: args.firstName,
         lastName: args.lastName,
-        source: args.channel === "facebook" ? "facebook" : "other",
+        source: args.channel, // "facebook" or "instagram"
         preferredMessageChannel: args.channel,
         isDeleted: false,
         createdAt: currentTime,

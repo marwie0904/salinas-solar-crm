@@ -52,6 +52,7 @@ export const contactSource = v.union(
   v.literal("website"),
   v.literal("referral"),
   v.literal("facebook"),
+  v.literal("instagram"),
   v.literal("google_ads"),
   v.literal("walk_in"),
   v.literal("cold_call"),

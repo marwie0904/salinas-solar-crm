@@ -27,6 +27,7 @@ const sourceLabels: Record<ContactSource, string> = {
   website: "Website",
   referral: "Referral",
   facebook: "Facebook",
+  instagram: "Instagram",
   google_ads: "Google Ads",
   walk_in: "Walk-in",
   cold_call: "Cold Call",

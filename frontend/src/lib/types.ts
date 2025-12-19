@@ -22,6 +22,7 @@ export type ContactSource =
   | "website"
   | "referral"
   | "facebook"
+  | "instagram"
   | "google_ads"
   | "walk_in"
   | "cold_call"
@@ -88,6 +89,7 @@ export const CONTACT_SOURCE_LABELS: Record<ContactSource, string> = {
   website: "Website",
   referral: "Referral",
   facebook: "Facebook",
+  instagram: "Instagram",
   google_ads: "Google Ads",
   walk_in: "Walk-in",
   cold_call: "Cold Call",
