@@ -117,6 +117,92 @@ export const getUnreadCountByContact = query({
 });
 
 /**
+ * Get messages for an opportunity (through its contact)
+ */
+export const getByOpportunity = query({
+  args: {
+    opportunityId: v.id("opportunities"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const opportunity = await ctx.db.get(args.opportunityId);
+    if (!opportunity) return [];
+
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_contact_time", (q) => q.eq("contactId", opportunity.contactId))
+      .order("asc")
+      .take(args.limit ?? 100);
+
+    return messages;
+  },
+});
+
+/**
+ * Get messaging window status for an opportunity's contact
+ */
+export const getMessagingWindowForOpportunity = query({
+  args: {
+    opportunityId: v.id("opportunities"),
+  },
+  handler: async (ctx, args) => {
+    const opportunity = await ctx.db.get(args.opportunityId);
+    if (!opportunity) return null;
+
+    const contact = await ctx.db.get(opportunity.contactId);
+    if (!contact) return null;
+
+    // Check Facebook window
+    let facebookWindow = null;
+    if (contact.facebookPsid) {
+      const window = await ctx.db
+        .query("messagingWindows")
+        .withIndex("by_platform_user", (q) =>
+          q.eq("channel", "facebook").eq("platformUserId", contact.facebookPsid!)
+        )
+        .first();
+
+      if (window) {
+        const now = Date.now();
+        facebookWindow = {
+          canSend: now < window.humanAgentWindowExpiresAt,
+          isStandardWindow: now < window.standardWindowExpiresAt,
+          expiresAt: window.humanAgentWindowExpiresAt,
+        };
+      }
+    }
+
+    // Check Instagram window
+    let instagramWindow = null;
+    if (contact.instagramScopedId) {
+      const window = await ctx.db
+        .query("messagingWindows")
+        .withIndex("by_platform_user", (q) =>
+          q.eq("channel", "instagram").eq("platformUserId", contact.instagramScopedId!)
+        )
+        .first();
+
+      if (window) {
+        const now = Date.now();
+        instagramWindow = {
+          canSend: now < window.humanAgentWindowExpiresAt,
+          isStandardWindow: now < window.standardWindowExpiresAt,
+          expiresAt: window.humanAgentWindowExpiresAt,
+        };
+      }
+    }
+
+    return {
+      contactId: contact._id,
+      facebookPsid: contact.facebookPsid,
+      instagramScopedId: contact.instagramScopedId,
+      facebookWindow,
+      instagramWindow,
+    };
+  },
+});
+
+/**
  * Get messages by channel
  */
 export const getByChannel = query({

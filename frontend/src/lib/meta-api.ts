@@ -15,7 +15,18 @@ import * as crypto from "crypto";
 const META_APP_SECRET = process.env.META_APP_SECRET!;
 const FACEBOOK_PAGE_ACCESS_TOKEN = process.env.FACEBOOK_PAGE_ACCESS_TOKEN!;
 const FACEBOOK_PAGE_ID = process.env.FACEBOOK_PAGE_ID!;
+
+// Instagram config - supports two options:
+// Option 1 (Separate accounts): INSTAGRAM_ACCESS_TOKEN is set
+// Option 2 (Linked accounts): Instagram uses FACEBOOK_PAGE_ACCESS_TOKEN
 const INSTAGRAM_ACCOUNT_ID = process.env.INSTAGRAM_ACCOUNT_ID;
+const INSTAGRAM_ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN; // Optional: for separate Instagram account
+
+// Helper to get the correct Instagram token
+function getInstagramAccessToken(): string {
+  // Use dedicated Instagram token if available, otherwise fall back to Facebook Page token
+  return INSTAGRAM_ACCESS_TOKEN || FACEBOOK_PAGE_ACCESS_TOKEN;
+}
 
 const GRAPH_API_VERSION = "v21.0";
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -171,6 +182,10 @@ export async function sendFacebookMessage(
 
 /**
  * Send a message to Instagram DM
+ *
+ * Supports two configurations:
+ * - Option 1 (Separate accounts): Uses INSTAGRAM_ACCESS_TOKEN
+ * - Option 2 (Linked accounts): Uses FACEBOOK_PAGE_ACCESS_TOKEN
  */
 export async function sendInstagramMessage(
   recipientIgsid: string,
@@ -179,6 +194,11 @@ export async function sendInstagramMessage(
 ): Promise<SendMessageResponse> {
   if (!INSTAGRAM_ACCOUNT_ID) {
     throw new Error("INSTAGRAM_ACCOUNT_ID not configured");
+  }
+
+  const accessToken = getInstagramAccessToken();
+  if (!accessToken) {
+    throw new Error("INSTAGRAM_ACCESS_TOKEN or FACEBOOK_PAGE_ACCESS_TOKEN not configured");
   }
 
   const url = `${GRAPH_API_BASE}/${INSTAGRAM_ACCOUNT_ID}/messages`;
@@ -197,7 +217,7 @@ export async function sendInstagramMessage(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${FACEBOOK_PAGE_ACCESS_TOKEN}`,
+      Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(body),
   });
@@ -234,7 +254,11 @@ export async function sendMetaMessage(
 // ============================================
 
 /**
- * Get user profile from Facebook (works for both FB Messenger and Instagram)
+ * Get user profile from Facebook or Instagram
+ *
+ * Uses the appropriate access token based on channel:
+ * - Facebook: FACEBOOK_PAGE_ACCESS_TOKEN
+ * - Instagram: INSTAGRAM_ACCESS_TOKEN (if set) or FACEBOOK_PAGE_ACCESS_TOKEN
  */
 export async function getUserProfile(
   userId: string,
@@ -245,7 +269,11 @@ export async function getUserProfile(
       ? "first_name,last_name,profile_pic"
       : "name,profile_pic";
 
-  const url = `${GRAPH_API_BASE}/${userId}?fields=${fields}&access_token=${FACEBOOK_PAGE_ACCESS_TOKEN}`;
+  const accessToken = channel === "instagram"
+    ? getInstagramAccessToken()
+    : FACEBOOK_PAGE_ACCESS_TOKEN;
+
+  const url = `${GRAPH_API_BASE}/${userId}?fields=${fields}&access_token=${accessToken}`;
 
   const response = await fetch(url);
 

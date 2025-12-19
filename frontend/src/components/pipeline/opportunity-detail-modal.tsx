@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useMutation } from "convex/react";
+import { useState, useEffect, useRef } from "react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { PipelineStage, PIPELINE_STAGE_LABELS } from "@/lib/types";
 import type { PipelineOpportunity } from "@/app/(dashboard)/pipeline/page";
@@ -33,8 +33,14 @@ import {
   CheckSquare,
   Trash2,
   ClipboardList,
+  Send,
+  Loader2,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+type Channel = "facebook" | "instagram";
 
 interface OpportunityDetailModalProps {
   opportunity: PipelineOpportunity | null;
@@ -77,16 +83,50 @@ export function OpportunityDetailModal({
   const [activeNav, setActiveNav] = useState<NavItem>("details");
   const [isSaving, setIsSaving] = useState(false);
 
+  // Message state
+  const [messageInput, setMessageInput] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
   const updateOpportunity = useMutation(api.opportunities.update);
   const updateStage = useMutation(api.opportunities.updateStage);
   const removeOpportunity = useMutation(api.opportunities.remove);
+
+  // Message queries and actions
+  const messages = useQuery(
+    api.messages.getByOpportunity,
+    opportunity ? { opportunityId: opportunity._id } : "skip"
+  );
+  const messagingWindow = useQuery(
+    api.messages.getMessagingWindowForOpportunity,
+    opportunity ? { opportunityId: opportunity._id } : "skip"
+  );
+  const sendMetaMessage = useAction(api.meta.sendMessage);
+  const markAllAsRead = useMutation(api.messages.markAllAsRead);
 
   useEffect(() => {
     if (opportunity) {
       setEditedOpportunity(opportunity);
       setActiveNav("details");
+      setMessageInput("");
+      setMessageError(null);
     }
   }, [opportunity]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (activeNav === "messages") {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, activeNav]);
+
+  // Mark messages as read when viewing messages tab
+  useEffect(() => {
+    if (activeNav === "messages" && messagingWindow?.contactId) {
+      markAllAsRead({ contactId: messagingWindow.contactId });
+    }
+  }, [activeNav, messagingWindow?.contactId, markAllAsRead]);
 
   if (!editedOpportunity) return null;
 
@@ -262,12 +302,234 @@ export function OpportunityDetailModal({
     );
   };
 
+  // Messaging helpers
+  const getChannel = (): Channel | null => {
+    if (!messagingWindow) return null;
+    if (messagingWindow.facebookPsid) return "facebook";
+    if (messagingWindow.instagramScopedId) return "instagram";
+    return null;
+  };
+
+  const getPlatformUserId = (): string | null => {
+    if (!messagingWindow) return null;
+    if (messagingWindow.facebookPsid) return messagingWindow.facebookPsid;
+    if (messagingWindow.instagramScopedId) return messagingWindow.instagramScopedId;
+    return null;
+  };
+
+  const canSendMessage = (): boolean => {
+    const channel = getChannel();
+    if (!channel || !messagingWindow) return false;
+    const window = channel === "facebook" ? messagingWindow.facebookWindow : messagingWindow.instagramWindow;
+    return window?.canSend || false;
+  };
+
+  const formatTimeRemaining = (ms: number): string => {
+    if (ms <= 0) return "Expired";
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours >= 24) {
+      const days = Math.floor(hours / 24);
+      return `${days}d ${hours % 24}h`;
+    }
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  };
+
+  const formatMessageTime = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  const handleSendMessage = async () => {
+    if (!messageInput.trim() || !messagingWindow?.contactId) return;
+
+    const channel = getChannel();
+    const platformUserId = getPlatformUserId();
+
+    if (!channel || !platformUserId) {
+      setMessageError("This contact has no Facebook or Instagram connection");
+      return;
+    }
+
+    setSendingMessage(true);
+    setMessageError(null);
+
+    try {
+      const result = await sendMetaMessage({
+        contactId: messagingWindow.contactId,
+        channel,
+        platformUserId,
+        content: messageInput.trim(),
+        senderName: "CRM User",
+      });
+
+      if (result.success) {
+        setMessageInput("");
+      } else {
+        setMessageError(result.error || "Failed to send message");
+      }
+    } catch (err) {
+      setMessageError(err instanceof Error ? err.message : "Failed to send message");
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const renderMessages = () => {
+    const channel = getChannel();
+    const windowData = channel === "facebook" ? messagingWindow?.facebookWindow : messagingWindow?.instagramWindow;
+
+    return (
+      <>
+        {/* Messaging Window Status Header */}
+        {messagingWindow && channel && windowData && (
+          <div className="px-4 py-3 bg-muted/50 border-b flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-2 text-xs">
+              <Badge className={cn(
+                "text-white",
+                channel === "facebook" ? "bg-blue-600" : "bg-gradient-to-r from-purple-500 to-pink-500"
+              )}>
+                {channel === "facebook" ? "Facebook" : "Instagram"}
+              </Badge>
+              <span className="text-muted-foreground">
+                {editedOpportunity?.contact?.firstName} {editedOpportunity?.contact?.lastName}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-xs">
+              <Clock className="h-3.5 w-3.5" />
+              <span className={cn(
+                windowData.isStandardWindow ? "text-green-600" :
+                windowData.canSend ? "text-amber-600" : "text-red-600"
+              )}>
+                {windowData.isStandardWindow
+                  ? `24h window: ${formatTimeRemaining(windowData.expiresAt - Date.now())}`
+                  : windowData.canSend
+                  ? `Human agent: ${formatTimeRemaining(windowData.expiresAt - Date.now())}`
+                  : "Window expired"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Messages List - Scrollable area that fills remaining space */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+          {!messages ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <MessageSquare className="h-10 w-10 mb-3 opacity-50" />
+              <p className="text-sm">No messages yet</p>
+              {!channel && (
+                <p className="text-xs mt-2 text-center">Customer needs to message via Facebook or Instagram first</p>
+              )}
+            </div>
+          ) : (
+            <>
+              {messages.map((message) => (
+                <div
+                  key={message._id}
+                  className={cn(
+                    "flex",
+                    message.isOutgoing ? "justify-end" : "justify-start"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "max-w-[70%] rounded-lg px-3 py-2 shadow-sm",
+                      message.isOutgoing
+                        ? "bg-[#ff5603] text-white"
+                        : "bg-white border"
+                    )}
+                  >
+                    <p className="text-sm">{message.content}</p>
+                    <div
+                      className={cn(
+                        "text-[10px] mt-1 flex items-center gap-2",
+                        message.isOutgoing ? "text-white/70" : "text-muted-foreground"
+                      )}
+                    >
+                      <span>{formatMessageTime(message.createdAt)}</span>
+                      {message.channel && (
+                        <span>via {message.channel === "facebook" ? "FB" : message.channel === "instagram" ? "IG" : message.channel}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </>
+          )}
+        </div>
+
+        {/* Error Message */}
+        {messageError && (
+          <div className="px-4 py-2 bg-red-50 border-t border-red-200 flex-shrink-0">
+            <div className="flex items-center gap-2 text-sm text-red-600">
+              <AlertCircle className="h-4 w-4" />
+              <span>{messageError}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Message Input - Sticky at bottom */}
+        <div className="p-4 border-t bg-white flex-shrink-0">
+          {!channel ? (
+            <div className="text-center py-2 text-muted-foreground text-sm">
+              No Facebook or Instagram connection.
+              <br />
+              <span className="text-xs">Customer needs to message you first.</span>
+            </div>
+          ) : !canSendMessage() ? (
+            <div className="text-center py-2 text-amber-600 text-sm">
+              <Clock className="h-4 w-4 inline mr-1" />
+              Messaging window expired. Wait for customer to message.
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Input
+                placeholder={`Message via ${channel === "facebook" ? "Facebook" : "Instagram"}...`}
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                disabled={sendingMessage}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleSendMessage}
+                disabled={sendingMessage || !messageInput.trim()}
+                className="bg-[#ff5603] hover:bg-[#e64d00]"
+              >
+                {sendingMessage ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  };
+
   const renderContent = () => {
     switch (activeNav) {
       case "details":
         return renderDetails();
       case "messages":
-        return renderPlaceholder(MessageSquare, "Messages will appear here");
+        return renderMessages();
       case "tasks":
         return renderPlaceholder(CheckSquare, "Tasks will appear here");
       case "documents":
@@ -342,9 +604,15 @@ export function OpportunityDetailModal({
           </nav>
 
           {/* Right Content Area */}
-          <ScrollArea className="flex-1 p-6">
-            {renderContent()}
-          </ScrollArea>
+          {activeNav === "messages" ? (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {renderMessages()}
+            </div>
+          ) : (
+            <ScrollArea className="flex-1 p-6">
+              {renderContent()}
+            </ScrollArea>
+          )}
         </div>
 
         {/* Footer */}

@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { MessageChannel, ContactSource, getFullName } from "@/lib/types";
+import { useState, useEffect, useRef } from "react";
+import { useQuery, useAction, useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
+import { MessageChannel, getFullName } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,216 +15,40 @@ import {
   Mail,
   MessageSquare,
   User,
+  Loader2,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Local mock interfaces (will be replaced with real data from backend)
-interface MockMessage {
-  _id: string;
-  content: string;
-  senderName: string;
-  createdAt: number;
-  isOutgoing: boolean;
+type Channel = "facebook" | "instagram";
+
+interface Conversation {
+  contact: {
+    _id: Id<"contacts">;
+    fullName: string;
+    phone?: string;
+    email?: string;
+    preferredMessageChannel?: MessageChannel;
+    facebookPsid?: string;
+    instagramScopedId?: string;
+  };
+  latestMessage: {
+    content: string;
+    createdAt: number;
+    channel: string;
+    isOutgoing: boolean;
+  };
+  unreadCount: number;
 }
 
-interface MockContact {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  source: ContactSource;
-  preferredMessageChannel?: MessageChannel;
-  messages: MockMessage[];
-  lastMessageTime: number;
-}
-
-// Mock contacts with messages (fixed timestamps to avoid hydration mismatch)
-const mockContacts: MockContact[] = [
-  {
-    _id: "c1",
-    firstName: "Juan",
-    lastName: "Santos",
-    email: "juan.santos@email.com",
-    phone: "+63 917 123 4567",
-    address: "123 Mabini St, Makati City",
-    source: "website",
-    preferredMessageChannel: "sms",
-    messages: [
-      {
-        _id: "m1",
-        content: "Interested in solar panel installation for my home",
-        senderName: "Juan Santos",
-        createdAt: Date.parse("2024-12-19T09:30:00Z"),
-        isOutgoing: false,
-      },
-      {
-        _id: "m2",
-        content: "Hello! Thank you for your interest. We'd love to help you with solar installation. When would be a good time to discuss your needs?",
-        senderName: "Maria Garcia",
-        createdAt: Date.parse("2024-12-19T09:35:00Z"),
-        isOutgoing: true,
-      },
-      {
-        _id: "m3",
-        content: "How about tomorrow afternoon around 2pm?",
-        senderName: "Juan Santos",
-        createdAt: Date.parse("2024-12-19T09:40:00Z"),
-        isOutgoing: false,
-      },
-    ],
-    lastMessageTime: Date.parse("2024-12-19T09:40:00Z"),
-  },
-  {
-    _id: "c2",
-    firstName: "",
-    lastName: "",
-    phone: "+63 918 234 5678",
-    source: "other",
-    preferredMessageChannel: "sms",
-    messages: [
-      {
-        _id: "m4",
-        content: "Hi, I saw your ad on Facebook. How much is a 5kW system?",
-        senderName: "+63 918 234 5678",
-        createdAt: Date.parse("2024-12-19T08:00:00Z"),
-        isOutgoing: false,
-      },
-    ],
-    lastMessageTime: Date.parse("2024-12-19T08:00:00Z"),
-  },
-  {
-    _id: "c3",
-    firstName: "Ana",
-    lastName: "Dela Cruz",
-    email: "ana.delacruz@gmail.com",
-    phone: "+63 919 345 6789",
-    source: "facebook",
-    preferredMessageChannel: "facebook",
-    messages: [
-      {
-        _id: "m5",
-        content: "What financing options do you have available?",
-        senderName: "Ana Dela Cruz",
-        createdAt: Date.parse("2024-12-14T10:00:00Z"),
-        isOutgoing: false,
-      },
-      {
-        _id: "m6",
-        content: "We offer several financing options including bank loans, in-house financing, and government subsidies. Would you like me to send you the details?",
-        senderName: "Maria Garcia",
-        createdAt: Date.parse("2024-12-15T10:00:00Z"),
-        isOutgoing: true,
-      },
-      {
-        _id: "m7",
-        content: "Yes please, that would be great!",
-        senderName: "Ana Dela Cruz",
-        createdAt: Date.parse("2024-12-16T10:00:00Z"),
-        isOutgoing: false,
-      },
-    ],
-    lastMessageTime: Date.parse("2024-12-16T10:00:00Z"),
-  },
-  {
-    _id: "c4",
-    firstName: "Roberto",
-    lastName: "Mendoza",
-    email: "r.mendoza@mendozalogistics.com",
-    phone: "+63 920 456 7890",
-    source: "other",
-    preferredMessageChannel: "sms",
-    messages: [
-      {
-        _id: "m8",
-        content: "Please find attached our revised proposal.",
-        senderName: "Maria Garcia",
-        createdAt: Date.parse("2024-12-19T00:00:00Z"),
-        isOutgoing: true,
-      },
-      {
-        _id: "m9",
-        content: "Thanks! We're reviewing with our finance team.",
-        senderName: "Roberto Mendoza",
-        createdAt: Date.parse("2024-12-19T01:00:00Z"),
-        isOutgoing: false,
-      },
-    ],
-    lastMessageTime: Date.parse("2024-12-19T01:00:00Z"),
-  },
-  {
-    _id: "c5",
-    firstName: "Carmen",
-    lastName: "Villanueva",
-    email: "carmen.v@email.com",
-    phone: "+63 921 567 8901",
-    source: "referral",
-    preferredMessageChannel: "instagram",
-    messages: [
-      {
-        _id: "m10",
-        content: "Is the site visit still happening tomorrow?",
-        senderName: "Carmen Villanueva",
-        createdAt: Date.parse("2024-12-19T09:15:00Z"),
-        isOutgoing: false,
-      },
-    ],
-    lastMessageTime: Date.parse("2024-12-19T09:15:00Z"),
-  },
-  {
-    _id: "c6",
-    firstName: "Antonio",
-    lastName: "Reyes",
-    email: "antonio.reyes@farm.com",
-    phone: "+63 924 890 1234",
-    source: "walk_in",
-    preferredMessageChannel: "facebook",
-    messages: [
-      {
-        _id: "m11",
-        content: "Good morning! Just following up on the farm solar project.",
-        senderName: "Maria Garcia",
-        createdAt: Date.parse("2024-12-19T07:00:00Z"),
-        isOutgoing: true,
-      },
-      {
-        _id: "m12",
-        content: "Can you send me more info about the agricultural incentives?",
-        senderName: "Antonio Reyes",
-        createdAt: Date.parse("2024-12-19T08:00:00Z"),
-        isOutgoing: false,
-      },
-    ],
-    lastMessageTime: Date.parse("2024-12-19T08:00:00Z"),
-  },
-  {
-    _id: "c7",
-    firstName: "",
-    lastName: "",
-    phone: "+63 925 111 2222",
-    source: "google_ads",
-    preferredMessageChannel: "sms",
-    messages: [
-      {
-        _id: "m13",
-        content: "Hello, how much would it cost for a small business setup?",
-        senderName: "+63 925 111 2222",
-        createdAt: Date.parse("2024-12-18T10:00:00Z"),
-        isOutgoing: false,
-      },
-    ],
-    lastMessageTime: Date.parse("2024-12-18T10:00:00Z"),
-  },
-];
-
-const sourceLabels: Record<MessageChannel, string> = {
+const channelLabels: Record<MessageChannel, string> = {
   sms: "SMS",
   facebook: "Facebook",
   instagram: "Instagram",
 };
 
-const sourceColors: Record<MessageChannel, string> = {
+const channelColors: Record<MessageChannel, string> = {
   sms: "bg-green-500",
   facebook: "bg-blue-600",
   instagram: "bg-gradient-to-r from-purple-500 to-pink-500",
@@ -252,39 +79,132 @@ const formatMessageTime = (timestamp: number): string => {
   });
 };
 
+const formatTimeRemaining = (ms: number): string => {
+  if (ms <= 0) return "Expired";
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    return `${days}d ${hours % 24}h`;
+  }
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+};
+
 export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedContact, setSelectedContact] = useState<(typeof mockContacts)[0] | null>(
-    mockContacts[0]
-  );
+  const [selectedContactId, setSelectedContactId] = useState<Id<"contacts"> | null>(null);
   const [newMessage, setNewMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const filteredContacts = mockContacts
-    .filter((contact) => {
+  // Convex queries
+  const conversations = useQuery(api.messages.getConversations) as Conversation[] | undefined;
+  const messages = useQuery(
+    api.messages.getByContact,
+    selectedContactId ? { contactId: selectedContactId } : "skip"
+  );
+
+  // Convex actions/mutations
+  const sendMessage = useAction(api.meta.sendMessage);
+  const markAllAsRead = useMutation(api.messages.markAllAsRead);
+
+  // Get selected conversation
+  const selectedConversation = conversations?.find(
+    (c) => c.contact._id === selectedContactId
+  );
+  const selectedContact = selectedConversation?.contact;
+
+  // Determine channel from contact
+  const getSelectedChannel = (): Channel | null => {
+    if (!selectedContact) return null;
+    if (selectedContact.facebookPsid) return "facebook";
+    if (selectedContact.instagramScopedId) return "instagram";
+    return null;
+  };
+
+  const getPlatformUserId = (): string | null => {
+    if (!selectedContact) return null;
+    if (selectedContact.facebookPsid) return selectedContact.facebookPsid;
+    if (selectedContact.instagramScopedId) return selectedContact.instagramScopedId;
+    return null;
+  };
+
+  // Get current channel for window status query
+  const currentChannel = getSelectedChannel();
+
+  // Messaging window status query (after we have channel info)
+  const windowStatus = useQuery(
+    api.messages.getMessagingWindowStatus,
+    selectedContactId && currentChannel
+      ? { contactId: selectedContactId, channel: currentChannel }
+      : "skip"
+  );
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Mark messages as read when selecting a contact
+  useEffect(() => {
+    if (selectedContactId && selectedConversation?.unreadCount) {
+      markAllAsRead({ contactId: selectedContactId });
+    }
+  }, [selectedContactId, selectedConversation?.unreadCount, markAllAsRead]);
+
+  const filteredConversations = conversations
+    ?.filter((conv) => {
       const searchLower = searchQuery.toLowerCase();
-      const displayName = getFullName(contact.firstName, contact.lastName) || contact.phone || "";
       return (
-        displayName.toLowerCase().includes(searchLower) ||
-        contact.phone?.toLowerCase().includes(searchLower) ||
-        contact.email?.toLowerCase().includes(searchLower)
+        conv.contact.fullName.toLowerCase().includes(searchLower) ||
+        conv.contact.phone?.toLowerCase().includes(searchLower) ||
+        conv.contact.email?.toLowerCase().includes(searchLower)
       );
     })
-    .sort((a, b) => b.lastMessageTime - a.lastMessageTime);
+    .sort((a, b) => b.latestMessage.createdAt - a.latestMessage.createdAt);
 
-  const getContactDisplayName = (contact: (typeof mockContacts)[0]) => {
-    const fullName = getFullName(contact.firstName, contact.lastName);
-    return fullName || contact.phone || "Unknown";
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedContactId) return;
+
+    const channel = getSelectedChannel();
+    const platformUserId = getPlatformUserId();
+
+    if (!channel || !platformUserId) {
+      setError("This contact has no Facebook or Instagram connection");
+      return;
+    }
+
+    setSending(true);
+    setError(null);
+
+    try {
+      const result = await sendMessage({
+        contactId: selectedContactId,
+        channel,
+        platformUserId,
+        content: newMessage.trim(),
+        senderName: "CRM User",
+      });
+
+      if (result.success) {
+        setNewMessage("");
+      } else {
+        setError(result.error || "Failed to send message");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send message");
+    } finally {
+      setSending(false);
+    }
   };
 
-  const getLastMessage = (contact: (typeof mockContacts)[0]) => {
-    if (contact.messages.length === 0) return "";
-    return contact.messages[contact.messages.length - 1].content;
-  };
-
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedContact) return;
-    // In a real app, this would send the message to the backend
-    setNewMessage("");
+  const canSendMessage = () => {
+    const channel = getSelectedChannel();
+    if (!channel) return false;
+    if (!windowStatus) return false;
+    return windowStatus.canSendAny || windowStatus.canSendHumanAgent;
   };
 
   return (
@@ -305,63 +225,76 @@ export default function MessagesPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0">
-          {filteredContacts.map((contact) => (
-            <div
-              key={contact._id}
-              onClick={() => setSelectedContact(contact)}
-              className={cn(
-                "p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors",
-                selectedContact?._id === contact._id && "bg-muted"
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-sm text-foreground truncate">
-                      {getContactDisplayName(contact)}
+          {!conversations ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+              <p className="text-sm">Loading...</p>
+            </div>
+          ) : filteredConversations?.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              {searchQuery ? "No contacts found" : "No conversations yet"}
+            </div>
+          ) : (
+            filteredConversations?.map((conv) => (
+              <div
+                key={conv.contact._id}
+                onClick={() => setSelectedContactId(conv.contact._id)}
+                className={cn(
+                  "p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors",
+                  selectedContactId === conv.contact._id && "bg-muted"
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm text-foreground truncate">
+                        {conv.contact.fullName || conv.contact.phone || "Unknown"}
+                      </p>
+                      {conv.contact.facebookPsid && (
+                        <Badge className={cn("text-white text-[10px] px-1.5 py-0", channelColors.facebook)}>
+                          FB
+                        </Badge>
+                      )}
+                      {conv.contact.instagramScopedId && (
+                        <Badge className={cn("text-white text-[10px] px-1.5 py-0", channelColors.instagram)}>
+                          IG
+                        </Badge>
+                      )}
+                    </div>
+
+                    {conv.contact.phone && conv.contact.fullName && (
+                      <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                        <Phone className="h-3 w-3" />
+                        <span>{conv.contact.phone}</span>
+                      </div>
+                    )}
+
+                    {conv.contact.email && (
+                      <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+                        <Mail className="h-3 w-3" />
+                        <span className="truncate">{conv.contact.email}</span>
+                      </div>
+                    )}
+
+                    <p className="text-xs text-muted-foreground mt-2 line-clamp-1">
+                      {conv.latestMessage.isOutgoing && "You: "}
+                      {conv.latestMessage.content}
                     </p>
-                    {contact.preferredMessageChannel && (
-                      <Badge
-                        className={cn(
-                          "text-white text-[10px] px-1.5 py-0",
-                          sourceColors[contact.preferredMessageChannel]
-                        )}
-                      >
-                        {sourceLabels[contact.preferredMessageChannel]}
+                  </div>
+
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {formatTimeAgo(conv.latestMessage.createdAt)}
+                    </span>
+                    {conv.unreadCount > 0 && (
+                      <Badge className="bg-[#ff5603] text-white text-[10px] px-1.5 py-0">
+                        {conv.unreadCount}
                       </Badge>
                     )}
                   </div>
-
-                  {contact.phone && (contact.firstName || contact.lastName) && (
-                    <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                      <Phone className="h-3 w-3" />
-                      <span>{contact.phone}</span>
-                    </div>
-                  )}
-
-                  {contact.email && (
-                    <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
-                      <Mail className="h-3 w-3" />
-                      <span className="truncate">{contact.email}</span>
-                    </div>
-                  )}
-
-                  <p className="text-xs text-muted-foreground mt-2 line-clamp-1">
-                    {getLastMessage(contact)}
-                  </p>
                 </div>
-
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {formatTimeAgo(contact.lastMessageTime)}
-                </span>
               </div>
-            </div>
-          ))}
-
-          {filteredContacts.length === 0 && (
-            <div className="p-8 text-center text-muted-foreground text-sm">
-              No contacts found
-            </div>
+            ))
           )}
         </div>
       </div>
@@ -379,16 +312,16 @@ export default function MessagesPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <h2 className="font-semibold text-foreground">
-                      {getContactDisplayName(selectedContact)}
+                      {selectedContact.fullName || selectedContact.phone || "Unknown"}
                     </h2>
-                    {selectedContact.preferredMessageChannel && (
+                    {getSelectedChannel() && (
                       <Badge
                         className={cn(
                           "text-white text-xs",
-                          sourceColors[selectedContact.preferredMessageChannel]
+                          channelColors[getSelectedChannel()!]
                         )}
                       >
-                        {sourceLabels[selectedContact.preferredMessageChannel]}
+                        {channelLabels[getSelectedChannel()!]}
                       </Badge>
                     )}
                   </div>
@@ -407,65 +340,124 @@ export default function MessagesPage() {
                     )}
                   </div>
                 </div>
+                {/* Messaging Window Status */}
+                {windowStatus && windowStatus.hasWindow && (
+                  <div className="flex items-center gap-1 text-xs">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span className={cn(
+                      windowStatus.canSendAny ? "text-green-600" :
+                      windowStatus.canSendHumanAgent ? "text-amber-600" : "text-red-600"
+                    )}>
+                      {windowStatus.canSendAny
+                        ? `24h window: ${formatTimeRemaining(windowStatus.timeRemaining || 0)}`
+                        : windowStatus.canSendHumanAgent
+                        ? `Human agent: ${formatTimeRemaining(windowStatus.timeRemaining || 0)}`
+                        : "Window expired"}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
-              {selectedContact.messages.map((message) => (
-                <div
-                  key={message._id}
-                  className={cn(
-                    "flex",
-                    message.isOutgoing ? "justify-end" : "justify-start"
-                  )}
-                >
+              {!messages ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                  No messages yet
+                </div>
+              ) : (
+                messages.map((message) => (
                   <div
+                    key={message._id}
                     className={cn(
-                      "max-w-[70%] rounded-lg px-4 py-2",
-                      message.isOutgoing
-                        ? "bg-[#ff5603] text-white"
-                        : "bg-white border"
+                      "flex",
+                      message.isOutgoing ? "justify-end" : "justify-start"
                     )}
                   >
-                    <p className="text-sm">{message.content}</p>
-                    <p
+                    <div
                       className={cn(
-                        "text-[10px] mt-1",
+                        "max-w-[70%] rounded-lg px-4 py-2",
                         message.isOutgoing
-                          ? "text-white/70"
-                          : "text-muted-foreground"
+                          ? "bg-[#ff5603] text-white"
+                          : "bg-white border"
                       )}
                     >
-                      {formatMessageTime(message.createdAt)}
-                    </p>
+                      <p className="text-sm">{message.content}</p>
+                      <div
+                        className={cn(
+                          "text-[10px] mt-1 flex items-center gap-2",
+                          message.isOutgoing
+                            ? "text-white/70"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        <span>{formatMessageTime(message.createdAt)}</span>
+                        {message.channel && (
+                          <span>via {message.channel === "facebook" ? "FB" : message.channel === "instagram" ? "IG" : message.channel}</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
+              <div ref={messagesEndRef} />
             </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="px-4 py-2 bg-red-50 border-t border-red-200">
+                <div className="flex items-center gap-2 text-sm text-red-600">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{error}</span>
+                </div>
+              </div>
+            )}
 
             {/* Message Input */}
             <div className="p-4 border-t bg-white shrink-0">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Type a message..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  className="flex-1"
-                />
-                <Button
-                  onClick={handleSendMessage}
-                  className="bg-[#ff5603] hover:bg-[#ff5603]/90"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
+              {!getSelectedChannel() ? (
+                <div className="text-center py-2 text-muted-foreground text-sm">
+                  This contact has no Facebook or Instagram connection.
+                  <br />
+                  They need to message you first.
+                </div>
+              ) : !canSendMessage() ? (
+                <div className="text-center py-2 text-amber-600 text-sm">
+                  <Clock className="h-4 w-4 inline mr-1" />
+                  Messaging window expired. Wait for customer to message.
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    placeholder={`Message via ${getSelectedChannel() === "facebook" ? "Facebook" : "Instagram"}...`}
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    disabled={sending}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={sending || !newMessage.trim()}
+                    className="bg-[#ff5603] hover:bg-[#ff5603]/90"
+                  >
+                    {sending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           </>
         ) : (

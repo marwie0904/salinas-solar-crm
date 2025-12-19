@@ -71,26 +71,54 @@ export const getWithRelations = query({
       )
       .collect();
 
-    // Get related messages
+    // Get related messages (ascending order for chat view)
     const messages = await ctx.db
       .query("messages")
       .withIndex("by_contact_time", (q) => q.eq("contactId", args.id))
-      .order("desc")
-      .take(50);
+      .order("asc")
+      .take(100);
 
-    // Get related tasks
+    // Get related tasks with assigned user info
     const tasks = await ctx.db
       .query("tasks")
       .withIndex("by_contact", (q) => q.eq("contactId", args.id))
       .filter((q) => q.eq(q.field("isDeleted"), false))
       .collect();
 
-    // Get related appointments
+    const tasksWithUsers = await Promise.all(
+      tasks.map(async (task) => {
+        const assignedUser = task.assignedTo
+          ? await ctx.db.get(task.assignedTo)
+          : null;
+        return {
+          ...task,
+          assignedUserName: assignedUser
+            ? getFullName(assignedUser.firstName, assignedUser.lastName)
+            : undefined,
+        };
+      })
+    );
+
+    // Get related appointments with assigned user info
     const appointments = await ctx.db
       .query("appointments")
       .withIndex("by_contact", (q) => q.eq("contactId", args.id))
       .filter((q) => q.eq(q.field("isDeleted"), false))
       .collect();
+
+    const appointmentsWithUsers = await Promise.all(
+      appointments.map(async (apt) => {
+        const assignedUser = apt.assignedTo
+          ? await ctx.db.get(apt.assignedTo)
+          : null;
+        return {
+          ...apt,
+          assignedUserName: assignedUser
+            ? getFullName(assignedUser.firstName, assignedUser.lastName)
+            : undefined,
+        };
+      })
+    );
 
     // Get related documents
     const documents = await ctx.db
@@ -99,14 +127,68 @@ export const getWithRelations = query({
       .filter((q) => q.eq(q.field("isDeleted"), false))
       .collect();
 
+    // Get invoices through opportunities
+    const opportunityIds = opportunities.map((o) => o._id);
+    const allInvoices = await Promise.all(
+      opportunityIds.map(async (oppId) => {
+        const invoices = await ctx.db
+          .query("invoices")
+          .withIndex("by_opportunity", (q) => q.eq("opportunityId", oppId))
+          .filter((q) => q.eq(q.field("isDeleted"), false))
+          .collect();
+        return invoices;
+      })
+    );
+    const invoices = allInvoices.flat();
+
+    // Get messaging window status
+    let messagingWindow = null;
+    if (contact.facebookPsid) {
+      const fbWindow = await ctx.db
+        .query("messagingWindows")
+        .withIndex("by_platform_user", (q) =>
+          q.eq("channel", "facebook").eq("platformUserId", contact.facebookPsid!)
+        )
+        .first();
+      if (fbWindow) {
+        const now = Date.now();
+        messagingWindow = {
+          channel: "facebook" as const,
+          platformUserId: contact.facebookPsid,
+          canSend: now < fbWindow.humanAgentWindowExpiresAt,
+          isStandardWindow: now < fbWindow.standardWindowExpiresAt,
+          expiresAt: fbWindow.humanAgentWindowExpiresAt,
+        };
+      }
+    } else if (contact.instagramScopedId) {
+      const igWindow = await ctx.db
+        .query("messagingWindows")
+        .withIndex("by_platform_user", (q) =>
+          q.eq("channel", "instagram").eq("platformUserId", contact.instagramScopedId!)
+        )
+        .first();
+      if (igWindow) {
+        const now = Date.now();
+        messagingWindow = {
+          channel: "instagram" as const,
+          platformUserId: contact.instagramScopedId,
+          canSend: now < igWindow.humanAgentWindowExpiresAt,
+          isStandardWindow: now < igWindow.standardWindowExpiresAt,
+          expiresAt: igWindow.humanAgentWindowExpiresAt,
+        };
+      }
+    }
+
     return {
       ...contact,
       fullName: getFullName(contact.firstName, contact.lastName),
       opportunities,
       messages,
-      tasks,
-      appointments,
+      tasks: tasksWithUsers,
+      appointments: appointmentsWithUsers,
       documents,
+      invoices,
+      messagingWindow,
     };
   },
 });

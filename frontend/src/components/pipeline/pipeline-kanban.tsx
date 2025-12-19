@@ -14,14 +14,17 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  closestCorners,
+  rectIntersection,
+  CollisionDetection,
+  pointerWithin,
+  getFirstCollision,
 } from "@dnd-kit/core";
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, User, DollarSign, HelpCircle } from "lucide-react";
 import {
@@ -176,6 +179,35 @@ function StaticOpportunityCard({
   );
 }
 
+// Custom collision detection that prioritizes column drops
+const columnFirstCollision: CollisionDetection = (args) => {
+  // First check if pointer is within any column (stage)
+  const pointerCollisions = pointerWithin(args);
+
+  // Find column collisions (stages)
+  const columnCollision = pointerCollisions.find((collision) =>
+    stages.some((s) => s.stage === collision.id)
+  );
+
+  // If we found a column collision, return it
+  if (columnCollision) {
+    return [columnCollision];
+  }
+
+  // Fall back to rect intersection for finding the column
+  const rectCollisions = rectIntersection(args);
+  const rectColumnCollision = rectCollisions.find((collision) =>
+    stages.some((s) => s.stage === collision.id)
+  );
+
+  if (rectColumnCollision) {
+    return [rectColumnCollision];
+  }
+
+  // If still no column, return all pointer collisions
+  return pointerCollisions;
+};
+
 export function PipelineKanban({
   opportunities,
   onOpportunityClick,
@@ -184,6 +216,24 @@ export function PipelineKanban({
   const [isMounted, setIsMounted] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+
+  // Optimistic updates: local copy of opportunities for instant UI updates
+  const [localOpportunities, setLocalOpportunities] = useState(opportunities);
+  const [pendingUpdates, setPendingUpdates] = useState<Map<string, PipelineStage>>(new Map());
+
+  // Sync local state with props when opportunities change from server
+  useEffect(() => {
+    setLocalOpportunities((current) => {
+      // Merge server data with any pending local updates
+      return opportunities.map((opp) => {
+        const pendingStage = pendingUpdates.get(opp._id);
+        if (pendingStage) {
+          return { ...opp, stage: pendingStage };
+        }
+        return opp;
+      });
+    });
+  }, [opportunities, pendingUpdates]);
 
   // Only enable DnD after component mounts on client
   useEffect(() => {
@@ -198,8 +248,8 @@ export function PipelineKanban({
     })
   );
 
-  const getOpportunitiesByStage = (stage: PipelineStage) =>
-    opportunities.filter((opp) => opp.stage === stage);
+  const getOpportunitiesByStage = useCallback((stage: PipelineStage) =>
+    localOpportunities.filter((opp) => opp.stage === stage), [localOpportunities]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-PH", {
@@ -210,15 +260,15 @@ export function PipelineKanban({
     }).format(value);
   };
 
-  const getStageTotal = (stage: PipelineStage) => {
+  const getStageTotal = useCallback((stage: PipelineStage) => {
     return getOpportunitiesByStage(stage).reduce(
       (sum, opp) => sum + opp.estimatedValue,
       0
     );
-  };
+  }, [getOpportunitiesByStage]);
 
   const activeOpportunity = activeId
-    ? opportunities.find((opp) => opp._id === activeId)
+    ? localOpportunities.find((opp) => opp._id === activeId)
     : null;
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -232,7 +282,7 @@ export function PipelineKanban({
       if (isStage) {
         setOverId(over.id as string);
       } else {
-        const overOpportunity = opportunities.find((opp) => opp._id === over.id);
+        const overOpportunity = localOpportunities.find((opp) => opp._id === over.id);
         if (overOpportunity) {
           setOverId(overOpportunity.stage);
         }
@@ -246,21 +296,49 @@ export function PipelineKanban({
     const { active, over } = event;
 
     if (over) {
-      const activeOpp = opportunities.find((opp) => opp._id === active.id);
+      const activeOpp = localOpportunities.find((opp) => opp._id === active.id);
 
       if (activeOpp) {
-        const isStage = stages.some((s) => s.stage === over.id);
+        // Determine the target stage
+        let newStage: PipelineStage | null = null;
 
+        const isStage = stages.some((s) => s.stage === over.id);
         if (isStage) {
-          const newStage = over.id as PipelineStage;
-          if (activeOpp.stage !== newStage) {
-            onStageChange(activeOpp._id, newStage);
-          }
+          newStage = over.id as PipelineStage;
         } else {
-          const overOpp = opportunities.find((opp) => opp._id === over.id);
-          if (overOpp && activeOpp.stage !== overOpp.stage) {
-            onStageChange(activeOpp._id, overOpp.stage);
+          const overOpp = localOpportunities.find((opp) => opp._id === over.id);
+          if (overOpp) {
+            newStage = overOpp.stage;
           }
+        }
+
+        // Only update if stage actually changed
+        if (newStage && activeOpp.stage !== newStage) {
+          // Optimistic update: immediately update local state
+          setLocalOpportunities((current) =>
+            current.map((opp) =>
+              opp._id === activeOpp._id ? { ...opp, stage: newStage! } : opp
+            )
+          );
+
+          // Track pending update
+          setPendingUpdates((current) => {
+            const updated = new Map(current);
+            updated.set(activeOpp._id, newStage!);
+            return updated;
+          });
+
+          // Trigger backend update (runs in background)
+          onStageChange(activeOpp._id, newStage);
+
+          // Clear pending update after a short delay (gives server time to respond)
+          setTimeout(() => {
+            setPendingUpdates((current) => {
+              const updated = new Map(current);
+              updated.delete(activeOpp._id);
+              return updated;
+            });
+          }, 2000);
         }
       }
     }
@@ -329,7 +407,7 @@ export function PipelineKanban({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={columnFirstCollision}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}

@@ -38,6 +38,10 @@ interface MetaApiError {
 /**
  * Send a message via Meta API (Facebook or Instagram)
  * This action calls the Meta Graph API, then stores the message on success.
+ *
+ * Supports two configurations:
+ * - Option 1 (Separate accounts): Set INSTAGRAM_ACCESS_TOKEN for Instagram
+ * - Option 2 (Linked accounts): Instagram uses FACEBOOK_PAGE_ACCESS_TOKEN
  */
 export const sendMessage = action({
   args: {
@@ -50,25 +54,45 @@ export const sendMessage = action({
   },
   handler: async (ctx, args): Promise<{ success: boolean; messageId?: string; error?: string }> => {
     // Get environment variables
-    const pageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+    // Facebook config
+    const facebookPageAccessToken = process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
     const facebookPageId = process.env.FACEBOOK_PAGE_ID;
+
+    // Instagram config (can be separate or use Facebook's token if linked)
+    const instagramAccessToken = process.env.INSTAGRAM_ACCESS_TOKEN; // Option 1: Separate account
     const instagramAccountId = process.env.INSTAGRAM_ACCOUNT_ID;
 
-    if (!pageAccessToken) {
-      return { success: false, error: "FACEBOOK_PAGE_ACCESS_TOKEN not configured" };
-    }
-
-    // Determine the endpoint based on channel
+    // Determine endpoint and token based on channel
     let endpoint: string;
+    let accessToken: string;
+
     if (args.channel === "facebook") {
+      // Facebook Messenger
+      if (!facebookPageAccessToken) {
+        return { success: false, error: "FACEBOOK_PAGE_ACCESS_TOKEN not configured" };
+      }
       if (!facebookPageId) {
         return { success: false, error: "FACEBOOK_PAGE_ID not configured" };
       }
       endpoint = `${GRAPH_API_BASE}/${facebookPageId}/messages`;
+      accessToken = facebookPageAccessToken;
     } else {
+      // Instagram DM
       if (!instagramAccountId) {
         return { success: false, error: "INSTAGRAM_ACCOUNT_ID not configured" };
       }
+
+      // Option 1: Use separate Instagram token if available
+      // Option 2: Fall back to Facebook Page token (for linked accounts)
+      accessToken = instagramAccessToken || facebookPageAccessToken || "";
+
+      if (!accessToken) {
+        return {
+          success: false,
+          error: "INSTAGRAM_ACCESS_TOKEN or FACEBOOK_PAGE_ACCESS_TOKEN not configured",
+        };
+      }
+
       endpoint = `${GRAPH_API_BASE}/${instagramAccountId}/messages`;
     }
 
@@ -85,7 +109,7 @@ export const sendMessage = action({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${pageAccessToken}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(body),
       });

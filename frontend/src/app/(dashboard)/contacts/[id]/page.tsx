@@ -1,14 +1,14 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useAction, useMutation } from "convex/react";
+import { api } from "../../../../../convex/_generated/api";
+import { Id } from "../../../../../convex/_generated/dataModel";
 import {
   ContactSource,
   PipelineStage,
-  AppointmentStatus,
-  AppointmentType,
   InvoiceStatus,
-  TaskStatus,
   getFullName,
   PIPELINE_STAGE_LABELS,
 } from "@/lib/types";
@@ -33,238 +33,13 @@ import {
   Plus,
   Download,
   Trash2,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ContentView = "messages" | "tasks" | "appointments_invoices" | "documents";
-
-// Local mock interfaces (aligned with Convex schema)
-interface MockMessage {
-  _id: string;
-  content: string;
-  senderName: string;
-  createdAt: number;
-  isOutgoing: boolean;
-}
-
-interface MockTask {
-  _id: string;
-  title: string;
-  description?: string;
-  dueDate?: number;
-  assignedUserName?: string;
-  status: TaskStatus;
-}
-
-interface MockAppointment {
-  _id: string;
-  title: string;
-  date: string;
-  time: string;
-  location?: string;
-  contactId: string;
-  contactName: string;
-  opportunityId?: string;
-  opportunityName?: string;
-  assignedUserId: string;
-  assignedUserName: string;
-  status: AppointmentStatus;
-  appointmentType: AppointmentType;
-}
-
-interface MockDocument {
-  _id: string;
-  name: string;
-  mimeType: string;
-  url?: string;
-  createdAt: number;
-}
-
-interface MockInvoice {
-  _id: string;
-  invoiceNumber: string;
-  opportunityId: string;
-  opportunityName: string;
-  total: number;
-  amountPaid: number;
-  status: InvoiceStatus;
-  notes?: string;
-  dueDate: number;
-  dateSent?: number;
-}
-
-interface MockContact {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  source: ContactSource;
-  opportunityId?: string;
-  opportunityName?: string;
-  opportunityStage?: PipelineStage;
-  messages: MockMessage[];
-  tasks: MockTask[];
-  appointments: MockAppointment[];
-  invoices: MockInvoice[];
-  documents: MockDocument[];
-  createdAt: number;
-  updatedAt: number;
-}
-
-// Mock contact data
-const getMockContact = (id: string): MockContact => ({
-  _id: id,
-  firstName: "Maria",
-  lastName: "Santos",
-  email: "maria.santos@email.com",
-  phone: "+63 917 123 4567",
-  address: "123 Solar Street, Salinas, Cavite",
-  source: "website",
-  opportunityId: "opp1",
-  opportunityName: "Santos Residence Solar Installation",
-  opportunityStage: "contract_drafting",
-  messages: [
-    {
-      _id: "m1",
-      content: "Hi, I'm interested in getting a solar panel installation for my home.",
-      senderName: "Maria Santos",
-      createdAt: Date.parse("2024-01-15T08:30:00Z"),
-      isOutgoing: false,
-    },
-    {
-      _id: "m2",
-      content: "Thank you for your interest! I'd be happy to help you with that. Can you tell me more about your home's energy needs?",
-      senderName: "Sales Rep",
-      createdAt: Date.parse("2024-01-15T09:00:00Z"),
-      isOutgoing: true,
-    },
-    {
-      _id: "m3",
-      content: "We typically use around 500 kWh per month. Our roof faces south and is about 100 sqm.",
-      senderName: "Maria Santos",
-      createdAt: Date.parse("2024-01-15T10:15:00Z"),
-      isOutgoing: false,
-    },
-    {
-      _id: "m4",
-      content: "That's great! A south-facing roof is ideal for solar. I'll prepare a proposal for a 5kW system which should cover your needs.",
-      senderName: "Sales Rep",
-      createdAt: Date.parse("2024-01-15T11:00:00Z"),
-      isOutgoing: true,
-    },
-  ],
-  tasks: [
-    {
-      _id: "t1",
-      title: "Send proposal document",
-      description: "Prepare and send the solar installation proposal",
-      dueDate: Date.parse("2024-01-25"),
-      assignedUserName: "John Sales",
-      status: "completed",
-    },
-    {
-      _id: "t2",
-      title: "Schedule site visit",
-      description: "Arrange a site visit to assess roof condition",
-      dueDate: Date.parse("2024-01-28"),
-      assignedUserName: "Tech Team",
-      status: "doing",
-    },
-    {
-      _id: "t3",
-      title: "Follow up on proposal",
-      description: "Call to discuss the proposal and answer questions",
-      dueDate: Date.parse("2024-01-30"),
-      assignedUserName: "John Sales",
-      status: "pending",
-    },
-  ],
-  appointments: [
-    {
-      _id: "a1",
-      title: "Initial Consultation",
-      date: "2024-01-20",
-      time: "10:00 AM",
-      location: "123 Solar Street, Salinas, Cavite",
-      contactId: id,
-      contactName: "Maria Santos",
-      opportunityId: "opp1",
-      opportunityName: "Santos Residence Solar Installation",
-      assignedUserId: "u1",
-      assignedUserName: "Juan Rivera",
-      status: "completed",
-      appointmentType: "discovery_call",
-    },
-    {
-      _id: "a2",
-      title: "Site Assessment",
-      date: "2024-01-28",
-      time: "2:00 PM",
-      location: "123 Solar Street, Salinas, Cavite",
-      contactId: id,
-      contactName: "Maria Santos",
-      opportunityId: "opp1",
-      opportunityName: "Santos Residence Solar Installation",
-      assignedUserId: "u2",
-      assignedUserName: "Carlos Reyes",
-      status: "pending",
-      appointmentType: "field_inspection",
-    },
-  ],
-  invoices: [
-    {
-      _id: "i1",
-      invoiceNumber: "INV-2024-001",
-      opportunityId: "opp1",
-      opportunityName: "Santos Residence Solar Installation",
-      total: 15000,
-      amountPaid: 15000,
-      status: "paid_full",
-      notes: "Deposit payment",
-      dueDate: Date.parse("2024-01-20"),
-      dateSent: Date.parse("2024-01-15"),
-    },
-    {
-      _id: "i2",
-      invoiceNumber: "INV-2024-015",
-      opportunityId: "opp1",
-      opportunityName: "Santos Residence Solar Installation",
-      total: 250000,
-      amountPaid: 0,
-      status: "pending",
-      notes: "Full installation balance",
-      dueDate: Date.parse("2024-02-15"),
-      dateSent: Date.parse("2024-01-25"),
-    },
-  ],
-  documents: [
-    {
-      _id: "d1",
-      name: "Solar Proposal - Santos Residence.pdf",
-      mimeType: "application/pdf",
-      url: "/documents/proposal-santos.pdf",
-      createdAt: Date.parse("2024-01-18T14:00:00Z"),
-    },
-    {
-      _id: "d2",
-      name: "Site Photos.zip",
-      mimeType: "application/zip",
-      url: "/documents/site-photos.zip",
-      createdAt: Date.parse("2024-01-20T16:30:00Z"),
-    },
-    {
-      _id: "d3",
-      name: "Contract Draft.docx",
-      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      url: "/documents/contract-draft.docx",
-      createdAt: Date.parse("2024-01-22T10:00:00Z"),
-    },
-  ],
-  createdAt: Date.parse("2024-01-15T08:00:00Z"),
-  updatedAt: Date.parse("2024-01-20T10:30:00Z"),
-});
+type Channel = "facebook" | "instagram";
 
 const sourceLabels: Record<ContactSource, string> = {
   website: "Website",
@@ -304,7 +79,32 @@ export default function ContactDetailPage({
   const router = useRouter();
   const [activeView, setActiveView] = useState<ContentView>("messages");
   const [newMessage, setNewMessage] = useState("");
-  const contact = getMockContact(id);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Convex queries
+  const contact = useQuery(api.contacts.getWithRelations, {
+    id: id as Id<"contacts">,
+  });
+
+  // Convex actions/mutations
+  const sendMetaMessage = useAction(api.meta.sendMessage);
+  const markAllAsRead = useMutation(api.messages.markAllAsRead);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (activeView === "messages") {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [contact?.messages, activeView]);
+
+  // Mark messages as read when viewing
+  useEffect(() => {
+    if (activeView === "messages" && contact?._id) {
+      markAllAsRead({ contactId: contact._id });
+    }
+  }, [activeView, contact?._id, markAllAsRead]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-PH", {
@@ -339,6 +139,71 @@ export default function ContactDetailPage({
     });
   };
 
+  const formatTimeRemaining = (ms: number): string => {
+    if (ms <= 0) return "Expired";
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours >= 24) {
+      const days = Math.floor(hours / 24);
+      return `${days}d ${hours % 24}h`;
+    }
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  };
+
+  const getChannel = (): Channel | null => {
+    if (!contact) return null;
+    if (contact.facebookPsid) return "facebook";
+    if (contact.instagramScopedId) return "instagram";
+    return null;
+  };
+
+  const getPlatformUserId = (): string | null => {
+    if (!contact) return null;
+    if (contact.facebookPsid) return contact.facebookPsid;
+    if (contact.instagramScopedId) return contact.instagramScopedId;
+    return null;
+  };
+
+  const canSendMessage = (): boolean => {
+    return contact?.messagingWindow?.canSend || false;
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !contact?._id) return;
+
+    const channel = getChannel();
+    const platformUserId = getPlatformUserId();
+
+    if (!channel || !platformUserId) {
+      setMessageError("This contact has no Facebook or Instagram connection");
+      return;
+    }
+
+    setSendingMessage(true);
+    setMessageError(null);
+
+    try {
+      const result = await sendMetaMessage({
+        contactId: contact._id,
+        channel,
+        platformUserId,
+        content: newMessage.trim(),
+        senderName: "CRM User",
+      });
+
+      if (result.success) {
+        setNewMessage("");
+      } else {
+        setMessageError(result.error || "Failed to send message");
+      }
+    } catch (err) {
+      setMessageError(err instanceof Error ? err.message : "Failed to send message");
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   const viewOptions: { id: ContentView; label: string; icon: React.ElementType }[] = [
     { id: "messages", label: "Messages", icon: MessageSquare },
     { id: "tasks", label: "Tasks", icon: CheckSquare },
@@ -346,50 +211,158 @@ export default function ContactDetailPage({
     { id: "documents", label: "Documents", icon: FileText },
   ];
 
+  // Loading state
+  if (contact === undefined) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Loading contact...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Not found state
+  if (contact === null) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64">
+        <p className="text-muted-foreground mb-4">Contact not found</p>
+        <Button onClick={() => router.push("/contacts")}>Back to Contacts</Button>
+      </div>
+    );
+  }
+
+  const channel = getChannel();
+  const messagingWindow = contact.messagingWindow;
+  const primaryOpportunity = contact.opportunities?.[0];
+
   const renderMessages = () => (
     <div className="flex flex-col h-full">
+      {/* Messaging Window Status */}
+      {channel && messagingWindow && (
+        <div className="px-4 py-2 bg-muted/50 border-b flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2 text-xs">
+            <Badge className={cn(
+              "text-white",
+              channel === "facebook" ? "bg-blue-600" : "bg-gradient-to-r from-purple-500 to-pink-500"
+            )}>
+              {channel === "facebook" ? "Facebook" : "Instagram"}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-1 text-xs">
+            <Clock className="h-3.5 w-3.5" />
+            <span className={cn(
+              messagingWindow.isStandardWindow ? "text-green-600" :
+              messagingWindow.canSend ? "text-amber-600" : "text-red-600"
+            )}>
+              {messagingWindow.isStandardWindow
+                ? `24h window: ${formatTimeRemaining(messagingWindow.expiresAt - Date.now())}`
+                : messagingWindow.canSend
+                ? `Human agent: ${formatTimeRemaining(messagingWindow.expiresAt - Date.now())}`
+                : "Window expired"}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Messages List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {contact.messages.map((message) => (
-          <div
-            key={message._id}
-            className={cn(
-              "flex",
-              message.isOutgoing ? "justify-end" : "justify-start"
+        {contact.messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+            <MessageSquare className="h-10 w-10 mb-3 opacity-50" />
+            <p className="text-sm">No messages yet</p>
+            {!channel && (
+              <p className="text-xs mt-2 text-center">Customer needs to message via Facebook or Instagram first</p>
             )}
-          >
+          </div>
+        ) : (
+          contact.messages.map((message) => (
             <div
+              key={message._id}
               className={cn(
-                "max-w-[70%] rounded-lg px-4 py-2",
-                message.isOutgoing
-                  ? "bg-[#ff5603] text-white"
-                  : "bg-muted"
+                "flex",
+                message.isOutgoing ? "justify-end" : "justify-start"
               )}
             >
-              <p className="text-sm">{message.content}</p>
-              <p
+              <div
                 className={cn(
-                  "text-xs mt-1",
-                  message.isOutgoing ? "text-white/70" : "text-muted-foreground"
+                  "max-w-[70%] rounded-lg px-4 py-2 shadow-sm",
+                  message.isOutgoing
+                    ? "bg-[#ff5603] text-white"
+                    : "bg-white border"
                 )}
               >
-                {formatTime(message.createdAt)}
-              </p>
+                <p className="text-sm">{message.content}</p>
+                <div
+                  className={cn(
+                    "text-xs mt-1 flex items-center gap-2",
+                    message.isOutgoing ? "text-white/70" : "text-muted-foreground"
+                  )}
+                >
+                  <span>{formatTime(message.createdAt)}</span>
+                  {message.channel && (
+                    <span>via {message.channel === "facebook" ? "FB" : message.channel === "instagram" ? "IG" : message.channel}</span>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
+        <div ref={messagesEndRef} />
       </div>
-      <div className="border-t p-4">
-        <div className="flex gap-2">
-          <Input
-            placeholder="Type a message..."
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            className="flex-1"
-          />
-          <Button className="bg-[#ff5603] hover:bg-[#ff5603]/90">
-            <Send className="h-4 w-4" />
-          </Button>
+
+      {/* Error Message */}
+      {messageError && (
+        <div className="px-4 py-2 bg-red-50 border-t border-red-200 flex-shrink-0">
+          <div className="flex items-center gap-2 text-sm text-red-600">
+            <AlertCircle className="h-4 w-4" />
+            <span>{messageError}</span>
+          </div>
         </div>
+      )}
+
+      {/* Message Input */}
+      <div className="border-t p-4 flex-shrink-0">
+        {!channel ? (
+          <div className="text-center py-2 text-muted-foreground text-sm">
+            No Facebook or Instagram connection.
+            <br />
+            <span className="text-xs">Customer needs to message you first.</span>
+          </div>
+        ) : !canSendMessage() ? (
+          <div className="text-center py-2 text-amber-600 text-sm">
+            <Clock className="h-4 w-4 inline mr-1" />
+            Messaging window expired. Wait for customer to message.
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Input
+              placeholder={`Message via ${channel === "facebook" ? "Facebook" : "Instagram"}...`}
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              disabled={sendingMessage}
+              className="flex-1"
+            />
+            <Button
+              onClick={handleSendMessage}
+              disabled={sendingMessage || !newMessage.trim()}
+              className="bg-[#ff5603] hover:bg-[#ff5603]/90"
+            >
+              {sendingMessage ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -449,13 +422,18 @@ export default function ContactDetailPage({
             </div>
           );
         })}
+        {contact.tasks.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-8">
+            No tasks created
+          </p>
+        )}
       </div>
     </div>
   );
 
   const renderAppointmentsAndInvoices = () => (
     <div className="p-4 space-y-6">
-      {/* Appointments - Top Half */}
+      {/* Appointments */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="font-semibold flex items-center gap-2">
@@ -485,7 +463,22 @@ export default function ContactDetailPage({
                       {appointment.location}
                     </p>
                   )}
+                  {appointment.assignedUserName && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Assigned: {appointment.assignedUserName}
+                    </p>
+                  )}
                 </div>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    appointment.status === "completed" && "border-green-500 text-green-600",
+                    appointment.status === "pending" && "border-amber-500 text-amber-600",
+                    appointment.status === "cancelled" && "border-red-500 text-red-600"
+                  )}
+                >
+                  {appointment.status}
+                </Badge>
               </div>
             </div>
           ))}
@@ -497,7 +490,7 @@ export default function ContactDetailPage({
         </div>
       </div>
 
-      {/* Invoices - Bottom Half */}
+      {/* Invoices */}
       <div className="space-y-4 border-t pt-6">
         <div className="flex justify-between items-center">
           <h3 className="font-semibold flex items-center gap-2">
@@ -528,7 +521,7 @@ export default function ContactDetailPage({
                 <Badge
                   className={cn(
                     "mt-1 text-white text-xs",
-                    invoiceStatusColors[invoice.status]
+                    invoiceStatusColors[invoice.status as InvoiceStatus]
                   )}
                 >
                   {invoice.status}
@@ -589,8 +582,6 @@ export default function ContactDetailPage({
     </div>
   );
 
-  const fullName = getFullName(contact.firstName, contact.lastName);
-
   return (
     <div className="h-[calc(100vh-8rem)]">
       {/* Header with back button */}
@@ -616,10 +607,18 @@ export default function ContactDetailPage({
                 <User className="h-8 w-8 text-[#ff5603]" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold">{fullName}</h2>
-                <Badge variant="outline" className="mt-1">
-                  {sourceLabels[contact.source]}
-                </Badge>
+                <h2 className="text-xl font-semibold">{contact.fullName}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="outline">
+                    {sourceLabels[contact.source as ContactSource] || contact.source}
+                  </Badge>
+                  {contact.facebookPsid && (
+                    <Badge className="bg-blue-600 text-white text-xs">FB</Badge>
+                  )}
+                  {contact.instagramScopedId && (
+                    <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs">IG</Badge>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -652,7 +651,7 @@ export default function ContactDetailPage({
             </div>
 
             {/* Opportunity Info */}
-            {contact.opportunityName && (
+            {primaryOpportunity && (
               <div className="space-y-4 pt-4 border-t">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                   Associated Opportunity
@@ -660,22 +659,20 @@ export default function ContactDetailPage({
 
                 <div className="flex items-start gap-3">
                   <Building2 className="h-4 w-4 text-muted-foreground mt-0.5" />
-                  <span className="text-sm">{contact.opportunityName}</span>
+                  <span className="text-sm">{primaryOpportunity.name}</span>
                 </div>
 
-                {contact.opportunityStage && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground">Stage:</span>
-                    <Badge
-                      className={cn(
-                        "text-white",
-                        stageColors[contact.opportunityStage]
-                      )}
-                    >
-                      {PIPELINE_STAGE_LABELS[contact.opportunityStage]}
-                    </Badge>
-                  </div>
-                )}
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground">Stage:</span>
+                  <Badge
+                    className={cn(
+                      "text-white",
+                      stageColors[primaryOpportunity.stage as PipelineStage]
+                    )}
+                  >
+                    {PIPELINE_STAGE_LABELS[primaryOpportunity.stage as PipelineStage]}
+                  </Badge>
+                </div>
               </div>
             )}
 
@@ -696,7 +693,7 @@ export default function ContactDetailPage({
         {/* Right Side - Content Area */}
         <div className="flex-1 bg-white rounded-lg border overflow-hidden flex flex-col">
           {/* View Selector */}
-          <div className="flex border-b">
+          <div className="flex border-b flex-shrink-0">
             {viewOptions.map((option) => (
               <button
                 key={option.id}
@@ -715,11 +712,17 @@ export default function ContactDetailPage({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto bg-muted/30">
+          <div className="flex-1 overflow-hidden bg-muted/30">
             {activeView === "messages" && renderMessages()}
-            {activeView === "tasks" && renderTasks()}
-            {activeView === "appointments_invoices" && renderAppointmentsAndInvoices()}
-            {activeView === "documents" && renderDocuments()}
+            {activeView === "tasks" && (
+              <div className="overflow-y-auto h-full">{renderTasks()}</div>
+            )}
+            {activeView === "appointments_invoices" && (
+              <div className="overflow-y-auto h-full">{renderAppointmentsAndInvoices()}</div>
+            )}
+            {activeView === "documents" && (
+              <div className="overflow-y-auto h-full">{renderDocuments()}</div>
+            )}
           </div>
         </div>
       </div>
