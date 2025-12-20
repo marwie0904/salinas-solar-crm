@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -18,6 +19,8 @@ import {
   Loader2,
   AlertCircle,
   Clock,
+  Building2,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -99,6 +102,7 @@ const formatTimeRemaining = (ms: number): string => {
 };
 
 export default function MessagesPage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedContactId, setSelectedContactId] = useState<Id<"contacts"> | null>(null);
   const [newMessage, setNewMessage] = useState("");
@@ -110,6 +114,10 @@ export default function MessagesPage() {
   const conversations = useQuery(api.messages.getConversations) as Conversation[] | undefined;
   const messages = useQuery(
     api.messages.getByContact,
+    selectedContactId ? { contactId: selectedContactId } : "skip"
+  );
+  const contactOpportunities = useQuery(
+    api.opportunities.getByContact,
     selectedContactId ? { contactId: selectedContactId } : "skip"
   );
 
@@ -332,21 +340,32 @@ export default function MessagesPage() {
                       {selectedContact.fullName || selectedContact.phone || "Unknown"}
                     </h2>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    {selectedContact.phone && (
-                      <span className="flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {selectedContact.phone}
-                      </span>
-                    )}
-                    {selectedContact.email && (
-                      <span className="flex items-center gap-1">
-                        <Mail className="h-3 w-3" />
-                        {selectedContact.email}
-                      </span>
-                    )}
-                  </div>
                 </div>
+
+                {/* Navigation Buttons */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/contacts/${selectedContactId}`)}
+                    className="gap-1.5"
+                  >
+                    <User className="h-3.5 w-3.5" />
+                    Contact
+                  </Button>
+                  {contactOpportunities && contactOpportunities.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/pipeline?opportunityId=${contactOpportunities[0]._id}`)}
+                      className="gap-1.5"
+                    >
+                      <Building2 className="h-3.5 w-3.5" />
+                      Opportunity
+                    </Button>
+                  )}
+                </div>
+
                 {/* Messaging Window Status */}
                 {windowStatus && windowStatus.hasWindow && (
                   <div className="flex items-center gap-1 text-xs">

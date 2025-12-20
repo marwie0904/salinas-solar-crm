@@ -1,17 +1,39 @@
 "use client";
 
 import { TaskStatus } from "@/lib/types";
-import { MockTask } from "@/lib/data/tasks";
+import { Id } from "../../../convex/_generated/dataModel";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Calendar, User, LinkIcon } from "lucide-react";
+import { Calendar, User, Target } from "lucide-react";
+
+// Task type from Convex query (enriched with relations)
+interface Task {
+  _id: Id<"tasks">;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority?: "low" | "medium" | "high";
+  dueDate?: number;
+  completedAt?: number;
+  contactId?: Id<"contacts">;
+  opportunityId?: Id<"opportunities">;
+  assignedTo?: Id<"users">;
+  isDeleted: boolean;
+  createdBy?: Id<"users">;
+  createdAt: number;
+  updatedAt: number;
+  isOverdue?: boolean;
+  contact?: { _id: Id<"contacts">; fullName: string } | null;
+  opportunity?: { _id: Id<"opportunities">; name: string } | null;
+  assignedUser?: { _id: Id<"users">; fullName: string } | null;
+}
 
 interface TaskKanbanProps {
-  tasks: MockTask[];
-  onToggleComplete: (taskId: string) => void;
-  onStatusChange: (taskId: string, status: TaskStatus) => void;
+  tasks: Task[];
+  onToggleComplete: (taskId: Id<"tasks">) => void;
+  onStatusChange: (taskId: Id<"tasks">, status: TaskStatus) => void;
 }
 
 const columns: { status: TaskStatus; label: string; color: string }[] = [
@@ -84,14 +106,30 @@ export function TaskKanban({
                       </p>
                     )}
                     <div className="space-y-1.5 text-xs text-muted-foreground">
-                      {(task.contactName || task.opportunityName) && (
+                      {(task.contact || task.opportunity) && (
                         <div className="flex items-center gap-2">
-                          <LinkIcon className="h-3 w-3" />
-                          <span>{task.contactName || task.opportunityName}</span>
+                          {task.contact && (
+                            <>
+                              <User className="h-3 w-3" />
+                              <span>{task.contact.fullName}</span>
+                            </>
+                          )}
+                          {task.contact && task.opportunity && (
+                            <span>|</span>
+                          )}
+                          {task.opportunity && (
+                            <>
+                              <Target className="h-3 w-3" />
+                              <span>{task.opportunity.name}</span>
+                            </>
+                          )}
                         </div>
                       )}
                       {task.dueDate && (
-                        <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "flex items-center gap-2",
+                          task.isOverdue && task.status !== "completed" && "text-red-600"
+                        )}>
                           <Calendar className="h-3 w-3" />
                           <span>
                             {new Date(task.dueDate).toLocaleDateString("en-US", {
@@ -101,10 +139,10 @@ export function TaskKanban({
                           </span>
                         </div>
                       )}
-                      {task.assignedUserName && (
+                      {task.assignedUser && (
                         <div className="flex items-center gap-2">
                           <User className="h-3 w-3" />
-                          <span>{task.assignedUserName}</span>
+                          <span>{task.assignedUser.fullName}</span>
                         </div>
                       )}
                     </div>

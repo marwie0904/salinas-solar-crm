@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { PipelineStage, PIPELINE_STAGE_LABELS } from "@/lib/types";
@@ -37,7 +38,11 @@ import {
   Loader2,
   AlertCircle,
   Clock,
+  Plus,
+  Target,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { TaskStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Channel = "facebook" | "instagram";
@@ -72,6 +77,30 @@ const navItems: { id: NavItem; label: string; icon: React.ElementType }[] = [
   { id: "invoices", label: "Invoices", icon: Receipt },
 ];
 
+// Social media icons
+const FacebookIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+  </svg>
+);
+
+const InstagramIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+  </svg>
+);
+
+const sourceLabels: Record<string, string> = {
+  website: "Website",
+  referral: "Referral",
+  facebook: "Facebook",
+  instagram: "Instagram",
+  google_ads: "Google Ads",
+  walk_in: "Walk-in",
+  cold_call: "Cold Call",
+  other: "Other",
+};
+
 export function OpportunityDetailModal({
   opportunity,
   open,
@@ -79,6 +108,7 @@ export function OpportunityDetailModal({
   onSave,
   onDelete,
 }: OpportunityDetailModalProps) {
+  const router = useRouter();
   const [editedOpportunity, setEditedOpportunity] = useState<PipelineOpportunity | null>(null);
   const [activeNav, setActiveNav] = useState<NavItem>("details");
   const [isSaving, setIsSaving] = useState(false);
@@ -88,6 +118,11 @@ export function OpportunityDetailModal({
   const [sendingMessage, setSendingMessage] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Task state
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [creatingTask, setCreatingTask] = useState(false);
 
   const updateOpportunity = useMutation(api.opportunities.update);
   const updateStage = useMutation(api.opportunities.updateStage);
@@ -105,12 +140,23 @@ export function OpportunityDetailModal({
   const sendMetaMessage = useAction(api.meta.sendMessage);
   const markAllAsRead = useMutation(api.messages.markAllAsRead);
 
+  // Task queries and mutations
+  const tasks = useQuery(
+    api.tasks.getByOpportunity,
+    opportunity ? { opportunityId: opportunity._id } : "skip"
+  );
+  const toggleTaskComplete = useMutation(api.tasks.toggleComplete);
+  const updateTaskStatus = useMutation(api.tasks.updateStatus);
+  const createTask = useMutation(api.tasks.create);
+
   useEffect(() => {
     if (opportunity) {
       setEditedOpportunity(opportunity);
       setActiveNav("details");
       setMessageInput("");
       setMessageError(null);
+      setShowAddTask(false);
+      setNewTaskTitle("");
     }
   }, [opportunity]);
 
@@ -184,32 +230,53 @@ export function OpportunityDetailModal({
 
   const renderDetails = () => (
     <div className="space-y-6">
-      {/* Associated Contact */}
+      {/* Associated Contact Details */}
       <div className="space-y-2">
         <label className="text-sm font-medium flex items-center gap-2">
           <User className="h-4 w-4 text-[#ff5603]" />
-          Associated Contact
+          Associated Contact Details
         </label>
         {editedOpportunity.contact ? (
-          <div className="p-4 bg-muted/50 rounded-lg">
-            <p className="font-medium">
+          <div
+            className="p-4 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted/70 transition-colors group"
+            onClick={() => {
+              onOpenChange(false);
+              router.push(`/contacts/${editedOpportunity.contact!._id}`);
+            }}
+          >
+            <p className="font-medium group-hover:text-[#ff5603] group-hover:underline">
               {editedOpportunity.contact.firstName} {editedOpportunity.contact.lastName}
             </p>
-            {editedOpportunity.contact.email && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {editedOpportunity.contact.email}
+            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+              <p>
+                <span className="font-medium text-foreground">Phone:</span>{" "}
+                {editedOpportunity.contact.phone || "—"}
               </p>
-            )}
-            {editedOpportunity.contact.phone && (
-              <p className="text-sm text-muted-foreground">
-                {editedOpportunity.contact.phone}
+              <p>
+                <span className="font-medium text-foreground">Email:</span>{" "}
+                {editedOpportunity.contact.email || "—"}
               </p>
-            )}
-            {editedOpportunity.contact.address && (
-              <p className="text-sm text-muted-foreground mt-2">
-                {editedOpportunity.contact.address}
-              </p>
-            )}
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-foreground">Source:</span>{" "}
+                {editedOpportunity.contact.source === "facebook" ? (
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-4 w-4 rounded flex items-center justify-center bg-blue-600">
+                      <FacebookIcon className="h-2.5 w-2.5 text-white" />
+                    </div>
+                    <span className="text-blue-600 font-medium text-sm">Facebook</span>
+                  </div>
+                ) : editedOpportunity.contact.source === "instagram" ? (
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-4 w-4 rounded flex items-center justify-center bg-pink-500">
+                      <InstagramIcon className="h-2.5 w-2.5 text-white" />
+                    </div>
+                    <span className="text-pink-500 font-medium text-sm">Instagram</span>
+                  </div>
+                ) : (
+                  <Badge variant="outline">{sourceLabels[editedOpportunity.contact.source] || editedOpportunity.contact.source}</Badge>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
           <div className="p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
@@ -524,6 +591,194 @@ export function OpportunityDetailModal({
     );
   };
 
+  const statusConfig: Record<TaskStatus, { label: string; className: string }> = {
+    pending: {
+      label: "Pending",
+      className: "bg-gray-100 text-gray-700 hover:bg-gray-200",
+    },
+    doing: {
+      label: "Doing",
+      className: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200",
+    },
+    completed: {
+      label: "Completed",
+      className: "bg-green-100 text-green-700 hover:bg-green-200",
+    },
+  };
+
+  const handleCreateTask = async () => {
+    if (!newTaskTitle.trim() || !editedOpportunity) return;
+
+    setCreatingTask(true);
+    try {
+      await createTask({
+        title: newTaskTitle.trim(),
+        opportunityId: editedOpportunity._id,
+        contactId: editedOpportunity.contact?._id,
+        status: "pending",
+      });
+      setNewTaskTitle("");
+      setShowAddTask(false);
+    } catch (error) {
+      console.error("Failed to create task:", error);
+    } finally {
+      setCreatingTask(false);
+    }
+  };
+
+  const handleToggleTaskComplete = async (taskId: string) => {
+    try {
+      await toggleTaskComplete({ id: taskId as any });
+    } catch (error) {
+      console.error("Failed to toggle task:", error);
+    }
+  };
+
+  const handleTaskStatusChange = async (taskId: string, status: TaskStatus) => {
+    try {
+      await updateTaskStatus({ id: taskId as any, status });
+    } catch (error) {
+      console.error("Failed to update task status:", error);
+    }
+  };
+
+  const renderTasks = () => (
+    <div className="space-y-4">
+      {/* Add Task Button/Form */}
+      <div className="flex justify-end">
+        {!showAddTask ? (
+          <Button
+            size="sm"
+            onClick={() => setShowAddTask(true)}
+            className="bg-[#ff5603] hover:bg-[#e64d00] gap-2 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            Add Task
+          </Button>
+        ) : (
+          <div className="w-full p-4 border rounded-lg bg-muted/30 space-y-3">
+            <Input
+              placeholder="Task title..."
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleCreateTask();
+                }
+                if (e.key === "Escape") {
+                  setShowAddTask(false);
+                  setNewTaskTitle("");
+                }
+              }}
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setShowAddTask(false);
+                  setNewTaskTitle("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleCreateTask}
+                disabled={creatingTask || !newTaskTitle.trim()}
+                className="bg-[#ff5603] hover:bg-[#e64d00]"
+              >
+                {creatingTask ? "Creating..." : "Create Task"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Tasks List */}
+      {!tasks ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : tasks.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <CheckSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
+          <p>No tasks for this opportunity</p>
+          <p className="text-sm mt-2">Click "Add Task" to create one</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {tasks.map((task) => {
+            const isCompleted = task.status === "completed";
+            return (
+              <div
+                key={task._id}
+                className={cn(
+                  "flex items-start gap-3 p-3 rounded-lg border bg-white transition-colors",
+                  isCompleted && "bg-muted/30"
+                )}
+              >
+                <Checkbox
+                  checked={isCompleted}
+                  onCheckedChange={() => handleToggleTaskComplete(task._id)}
+                  className="mt-0.5 border-gray-300"
+                />
+                <div className="flex-1 min-w-0">
+                  <p
+                    className={cn(
+                      "font-medium text-sm",
+                      isCompleted && "line-through text-muted-foreground"
+                    )}
+                  >
+                    {task.title}
+                  </p>
+                  {task.description && (
+                    <p className={cn(
+                      "text-xs text-muted-foreground mt-1",
+                      isCompleted && "line-through"
+                    )}>
+                      {task.description}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                    {task.dueDate && (
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>
+                          {new Date(task.dueDate).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    "cursor-pointer text-xs",
+                    statusConfig[task.status].className
+                  )}
+                  onClick={() => {
+                    const statuses: TaskStatus[] = ["pending", "doing", "completed"];
+                    const currentIndex = statuses.indexOf(task.status);
+                    const nextStatus = statuses[(currentIndex + 1) % statuses.length];
+                    handleTaskStatusChange(task._id, nextStatus);
+                  }}
+                >
+                  {statusConfig[task.status].label}
+                </Badge>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   const renderContent = () => {
     switch (activeNav) {
       case "details":
@@ -531,7 +786,7 @@ export function OpportunityDetailModal({
       case "messages":
         return renderMessages();
       case "tasks":
-        return renderPlaceholder(CheckSquare, "Tasks will appear here");
+        return renderTasks();
       case "documents":
         return renderPlaceholder(FileText, "Documents will appear here");
       case "invoices":

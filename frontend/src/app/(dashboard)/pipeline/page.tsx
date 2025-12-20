@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { PipelineStage } from "@/lib/types";
@@ -43,10 +44,26 @@ export default function PipelinePage() {
   const [selectedOpportunity, setSelectedOpportunity] =
     useState<PipelineOpportunity | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   // Fetch opportunities from Convex
   const opportunities = useQuery(api.opportunities.listForPipeline, {});
   const updateStage = useMutation(api.opportunities.updateStage);
+
+  // Handle opportunityId from URL query params
+  useEffect(() => {
+    const opportunityId = searchParams.get("opportunityId");
+    if (opportunityId && opportunities) {
+      const opportunity = opportunities.find((opp) => opp._id === opportunityId);
+      if (opportunity) {
+        setSelectedOpportunity(opportunity);
+        setIsModalOpen(true);
+        // Clear the query param from URL
+        router.replace("/pipeline", { scroll: false });
+      }
+    }
+  }, [searchParams, opportunities, router]);
 
   const handleOpportunityClick = (opportunity: PipelineOpportunity) => {
     setSelectedOpportunity(opportunity);

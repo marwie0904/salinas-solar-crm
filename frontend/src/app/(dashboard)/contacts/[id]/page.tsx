@@ -671,9 +671,12 @@ export default function ContactDetailPage({
                   Associated Opportunity
                 </h3>
 
-                <div className="flex items-start gap-3">
+                <div
+                  className="flex items-start gap-3 cursor-pointer hover:text-[#ff5603] transition-colors group"
+                  onClick={() => router.push(`/pipeline?opportunityId=${primaryOpportunity._id}`)}
+                >
                   <Building2 className="h-4 w-4 text-muted-foreground mt-0.5" />
-                  <span className="text-sm">{primaryOpportunity.name}</span>
+                  <span className="text-sm group-hover:underline">{primaryOpportunity.name}</span>
                 </div>
 
                 <div className="flex items-center gap-3">

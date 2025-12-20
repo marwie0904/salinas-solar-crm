@@ -14,10 +14,10 @@ export function Logo({ collapsed = false }: LogoProps) {
           className="w-full h-full"
           preserveAspectRatio="xMidYMid meet"
         >
-          {/* Top triangle - Orange */}
-          <polygon points="0,0 40,0 40,40" fill="#ff5603" />
-          {/* Bottom triangle - White */}
-          <polygon points="0,0 0,40 40,40" fill="#ffffff" />
+          {/* Top-left triangle - Orange */}
+          <polygon points="0,0 40,0 0,40" fill="#ff5603" />
+          {/* Bottom-right triangle - White */}
+          <polygon points="40,0 40,40 0,40" fill="#ffffff" />
         </svg>
       </div>
       {!collapsed && (
