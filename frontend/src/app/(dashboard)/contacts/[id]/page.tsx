@@ -246,7 +246,7 @@ export default function ContactDetailPage({
           <div className="flex items-center gap-2 text-xs">
             <Badge className={cn(
               "text-white",
-              channel === "facebook" ? "bg-blue-600" : "bg-gradient-to-r from-purple-500 to-pink-500"
+              channel === "facebook" ? "bg-blue-600" : "bg-pink-500"
             )}>
               {channel === "facebook" ? "Facebook" : "Instagram"}
             </Badge>
@@ -630,7 +630,7 @@ export default function ContactDetailPage({
                     <Badge className="bg-blue-600 text-white text-xs">FB</Badge>
                   )}
                   {contact.instagramScopedId && (
-                    <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs">IG</Badge>
+                    <Badge className="bg-pink-500 text-white text-xs">IG</Badge>
                   )}
                 </div>
               </div>
