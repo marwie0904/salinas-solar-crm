@@ -255,13 +255,13 @@ export default function MessagesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       {conv.contact.facebookPsid && (
-                        <div className={cn("h-5 w-5 rounded flex items-center justify-center shrink-0", channelColors.facebook)}>
-                          <FacebookIcon className="h-3 w-3 text-white" />
+                        <div className={cn("h-4 w-4 rounded flex items-center justify-center shrink-0", channelColors.facebook)}>
+                          <FacebookIcon className="h-2.5 w-2.5 text-white" />
                         </div>
                       )}
                       {conv.contact.instagramScopedId && (
-                        <div className={cn("h-5 w-5 rounded flex items-center justify-center shrink-0", channelColors.instagram)}>
-                          <InstagramIcon className="h-3 w-3 text-white" />
+                        <div className={cn("h-4 w-4 rounded flex items-center justify-center shrink-0", channelColors.instagram)}>
+                          <InstagramIcon className="h-2.5 w-2.5 text-white" />
                         </div>
                       )}
                       <p className="font-medium text-sm text-foreground truncate">
@@ -319,13 +319,13 @@ export default function MessagesPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     {getSelectedChannel() === "facebook" && (
-                      <div className={cn("h-6 w-6 rounded flex items-center justify-center shrink-0", channelColors.facebook)}>
-                        <FacebookIcon className="h-3.5 w-3.5 text-white" />
+                      <div className={cn("h-5 w-5 rounded flex items-center justify-center shrink-0", channelColors.facebook)}>
+                        <FacebookIcon className="h-3 w-3 text-white" />
                       </div>
                     )}
                     {getSelectedChannel() === "instagram" && (
-                      <div className={cn("h-6 w-6 rounded flex items-center justify-center shrink-0", channelColors.instagram)}>
-                        <InstagramIcon className="h-3.5 w-3.5 text-white" />
+                      <div className={cn("h-5 w-5 rounded flex items-center justify-center shrink-0", channelColors.instagram)}>
+                        <InstagramIcon className="h-3 w-3 text-white" />
                       </div>
                     )}
                     <h2 className="font-semibold text-foreground">
