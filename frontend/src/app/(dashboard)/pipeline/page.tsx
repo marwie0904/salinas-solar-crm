@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
@@ -17,6 +17,12 @@ export type PipelineOpportunity = {
   name: string;
   stage: PipelineStage;
   estimatedValue: number;
+  location?: string;
+  locationLat?: number;
+  locationLng?: number;
+  locationCapturedAt?: number;
+  openSolarProjectId?: number;
+  openSolarProjectUrl?: string;
   notes?: string;
   createdAt: number;
   updatedAt: number;
@@ -29,6 +35,13 @@ export type PipelineOpportunity = {
     address?: string;
     source: string;
   } | null;
+  systemConsultant: {
+    _id: Id<"users">;
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phone?: string;
+  } | null;
   scheduledAppointment: {
     _id: Id<"appointments">;
     title: string;
@@ -40,7 +53,7 @@ export type PipelineOpportunity = {
   } | null;
 };
 
-export default function PipelinePage() {
+function PipelineContent() {
   const [selectedOpportunity, setSelectedOpportunity] =
     useState<PipelineOpportunity | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -101,9 +114,7 @@ export default function PipelinePage() {
   ) ?? 0;
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
+    return "₱" + new Intl.NumberFormat("en-PH", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -153,5 +164,22 @@ export default function PipelinePage() {
         onDelete={handleDelete}
       />
     </div>
+  );
+}
+
+export default function PipelinePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Loading pipeline...</span>
+          </div>
+        </div>
+      }
+    >
+      <PipelineContent />
+    </Suspense>
   );
 }
