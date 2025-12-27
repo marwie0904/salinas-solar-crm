@@ -382,9 +382,7 @@ export function getFullName(firstName: string, lastName: string): string {
  * Format currency in PHP
  */
 export function formatPHP(amount: number): string {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
+  return "₱" + new Intl.NumberFormat("en-PH", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(amount);
@@ -432,6 +430,73 @@ export function getRelativeTime(timestamp: number): string {
 
   return formatDate(timestamp);
 }
+
+// ============================================
+// AGREEMENT TYPES
+// ============================================
+
+export type SystemType = "hybrid" | "grid_tied";
+
+export interface AgreementMaterial {
+  name: string;
+  quantity: number;
+  model: string;
+  specifications: string;
+}
+
+export interface AgreementPayment {
+  description: string;
+  amount: number;
+  dueDate: string;
+  paymentMethods: PaymentMethod[];
+}
+
+export interface AgreementPhase {
+  date: string;
+  tasks: string[];
+}
+
+export interface AgreementFormData {
+  // Client Information
+  clientName: string;
+  clientAddress: string;
+
+  // Project Details
+  agreementDate: string;
+  systemType: SystemType;
+  systemSize: number;
+  batteryCapacity?: number;
+  projectLocation: string;
+
+  // Contract Amount
+  totalAmount: number;
+
+  // Materials
+  materials: AgreementMaterial[];
+
+  // Payment Schedule
+  payments: AgreementPayment[];
+
+  // Installation Schedule
+  phases: AgreementPhase[];
+
+  // Warranty (in years)
+  solarPanelWarranty: number;
+  inverterWarranty: number;
+  batteryWarranty: number;
+  mountingWarranty: number;
+
+  // Additional
+  additionalNotes?: string;
+  includeNetMetering: boolean;
+  includePanelCleaning: boolean;
+  includeMaintenanceService: boolean;
+}
+
+export const SYSTEM_TYPE_LABELS: Record<SystemType, string> = {
+  hybrid: "Hybrid",
+  grid_tied: "Grid Tied",
+};
 
 // ============================================
 // LEGACY TYPES (for backward compatibility during migration)

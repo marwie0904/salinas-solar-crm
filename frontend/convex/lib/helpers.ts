@@ -73,9 +73,7 @@ export const determineInvoiceStatus = (
  * Format currency for display (PHP)
  */
 export const formatPHP = (amount: number): string => {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
+  return "₱" + new Intl.NumberFormat("en-PH", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(amount);

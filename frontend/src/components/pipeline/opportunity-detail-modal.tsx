@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useAction } from "convex/react";
+import { useMutation, useQuery, useAction, useConvex } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { PipelineStage, PIPELINE_STAGE_LABELS } from "@/lib/types";
 import type { PipelineOpportunity } from "@/app/(dashboard)/pipeline/page";
@@ -40,10 +40,30 @@ import {
   Clock,
   Plus,
   Target,
+  MoreHorizontal,
+  Pencil,
+  HardHat,
+  MapPin,
+  X,
+  Check,
+  ExternalLink,
+  Sun,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TaskStatus } from "@/lib/types";
+import { TaskEditModal } from "@/components/tasks/task-edit-modal";
+import { Task } from "@/components/tasks/task-table";
 import { cn } from "@/lib/utils";
+import { LocationCaptureModal, LocationDisplay } from "./location-capture-modal";
+import { AppointmentModal, Appointment } from "@/components/appointments/appointment-modal";
+import { DocumentUpload } from "@/components/documents/document-upload";
+import { DocumentList } from "@/components/documents/document-list";
 
 type Channel = "facebook" | "instagram";
 
@@ -120,13 +140,28 @@ export function OpportunityDetailModal({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Task state
-  const [showAddTask, setShowAddTask] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [creatingTask, setCreatingTask] = useState(false);
+  const [isEditTaskModalOpen, setIsEditTaskModalOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+
+  // Location capture state
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+  const [isCreatingOpenSolar, setIsCreatingOpenSolar] = useState(false);
+  const [openSolarError, setOpenSolarError] = useState<string | null>(null);
+
+  // Appointment edit state
+  const [isEditAppointmentModalOpen, setIsEditAppointmentModalOpen] = useState(false);
+
+  // Name editing state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
 
   const updateOpportunity = useMutation(api.opportunities.update);
   const updateStage = useMutation(api.opportunities.updateStage);
   const removeOpportunity = useMutation(api.opportunities.remove);
+
+  // OpenSolar action
+  const createOpenSolarProject = useAction(api.openSolar.createProject);
 
   // Message queries and actions
   const messages = useQuery(
@@ -145,20 +180,31 @@ export function OpportunityDetailModal({
     api.tasks.getByOpportunity,
     opportunity ? { opportunityId: opportunity._id } : "skip"
   );
+
+  // Document queries
+  const documents = useQuery(
+    api.documents.getByOpportunity,
+    opportunity ? { opportunityId: opportunity._id } : "skip"
+  );
   const toggleTaskComplete = useMutation(api.tasks.toggleComplete);
   const updateTaskStatus = useMutation(api.tasks.updateStatus);
-  const createTask = useMutation(api.tasks.create);
+  const removeTask = useMutation(api.tasks.remove);
 
+  // Reset state when modal opens or opportunity changes
   useEffect(() => {
-    if (opportunity) {
-      setEditedOpportunity(opportunity);
+    if (open && opportunity) {
+      setEditedOpportunity({ ...opportunity });
       setActiveNav("details");
       setMessageInput("");
       setMessageError(null);
-      setShowAddTask(false);
-      setNewTaskTitle("");
+      setOpenSolarError(null);
+      setIsEditTaskModalOpen(false);
+      setSelectedTask(null);
+      setIsCreateTaskModalOpen(false);
+      setIsEditingName(false);
+      setEditedName(opportunity.name);
     }
-  }, [opportunity]);
+  }, [open, opportunity]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -177,12 +223,19 @@ export function OpportunityDetailModal({
   if (!editedOpportunity) return null;
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
+    return "₱" + new Intl.NumberFormat("en-PH", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
+  };
+
+  // Cancel handler - reset to original and close
+  const handleCancel = () => {
+    if (opportunity) {
+      setEditedOpportunity({ ...opportunity });
+    }
+    setOpenSolarError(null);
+    onOpenChange(false);
   };
 
   const handleSave = async () => {
@@ -201,7 +254,14 @@ export function OpportunityDetailModal({
       // Update other fields
       await updateOpportunity({
         id: editedOpportunity._id,
+        name: editedOpportunity.name,
         estimatedValue: editedOpportunity.estimatedValue,
+        location: editedOpportunity.location,
+        locationLat: editedOpportunity.locationLat,
+        locationLng: editedOpportunity.locationLng,
+        locationCapturedAt: editedOpportunity.locationCapturedAt,
+        openSolarProjectId: editedOpportunity.openSolarProjectId,
+        openSolarProjectUrl: editedOpportunity.openSolarProjectUrl,
         notes: editedOpportunity.notes,
       });
 
@@ -228,23 +288,186 @@ export function OpportunityDetailModal({
     }
   };
 
+  const handleLocationCapture = async (location: { lat: number; lng: number; address: string }) => {
+    // Update local state with location
+    setEditedOpportunity({
+      ...editedOpportunity,
+      location: location.address,
+      locationLat: location.lat,
+      locationLng: location.lng,
+      locationCapturedAt: Date.now(),
+    });
+
+    // Create OpenSolar project if not already created
+    if (!editedOpportunity.openSolarProjectId) {
+      setIsCreatingOpenSolar(true);
+      setOpenSolarError(null);
+
+      try {
+        const result = await createOpenSolarProject({
+          opportunityId: editedOpportunity._id,
+          title: editedOpportunity.name,
+          address: location.address,
+          lat: location.lat,
+          lng: location.lng,
+          // Contact info from CRM
+          contactFirstName: editedOpportunity.contact?.firstName || "Unknown",
+          contactLastName: editedOpportunity.contact?.lastName || "Contact",
+          contactEmail: editedOpportunity.contact?.email,
+          contactPhone: editedOpportunity.contact?.phone,
+          // TODO: Map system consultant to OpenSolar role ID
+        });
+
+        if (result.success && result.project) {
+          setEditedOpportunity((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  location: location.address,
+                  locationLat: location.lat,
+                  locationLng: location.lng,
+                  locationCapturedAt: Date.now(),
+                  openSolarProjectId: result.project!.id,
+                  openSolarProjectUrl: result.project!.url,
+                }
+              : prev
+          );
+        } else {
+          setOpenSolarError(result.error || "Failed to create OpenSolar project");
+        }
+      } catch (error) {
+        console.error("OpenSolar error:", error);
+        setOpenSolarError(error instanceof Error ? error.message : "Failed to create OpenSolar project");
+      } finally {
+        setIsCreatingOpenSolar(false);
+      }
+    }
+  };
+
+  const handleClearLocation = () => {
+    setEditedOpportunity({
+      ...editedOpportunity,
+      location: undefined,
+      locationLat: undefined,
+      locationLng: undefined,
+      locationCapturedAt: undefined,
+    });
+  };
+
+  const handleClearOpenSolar = () => {
+    setEditedOpportunity({
+      ...editedOpportunity,
+      openSolarProjectId: undefined,
+      openSolarProjectUrl: undefined,
+    });
+    setOpenSolarError(null);
+  };
+
   const renderDetails = () => (
     <div className="space-y-6">
-      {/* Associated Contact Details */}
+      {/* Location */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-[#ff5603]" />
+          Location
+        </label>
+        {editedOpportunity.locationLat && editedOpportunity.locationLng ? (
+          <LocationDisplay
+            lat={editedOpportunity.locationLat}
+            lng={editedOpportunity.locationLng}
+            address={editedOpportunity.location}
+            capturedAt={editedOpportunity.locationCapturedAt}
+            onClear={handleClearLocation}
+          />
+        ) : (
+          <div className="space-y-2">
+            <Input
+              value={editedOpportunity.location || ""}
+              onChange={(e) =>
+                setEditedOpportunity({
+                  ...editedOpportunity,
+                  location: e.target.value,
+                })
+              }
+              placeholder="Enter location address or use Capture Location button..."
+            />
+            <p className="text-xs text-muted-foreground">
+              Use the "Capture Location" button above to save GPS coordinates with a map preview.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* OpenSolar Integration */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium flex items-center gap-2">
+          <Sun className="h-4 w-4 text-yellow-500" />
+          OpenSolar
+        </label>
+        {isCreatingOpenSolar ? (
+          <div className="p-4 bg-muted/50 rounded-lg flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-yellow-500" />
+            <span className="text-sm text-muted-foreground">Creating OpenSolar project...</span>
+          </div>
+        ) : editedOpportunity.openSolarProjectUrl ? (
+          <div className="p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm">Project #{editedOpportunity.openSolarProjectId}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Design and price your solar system in OpenSolar
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={handleClearOpenSolar}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => window.open(editedOpportunity.openSolarProjectUrl, "_blank")}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open in OpenSolar
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+            {openSolarError ? (
+              <div className="flex items-center gap-2 text-red-600">
+                <AlertCircle className="h-4 w-4" />
+                <span>{openSolarError}</span>
+              </div>
+            ) : (
+              <p>Capture location to automatically create an OpenSolar project</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Contact */}
       <div className="space-y-2">
         <label className="text-sm font-medium flex items-center gap-2">
           <User className="h-4 w-4 text-[#ff5603]" />
-          Associated Contact Details
+          Contact
         </label>
         {editedOpportunity.contact ? (
           <div
-            className="p-4 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted/70 transition-colors group"
+            className="p-4 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted/70 transition-colors"
             onClick={() => {
               onOpenChange(false);
               router.push(`/contacts/${editedOpportunity.contact!._id}`);
             }}
           >
-            <p className="font-medium group-hover:text-[#ff5603] group-hover:underline">
+            <p className="font-medium underline hover:text-[#ff5603]">
               {editedOpportunity.contact.firstName} {editedOpportunity.contact.lastName}
             </p>
             <div className="mt-2 space-y-1 text-sm text-muted-foreground">
@@ -259,19 +482,15 @@ export function OpportunityDetailModal({
               <div className="flex items-center gap-2">
                 <span className="font-medium text-foreground">Source:</span>{" "}
                 {editedOpportunity.contact.source === "facebook" ? (
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-4 w-4 rounded flex items-center justify-center bg-blue-600">
-                      <FacebookIcon className="h-2.5 w-2.5 text-white" />
-                    </div>
-                    <span className="text-blue-600 font-medium text-sm">Facebook</span>
-                  </div>
+                  <Badge className="bg-blue-600 text-white text-xs flex items-center gap-1">
+                    <FacebookIcon className="h-3 w-3" />
+                    Facebook
+                  </Badge>
                 ) : editedOpportunity.contact.source === "instagram" ? (
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-4 w-4 rounded flex items-center justify-center bg-pink-500">
-                      <InstagramIcon className="h-2.5 w-2.5 text-white" />
-                    </div>
-                    <span className="text-pink-500 font-medium text-sm">Instagram</span>
-                  </div>
+                  <Badge className="bg-pink-500 text-white text-xs flex items-center gap-1">
+                    <InstagramIcon className="h-3 w-3" />
+                    Instagram
+                  </Badge>
                 ) : (
                   <Badge variant="outline">{sourceLabels[editedOpportunity.contact.source] || editedOpportunity.contact.source}</Badge>
                 )}
@@ -285,6 +504,35 @@ export function OpportunityDetailModal({
         )}
       </div>
 
+      {/* System Consultant */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium flex items-center gap-2">
+          <HardHat className="h-4 w-4 text-[#ff5603]" />
+          System Consultant
+        </label>
+        {editedOpportunity.systemConsultant ? (
+          <div className="p-4 bg-muted/50 rounded-lg">
+            <p className="font-medium">
+              {editedOpportunity.systemConsultant.firstName} {editedOpportunity.systemConsultant.lastName}
+            </p>
+            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+              <p>
+                <span className="font-medium text-foreground">Email:</span>{" "}
+                {editedOpportunity.systemConsultant.email || "—"}
+              </p>
+              <p>
+                <span className="font-medium text-foreground">Phone:</span>{" "}
+                {editedOpportunity.systemConsultant.phone || "—"}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+            No system consultant assigned
+          </div>
+        )}
+      </div>
+
       {/* Scheduled Appointment */}
       <div className="space-y-2">
         <label className="text-sm font-medium flex items-center gap-2">
@@ -293,26 +541,38 @@ export function OpportunityDetailModal({
         </label>
         {editedOpportunity.scheduledAppointment ? (
           <div className="p-4 bg-muted/50 rounded-lg">
-            <p className="font-medium">
-              {editedOpportunity.scheduledAppointment.title}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {new Date(editedOpportunity.scheduledAppointment.date).toLocaleDateString(
-                "en-US",
-                {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                }
-              )}{" "}
-              at {editedOpportunity.scheduledAppointment.time}
-            </p>
-            {editedOpportunity.scheduledAppointment.location && (
-              <p className="text-sm text-muted-foreground mt-1">
-                📍 {editedOpportunity.scheduledAppointment.location}
-              </p>
-            )}
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="font-medium">
+                  {editedOpportunity.scheduledAppointment.title}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {new Date(editedOpportunity.scheduledAppointment.date).toLocaleDateString(
+                    "en-US",
+                    {
+                      weekday: "long",
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    }
+                  )}{" "}
+                  at {editedOpportunity.scheduledAppointment.time}
+                </p>
+                {editedOpportunity.scheduledAppointment.location && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    📍 {editedOpportunity.scheduledAppointment.location}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={() => setIsEditAppointmentModalOpen(true)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
@@ -453,36 +713,6 @@ export function OpportunityDetailModal({
 
     return (
       <>
-        {/* Messaging Window Status Header */}
-        {messagingWindow && channel && windowData && (
-          <div className="px-4 py-3 bg-muted/50 border-b flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-2 text-xs">
-              <Badge className={cn(
-                "text-white",
-                channel === "facebook" ? "bg-blue-600" : "bg-gradient-to-r from-purple-500 to-pink-500"
-              )}>
-                {channel === "facebook" ? "Facebook" : "Instagram"}
-              </Badge>
-              <span className="text-muted-foreground">
-                {editedOpportunity?.contact?.firstName} {editedOpportunity?.contact?.lastName}
-              </span>
-            </div>
-            <div className="flex items-center gap-1 text-xs">
-              <Clock className="h-3.5 w-3.5" />
-              <span className={cn(
-                windowData.isStandardWindow ? "text-green-600" :
-                windowData.canSend ? "text-amber-600" : "text-red-600"
-              )}>
-                {windowData.isStandardWindow
-                  ? `24h window: ${formatTimeRemaining(windowData.expiresAt - Date.now())}`
-                  : windowData.canSend
-                  ? `Human agent: ${formatTimeRemaining(windowData.expiresAt - Date.now())}`
-                  : "Window expired"}
-              </span>
-            </div>
-          </div>
-        )}
-
         {/* Messages List - Scrollable area that fills remaining space */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
           {!messages ? (
@@ -606,26 +836,6 @@ export function OpportunityDetailModal({
     },
   };
 
-  const handleCreateTask = async () => {
-    if (!newTaskTitle.trim() || !editedOpportunity) return;
-
-    setCreatingTask(true);
-    try {
-      await createTask({
-        title: newTaskTitle.trim(),
-        opportunityId: editedOpportunity._id,
-        contactId: editedOpportunity.contact?._id,
-        status: "pending",
-      });
-      setNewTaskTitle("");
-      setShowAddTask(false);
-    } catch (error) {
-      console.error("Failed to create task:", error);
-    } finally {
-      setCreatingTask(false);
-    }
-  };
-
   const handleToggleTaskComplete = async (taskId: string) => {
     try {
       await toggleTaskComplete({ id: taskId as any });
@@ -642,59 +852,33 @@ export function OpportunityDetailModal({
     }
   };
 
+  const handleEditTask = (task: any) => {
+    setSelectedTask(task as Task);
+    setIsEditTaskModalOpen(true);
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (confirm("Are you sure you want to delete this task?")) {
+      try {
+        await removeTask({ id: taskId as any });
+      } catch (error) {
+        console.error("Failed to delete task:", error);
+      }
+    }
+  };
+
   const renderTasks = () => (
     <div className="space-y-4">
-      {/* Add Task Button/Form */}
+      {/* Add Task Button */}
       <div className="flex justify-end">
-        {!showAddTask ? (
-          <Button
-            size="sm"
-            onClick={() => setShowAddTask(true)}
-            className="bg-[#ff5603] hover:bg-[#e64d00] gap-2 cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            Add Task
-          </Button>
-        ) : (
-          <div className="w-full p-4 border rounded-lg bg-muted/30 space-y-3">
-            <Input
-              placeholder="Task title..."
-              value={newTaskTitle}
-              onChange={(e) => setNewTaskTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleCreateTask();
-                }
-                if (e.key === "Escape") {
-                  setShowAddTask(false);
-                  setNewTaskTitle("");
-                }
-              }}
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setShowAddTask(false);
-                  setNewTaskTitle("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleCreateTask}
-                disabled={creatingTask || !newTaskTitle.trim()}
-                className="bg-[#ff5603] hover:bg-[#e64d00]"
-              >
-                {creatingTask ? "Creating..." : "Create Task"}
-              </Button>
-            </div>
-          </div>
-        )}
+        <Button
+          size="sm"
+          onClick={() => setIsCreateTaskModalOpen(true)}
+          className="bg-[#ff5603] hover:bg-[#e64d00] gap-2 cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />
+          Add Task
+        </Button>
       </div>
 
       {/* Tasks List */}
@@ -771,11 +955,62 @@ export function OpportunityDetailModal({
                 >
                   {statusConfig[task.status].label}
                 </Badge>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleEditTask(task)}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleDeleteTask(task._id)}
+                      className="text-red-600 focus:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             );
           })}
         </div>
       )}
+    </div>
+  );
+
+  const renderDocuments = () => (
+    <div className="space-y-6">
+      {/* Upload Section */}
+      <div>
+        <h3 className="text-sm font-medium mb-3">Upload Documents</h3>
+        <DocumentUpload
+          opportunityId={editedOpportunity._id}
+          contactId={editedOpportunity.contact?._id}
+        />
+      </div>
+
+      {/* Documents List */}
+      <div>
+        <h3 className="text-sm font-medium mb-3">
+          Uploaded Documents
+          {documents && documents.length > 0 && (
+            <span className="text-muted-foreground font-normal ml-2">
+              ({documents.length})
+            </span>
+          )}
+        </h3>
+        <DocumentList
+          documents={documents}
+          isLoading={documents === undefined}
+          emptyMessage="No documents uploaded for this opportunity"
+          showUploader={false}
+        />
+      </div>
     </div>
   );
 
@@ -788,7 +1023,7 @@ export function OpportunityDetailModal({
       case "tasks":
         return renderTasks();
       case "documents":
-        return renderPlaceholder(FileText, "Documents will appear here");
+        return renderDocuments();
       case "invoices":
         return renderPlaceholder(Receipt, "Invoices will appear here");
       default:
@@ -803,10 +1038,68 @@ export function OpportunityDetailModal({
         <DialogHeader className="p-6 pb-4 border-b">
           <div className="flex items-start justify-between">
             <div className="flex-1 pr-8">
-              <DialogTitle className="text-xl font-bold">
-                {editedOpportunity.name}
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                {isEditingName ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <Input
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      className="text-xl font-bold h-9"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && editedName.trim()) {
+                          setEditedOpportunity({ ...editedOpportunity, name: editedName.trim() });
+                          setIsEditingName(false);
+                        } else if (e.key === "Escape") {
+                          setEditedName(editedOpportunity.name);
+                          setIsEditingName(false);
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => {
+                        setEditedName(editedOpportunity.name);
+                        setIsEditingName(false);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
+                      disabled={!editedName.trim()}
+                      onClick={() => {
+                        if (editedName.trim()) {
+                          setEditedOpportunity({ ...editedOpportunity, name: editedName.trim() });
+                          setIsEditingName(false);
+                        }
+                      }}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <span>{editedOpportunity.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => {
+                        setEditedName(editedOpportunity.name);
+                        setIsEditingName(true);
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
+                )}
               </DialogTitle>
-              <div className="flex items-center gap-2 mt-2">
+              <div className="flex items-center justify-between mt-2">
                 <Select
                   value={editedOpportunity.stage}
                   onValueChange={(value: PipelineStage) =>
@@ -824,6 +1117,55 @@ export function OpportunityDetailModal({
                     ))}
                   </SelectContent>
                 </Select>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-2"
+                    onClick={() => {
+                      // Build query params with opportunity data
+                      const params = new URLSearchParams();
+
+                      // Client info
+                      if (editedOpportunity.contact) {
+                        params.set("clientName", `${editedOpportunity.contact.firstName} ${editedOpportunity.contact.lastName}`);
+                        params.set("contactId", editedOpportunity.contact._id);
+                        if (editedOpportunity.contact.address) {
+                          params.set("clientAddress", editedOpportunity.contact.address);
+                        }
+                      }
+
+                      // Location
+                      if (editedOpportunity.location) {
+                        params.set("projectLocation", editedOpportunity.location);
+                      }
+
+                      // Estimated value as total amount
+                      if (editedOpportunity.estimatedValue) {
+                        params.set("totalAmount", editedOpportunity.estimatedValue.toString());
+                      }
+
+                      // Opportunity reference
+                      params.set("opportunityId", editedOpportunity._id);
+                      params.set("opportunityName", editedOpportunity.name);
+
+                      onOpenChange(false);
+                      router.push(`/agreements?${params.toString()}`);
+                    }}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Generate Agreement
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-2"
+                    onClick={() => setIsLocationModalOpen(true)}
+                  >
+                    <MapPin className="h-4 w-4" />
+                    {editedOpportunity.locationLat ? "Update Location" : "Capture Location"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -880,7 +1222,7 @@ export function OpportunityDetailModal({
             <Trash2 className="h-4 w-4 mr-2" />
             Delete
           </Button>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>
           <Button
@@ -892,6 +1234,49 @@ export function OpportunityDetailModal({
           </Button>
         </div>
       </DialogContent>
+
+      {/* Task Edit Modal */}
+      <TaskEditModal
+        task={selectedTask}
+        open={isEditTaskModalOpen}
+        onOpenChange={(open) => {
+          setIsEditTaskModalOpen(open);
+          if (!open) setSelectedTask(null);
+        }}
+      />
+
+      {/* Task Create Modal */}
+      <TaskEditModal
+        task={null}
+        mode="create"
+        defaultOpportunityId={editedOpportunity._id}
+        defaultContactId={editedOpportunity.contact?._id}
+        open={isCreateTaskModalOpen}
+        onOpenChange={setIsCreateTaskModalOpen}
+        showOverlay
+      />
+
+      {/* Location Capture Modal */}
+      <LocationCaptureModal
+        open={isLocationModalOpen}
+        onOpenChange={setIsLocationModalOpen}
+        onConfirm={handleLocationCapture}
+        initialLocation={
+          editedOpportunity.locationLat && editedOpportunity.locationLng
+            ? { lat: editedOpportunity.locationLat, lng: editedOpportunity.locationLng }
+            : null
+        }
+      />
+
+      {/* Appointment Edit Modal */}
+      {editedOpportunity.scheduledAppointment && (
+        <AppointmentModal
+          open={isEditAppointmentModalOpen}
+          onOpenChange={setIsEditAppointmentModalOpen}
+          mode="edit"
+          appointment={editedOpportunity.scheduledAppointment as Appointment}
+        />
+      )}
     </Dialog>
   );
 }

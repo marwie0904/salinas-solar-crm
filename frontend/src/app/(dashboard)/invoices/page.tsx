@@ -23,7 +23,6 @@ import {
   Plus,
   FileText,
   Calendar,
-  DollarSign,
   Building2,
   Download,
 } from "lucide-react";
@@ -230,9 +229,7 @@ const statusColors: Record<InvoiceStatus, string> = {
 };
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
+  return "₱" + new Intl.NumberFormat("en-PH", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
@@ -326,12 +323,9 @@ export default function InvoicesPage() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-1">
-                    <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="font-medium">
-                      {formatCurrency(invoice.total)}
-                    </span>
-                  </div>
+                  <span className="font-medium">
+                    {formatCurrency(invoice.total)}
+                  </span>
                 </TableCell>
                 <TableCell>
                   <Badge

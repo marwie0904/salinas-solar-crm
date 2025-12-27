@@ -17,8 +17,10 @@ import {
   CheckSquare,
   GitBranch,
   Users,
+  UsersRound,
   Calendar,
   FileText,
+  FileSignature,
   MessageSquare,
   User,
   LogOut,
@@ -39,6 +41,8 @@ const navItems = [
   { href: "/messages", label: "Messages", icon: MessageSquare },
   { href: "/appointments", label: "Appointments", icon: Calendar },
   { href: "/invoices", label: "Invoices", icon: FileText },
+  { href: "/agreements", label: "Generate Agreement", icon: FileSignature },
+  { href: "/users", label: "Company Users", icon: UsersRound },
 ];
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {

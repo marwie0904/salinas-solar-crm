@@ -77,9 +77,7 @@ function DroppableColumn({
 
 function DragOverlayCard({ opportunity }: { opportunity: PipelineOpportunity }) {
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
+    return "₱" + new Intl.NumberFormat("en-PH", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -131,9 +129,7 @@ function StaticOpportunityCard({
   onClick: () => void;
 }) {
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
+    return "₱" + new Intl.NumberFormat("en-PH", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -252,9 +248,7 @@ export function PipelineKanban({
     localOpportunities.filter((opp) => opp.stage === stage), [localOpportunities]);
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
+    return "₱" + new Intl.NumberFormat("en-PH", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);

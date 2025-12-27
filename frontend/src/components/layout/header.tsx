@@ -2,6 +2,12 @@
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { DialPad } from "@/components/calling/dial-pad";
 import { Search, Phone, Bell } from "lucide-react";
 
 interface HeaderProps {
@@ -9,6 +15,11 @@ interface HeaderProps {
 }
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
+  const handleCall = (phoneNumber: string) => {
+    console.log("Calling:", phoneNumber);
+    // TODO: Implement actual calling functionality
+  };
+
   return (
     <header
       className={`fixed top-0 right-0 z-30 h-16 bg-white border-b border-border flex items-center justify-between px-6 transition-all duration-300 ${
@@ -29,13 +40,20 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
 
       {/* Right - Icons */}
       <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-[#ff5603]"
-        >
-          <Phone className="h-5 w-5" />
-        </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-[#ff5603]"
+            >
+              <Phone className="h-5 w-5" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-auto p-4">
+            <DialPad onCall={handleCall} />
+          </PopoverContent>
+        </Popover>
         <Button
           variant="ghost"
           size="icon"

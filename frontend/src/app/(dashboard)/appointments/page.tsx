@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import {
-  AppointmentStatus,
-  AppointmentType,
-} from "@/lib/types";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
 import {
   Table,
   TableBody,
@@ -16,6 +15,23 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Calendar as CalendarIcon,
   List,
   ChevronLeft,
@@ -23,148 +39,21 @@ import {
   Plus,
   User,
   Building2,
-  Phone,
   MapPin,
   Clock,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AppointmentModal, Appointment } from "@/components/appointments/appointment-modal";
+import { AppointmentWizardModal } from "@/components/appointments/appointment-wizard-modal";
 
-// Local interface for mock data (will be replaced with real data from backend)
-interface MockAppointment {
-  _id: string;
-  title: string;
-  date: string;
-  time: string;
-  location?: string;
-  contactId: string;
-  contactName: string;
-  opportunityId: string;
-  opportunityName: string;
-  assignedUserId: string;
-  assignedUserName: string;
-  status: AppointmentStatus;
-  appointmentType: AppointmentType;
-}
-
-// Mock data for appointments
-const mockAppointments: MockAppointment[] = [
-  {
-    _id: "apt1",
-    title: "Site Assessment - Santos Residence",
-    date: "2024-01-25",
-    time: "09:00",
-    location: "123 Solar Street, Salinas, Cavite",
-    contactId: "c1",
-    contactName: "Maria Santos",
-    opportunityId: "opp1",
-    opportunityName: "Santos Residence Solar Installation",
-    assignedUserId: "u1",
-    assignedUserName: "Juan Rivera",
-    status: "pending",
-    appointmentType: "field_inspection",
-  },
-  {
-    _id: "apt2",
-    title: "Discovery Call - Dela Cruz Commercial",
-    date: "2024-01-25",
-    time: "14:00",
-    contactId: "c2",
-    contactName: "Juan Dela Cruz",
-    opportunityId: "opp2",
-    opportunityName: "Dela Cruz Commercial Project",
-    assignedUserId: "u2",
-    assignedUserName: "Ana Garcia",
-    status: "pending",
-    appointmentType: "discovery_call",
-  },
-  {
-    _id: "apt3",
-    title: "Follow-up Inspection - Reyes Home",
-    date: "2024-01-26",
-    time: "10:30",
-    location: "789 Green Ave, Bacoor, Cavite",
-    contactId: "c3",
-    contactName: "Ana Reyes",
-    opportunityId: "opp3",
-    opportunityName: "Reyes Home Solar System",
-    assignedUserId: "u1",
-    assignedUserName: "Juan Rivera",
-    status: "completed",
-    appointmentType: "field_inspection",
-  },
-  {
-    _id: "apt4",
-    title: "Initial Call - Garcia Building",
-    date: "2024-01-27",
-    time: "11:00",
-    contactId: "c4",
-    contactName: "Pedro Garcia",
-    opportunityId: "opp4",
-    opportunityName: "Garcia Building Rooftop Solar",
-    assignedUserId: "u2",
-    assignedUserName: "Ana Garcia",
-    status: "pending",
-    appointmentType: "discovery_call",
-  },
-  {
-    _id: "apt5",
-    title: "Site Survey - Cruz Factory",
-    date: "2024-01-22",
-    time: "08:00",
-    location: "789 Energy Road, Imus, Cavite",
-    contactId: "c5",
-    contactName: "Elena Cruz",
-    opportunityId: "opp5",
-    opportunityName: "Cruz Factory Solar Installation",
-    assignedUserId: "u1",
-    assignedUserName: "Juan Rivera",
-    status: "completed",
-    appointmentType: "field_inspection",
-  },
-  {
-    _id: "apt6",
-    title: "Discovery Call - Villanueva",
-    date: "2024-01-23",
-    time: "15:00",
-    contactId: "c7",
-    contactName: "Carmen Villanueva",
-    opportunityId: "opp6",
-    opportunityName: "Villanueva Warehouse Project",
-    assignedUserId: "u2",
-    assignedUserName: "Ana Garcia",
-    status: "cancelled",
-    appointmentType: "discovery_call",
-  },
-  {
-    _id: "apt7",
-    title: "Second Site Visit - Santos",
-    date: "2024-01-29",
-    time: "09:30",
-    location: "123 Solar Street, Salinas, Cavite",
-    contactId: "c1",
-    contactName: "Maria Santos",
-    opportunityId: "opp1",
-    opportunityName: "Santos Residence Solar Installation",
-    assignedUserId: "u1",
-    assignedUserName: "Juan Rivera",
-    status: "pending",
-    appointmentType: "field_inspection",
-  },
-  {
-    _id: "apt8",
-    title: "Rescheduled Call - Lim",
-    date: "2024-01-24",
-    time: "16:00",
-    contactId: "c6",
-    contactName: "Roberto Lim",
-    opportunityId: "opp7",
-    opportunityName: "Lim Residence Solar",
-    assignedUserId: "u2",
-    assignedUserName: "Ana Garcia",
-    status: "no_show",
-    appointmentType: "discovery_call",
-  },
-];
+type AppointmentStatus = "pending" | "cancelled" | "no_show" | "completed";
+type AppointmentType = "discovery_call" | "field_inspection";
 
 const statusLabels: Record<AppointmentStatus, string> = {
   pending: "Pending",
@@ -196,7 +85,23 @@ type CalendarView = "month" | "week";
 export default function AppointmentsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
   const [calendarView, setCalendarView] = useState<CalendarView>("month");
-  const [currentDate, setCurrentDate] = useState(new Date(2024, 0, 25)); // January 25, 2024
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  // Modal states
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+
+  // Delete confirmation state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null);
+
+  // Fetch real appointments data
+  const appointments = useQuery(api.appointments.list, {});
+
+  // Mutations
+  const deleteAppointment = useMutation(api.appointments.remove);
+  const updateAppointmentStatus = useMutation(api.appointments.updateStatus);
 
   // Calendar helper functions
   const getDaysInMonth = (date: Date) => {
@@ -211,7 +116,7 @@ export default function AppointmentsPage() {
 
   const getWeekDays = (date: Date) => {
     const start = new Date(date);
-    start.setDate(start.getDate() - start.getDay()); // Start from Sunday
+    start.setDate(start.getDate() - start.getDay());
     const days = [];
     for (let i = 0; i < 7; i++) {
       const day = new Date(start);
@@ -226,7 +131,7 @@ export default function AppointmentsPage() {
   };
 
   const getAppointmentsForDate = (dateKey: string) => {
-    return mockAppointments.filter((apt) => apt.date === dateKey);
+    return appointments?.filter((apt) => apt.date === dateKey) || [];
   };
 
   const navigateMonth = (direction: number) => {
@@ -248,30 +153,62 @@ export default function AppointmentsPage() {
 
   const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentDate);
   const weekDays = getWeekDays(currentDate);
+  const todayKey = formatDateKey(new Date());
 
-  const renderCalendarCard = (appointment: MockAppointment) => (
+  // Handlers
+  const handleEditClick = (appointment: Appointment) => {
+    setSelectedAppointment(appointment);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDeleteClick = (appointment: Appointment) => {
+    setAppointmentToDelete(appointment);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (appointmentToDelete) {
+      await deleteAppointment({ id: appointmentToDelete._id });
+      setIsDeleteDialogOpen(false);
+      setAppointmentToDelete(null);
+    }
+  };
+
+  const handleStatusChange = async (appointmentId: Id<"appointments">, status: AppointmentStatus) => {
+    await updateAppointmentStatus({ id: appointmentId, status });
+  };
+
+  const renderCalendarCard = (appointment: Appointment) => (
     <div
       key={appointment._id}
       className={cn(
-        "text-xs p-1.5 rounded mb-1 bg-white border",
+        "text-xs p-1.5 rounded mb-1 bg-white border cursor-pointer hover:shadow-sm transition-shadow",
         appointment.status === "cancelled" || appointment.status === "no_show"
           ? "opacity-50"
           : ""
       )}
-      title={`${appointment.opportunityName} - ${appointment.contactName}`}
+      onClick={() => handleEditClick(appointment)}
+      title={`${appointment.opportunity?.name || "No opportunity"} - ${appointment.contact?.fullName || "Unknown"}`}
     >
       <div className={cn(
         "font-medium truncate text-foreground",
         (appointment.status === "cancelled" || appointment.status === "no_show") && "line-through"
       )}>
-        {appointment.opportunityName}
+        {appointment.title}
       </div>
-      <div className="truncate text-muted-foreground">{appointment.contactName}</div>
+      <div className="truncate text-muted-foreground">{appointment.contact?.fullName || "Unknown"}</div>
       <Badge className={cn("mt-1 text-[10px] px-1.5 py-0 text-white", typeColors[appointment.appointmentType])}>
         {typeLabels[appointment.appointmentType]}
       </Badge>
     </div>
   );
+
+  // Sort appointments for list view
+  const sortedAppointments = [...(appointments || [])].sort((a, b) => {
+    const dateCompare = a.date.localeCompare(b.date);
+    if (dateCompare !== 0) return dateCompare;
+    return a.time.localeCompare(b.time);
+  });
 
   return (
     <div className="space-y-6">
@@ -283,7 +220,10 @@ export default function AppointmentsPage() {
             Schedule and manage your appointments.
           </p>
         </div>
-        <Button className="bg-[#ff5603] hover:bg-[#ff5603]/90">
+        <Button
+          className="bg-[#ff5603] hover:bg-[#ff5603]/90"
+          onClick={() => setIsCreateModalOpen(true)}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Appointment
         </Button>
@@ -381,8 +321,8 @@ export default function AppointmentsPage() {
                 {Array.from({ length: daysInMonth }).map((_, index) => {
                   const day = index + 1;
                   const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                  const appointments = getAppointmentsForDate(dateKey);
-                  const isToday = dateKey === formatDateKey(new Date(2024, 0, 25)); // Mock "today"
+                  const dayAppointments = getAppointmentsForDate(dateKey);
+                  const isToday = dateKey === todayKey;
 
                   return (
                     <div
@@ -401,10 +341,10 @@ export default function AppointmentsPage() {
                         {day}
                       </div>
                       <div className="space-y-1">
-                        {appointments.slice(0, 2).map(renderCalendarCard)}
-                        {appointments.length > 2 && (
+                        {dayAppointments.slice(0, 2).map(renderCalendarCard)}
+                        {dayAppointments.length > 2 && (
                           <div className="text-xs text-muted-foreground">
-                            +{appointments.length - 2} more
+                            +{dayAppointments.length - 2} more
                           </div>
                         )}
                       </div>
@@ -419,8 +359,8 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-7 gap-2">
                 {weekDays.map((day) => {
                   const dateKey = formatDateKey(day);
-                  const appointments = getAppointmentsForDate(dateKey);
-                  const isToday = dateKey === formatDateKey(new Date(2024, 0, 25)); // Mock "today"
+                  const dayAppointments = getAppointmentsForDate(dateKey);
+                  const isToday = dateKey === todayKey;
 
                   return (
                     <div key={dateKey} className="min-h-[300px]">
@@ -436,15 +376,16 @@ export default function AppointmentsPage() {
                         <div className="text-lg font-bold">{day.getDate()}</div>
                       </div>
                       <div className="p-2 space-y-2 border-l border-r border-b rounded-b min-h-[250px]">
-                        {appointments.map((apt) => (
+                        {dayAppointments.map((apt) => (
                           <div
                             key={apt._id}
                             className={cn(
-                              "p-2 rounded text-xs bg-white border",
+                              "p-2 rounded text-xs bg-white border cursor-pointer hover:shadow-sm transition-shadow",
                               apt.status === "cancelled" || apt.status === "no_show"
                                 ? "opacity-50"
                                 : ""
                             )}
+                            onClick={() => handleEditClick(apt)}
                           >
                             <div className="font-medium flex items-center gap-1 mb-1 text-muted-foreground">
                               <Clock className="h-3 w-3" />
@@ -454,17 +395,17 @@ export default function AppointmentsPage() {
                               "font-medium truncate text-foreground",
                               (apt.status === "cancelled" || apt.status === "no_show") && "line-through"
                             )}>
-                              {apt.opportunityName}
+                              {apt.title}
                             </div>
                             <div className="truncate text-muted-foreground">
-                              {apt.contactName}
+                              {apt.contact?.fullName || "Unknown"}
                             </div>
                             <Badge className={cn("mt-1 text-[10px] px-1.5 py-0 text-white", typeColors[apt.appointmentType])}>
                               {typeLabels[apt.appointmentType]}
                             </Badge>
                           </div>
                         ))}
-                        {appointments.length === 0 && (
+                        {dayAppointments.length === 0 && (
                           <div className="text-xs text-muted-foreground text-center py-4">
                             No appointments
                           </div>
@@ -486,96 +427,136 @@ export default function AppointmentsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Date & Time</TableHead>
+                <TableHead>Title</TableHead>
                 <TableHead>Contact</TableHead>
-                <TableHead>Opportunity</TableHead>
                 <TableHead>Assigned To</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Location</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockAppointments
-                .sort((a, b) => {
-                  const dateCompare = a.date.localeCompare(b.date);
-                  if (dateCompare !== 0) return dateCompare;
-                  return a.time.localeCompare(b.time);
-                })
-                .map((appointment) => (
-                  <TableRow
-                    key={appointment._id}
-                    className="cursor-pointer hover:bg-muted/50"
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">
-                            {new Date(appointment.date).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {appointment.time}
-                          </div>
+              {sortedAppointments.map((appointment) => (
+                <TableRow
+                  key={appointment._id}
+                  className="cursor-pointer hover:bg-muted/50"
+                >
+                  <TableCell onClick={() => handleEditClick(appointment)}>
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <div className="font-medium">
+                          {new Date(appointment.date).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {appointment.time}
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{appointment.contactName}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell onClick={() => handleEditClick(appointment)}>
+                    <span className={cn(
+                      (appointment.status === "cancelled" || appointment.status === "no_show") && "line-through opacity-50"
+                    )}>
+                      {appointment.title}
+                    </span>
+                  </TableCell>
+                  <TableCell onClick={() => handleEditClick(appointment)}>
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span>{appointment.contact?.fullName || "Unknown"}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell onClick={() => handleEditClick(appointment)}>
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-full bg-[#ff5603] flex items-center justify-center text-white text-xs font-medium">
+                        {appointment.assignedUser?.fullName
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .join("") || "?"}
                       </div>
-                    </TableCell>
-                    <TableCell>
+                      <span>{appointment.assignedUser?.fullName || "Unassigned"}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell onClick={() => handleEditClick(appointment)}>
+                    <Badge className={`${typeColors[appointment.appointmentType]} text-white`}>
+                      {typeLabels[appointment.appointmentType]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell onClick={() => handleEditClick(appointment)}>
+                    <Badge className={`${statusColors[appointment.status]} text-white`}>
+                      {statusLabels[appointment.status]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell onClick={() => handleEditClick(appointment)}>
+                    {appointment.location ? (
                       <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        <span className="max-w-[200px] truncate">
-                          {appointment.opportunityName}
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        <span className="max-w-[150px] truncate">
+                          {appointment.location}
                         </span>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-full bg-[#ff5603] flex items-center justify-center text-white text-xs font-medium">
-                          {appointment.assignedUserName
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </div>
-                        <span>{appointment.assignedUserName}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={`${typeColors[appointment.appointmentType]} text-white`}>
-                        {typeLabels[appointment.appointmentType]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={`${statusColors[appointment.status]} text-white`}>
-                        {statusLabels[appointment.status]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {appointment.location ? (
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                          <span className="max-w-[150px] truncate">
-                            {appointment.location}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              {mockAppointments.length === 0 && (
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditClick(appointment)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {appointment.status === "pending" && (
+                          <>
+                            <DropdownMenuItem
+                              onClick={() => handleStatusChange(appointment._id, "completed")}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+                              Mark Completed
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleStatusChange(appointment._id, "no_show")}
+                            >
+                              <AlertCircle className="h-4 w-4 mr-2 text-slate-500" />
+                              Mark No-Show
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleStatusChange(appointment._id, "cancelled")}
+                            >
+                              <XCircle className="h-4 w-4 mr-2 text-red-500" />
+                              Cancel
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onClick={() => handleDeleteClick(appointment)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {(!appointments || appointments.length === 0) && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center py-8 text-muted-foreground"
                   >
                     No appointments found
@@ -586,6 +567,41 @@ export default function AppointmentsPage() {
           </Table>
         </div>
       )}
+
+      {/* Create Appointment Wizard Modal */}
+      <AppointmentWizardModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+      />
+
+      {/* Edit Appointment Modal */}
+      <AppointmentModal
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        mode="edit"
+        appointment={selectedAppointment}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Appointment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{appointmentToDelete?.title}&quot;? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

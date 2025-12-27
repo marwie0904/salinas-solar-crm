@@ -2,7 +2,7 @@
 
 import type { PipelineOpportunity } from "@/app/(dashboard)/pipeline/page";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calendar, User, DollarSign } from "lucide-react";
+import { Calendar, User, HardHat, MapPin } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
@@ -28,9 +28,7 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
   };
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
+    return "₱" + new Intl.NumberFormat("en-PH", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -55,27 +53,13 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
         isDragging && "opacity-50 shadow-lg ring-2 ring-[#ff5603]"
       )}
     >
-      <CardContent className="p-4">
+      <CardContent className="px-4 py-1.5">
         {/* Opportunity Name */}
-        <h4 className="font-semibold text-sm mb-3 line-clamp-2">
+        <h4 className="font-semibold text-sm mb-2 line-clamp-2">
           {opportunity.name}
         </h4>
 
-        <div className="space-y-2 text-xs text-muted-foreground">
-          {/* Scheduled Appointment */}
-          {opportunity.scheduledAppointment && (
-            <div className="flex items-center gap-2">
-              <Calendar className="h-3.5 w-3.5 text-[#ff5603]" />
-              <span>
-                {new Date(opportunity.scheduledAppointment.date).toLocaleDateString(
-                  "en-US",
-                  { month: "short", day: "numeric" }
-                )}{" "}
-                at {opportunity.scheduledAppointment.time}
-              </span>
-            </div>
-          )}
-
+        <div className="space-y-1.5 text-xs text-muted-foreground">
           {/* Associated Contact */}
           {opportunity.contact && (
             <div className="flex items-center gap-2">
@@ -84,12 +68,58 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
             </div>
           )}
 
+          {/* System Consultant */}
+          {opportunity.systemConsultant && (
+            <div className="flex items-center gap-2">
+              <HardHat className="h-3.5 w-3.5 text-[#ff5603]" />
+              <span>{opportunity.systemConsultant.firstName} {opportunity.systemConsultant.lastName}</span>
+            </div>
+          )}
+
           {/* Estimated Value */}
           <div className="flex items-center gap-2">
-            <DollarSign className="h-3.5 w-3.5 text-green-600" />
             <span className="font-medium text-foreground">
               {formatCurrency(opportunity.estimatedValue)}
             </span>
+          </div>
+        </div>
+
+        {/* Bottom row: Appointment Date (left) & Location Indicator (right) */}
+        <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t">
+          {/* Appointment Date - Bottom Left */}
+          <div className="flex items-center gap-1.5 text-xs">
+            {opportunity.scheduledAppointment ? (
+              <>
+                <Calendar className="h-3.5 w-3.5 text-[#ff5603]" />
+                <span className="text-muted-foreground">
+                  {new Date(opportunity.scheduledAppointment.date).toLocaleDateString(
+                    "en-US",
+                    { month: "short", day: "numeric" }
+                  )}
+                </span>
+              </>
+            ) : (
+              <div className="relative">
+                <Calendar className="h-4 w-4 text-gray-300" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-5 h-0.5 bg-gray-400 rotate-45 rounded-full" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Location Indicator - Bottom Right */}
+          <div className="relative">
+            {opportunity.location || opportunity.locationLat ? (
+              <MapPin className="h-4 w-4 text-[#ff5603]" />
+            ) : (
+              <div className="relative">
+                <MapPin className="h-4 w-4 text-gray-300" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-5 h-0.5 bg-gray-400 rotate-45 rounded-full" />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

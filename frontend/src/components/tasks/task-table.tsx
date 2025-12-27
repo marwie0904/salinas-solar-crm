@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { TaskStatus } from "@/lib/types";
 import { Id } from "../../../convex/_generated/dataModel";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -82,10 +83,10 @@ export function TaskTable({
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="w-[80px]">Complete</TableHead>
-            <TableHead className="min-w-[200px]">Task Title</TableHead>
-            <TableHead className="min-w-[250px]">Description</TableHead>
-            <TableHead>Associated</TableHead>
+            <TableHead className="w-[80px] text-center">Complete</TableHead>
+            <TableHead className="min-w-[200px] pl-6">Task Title</TableHead>
+            <TableHead className="min-w-[200px]">Description</TableHead>
+            <TableHead className="max-w-[200px]">Associated</TableHead>
             <TableHead>Due Date</TableHead>
             <TableHead>Assigned</TableHead>
             <TableHead>Status</TableHead>
@@ -110,14 +111,14 @@ export function TaskTable({
                     isCompleted && "bg-muted/30"
                   )}
                 >
-                  <TableCell>
+                  <TableCell className="text-center">
                     <Checkbox
                       checked={isCompleted}
                       onCheckedChange={() => onToggleComplete(task._id)}
                       className="border-gray-300"
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="pl-6">
                     <span
                       className={cn(
                         "font-medium",
@@ -137,23 +138,31 @@ export function TaskTable({
                       {task.description || "—"}
                     </span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="max-w-[200px]">
                     {task.contact || task.opportunity ? (
-                      <div className="flex items-center gap-2 text-sm">
+                      <div className="flex items-center gap-2 text-sm truncate">
                         {task.contact && (
-                          <div className="flex items-center gap-1">
-                            <User className="h-3 w-3 text-muted-foreground" />
-                            <span>{task.contact.fullName}</span>
-                          </div>
+                          <Link
+                            href={`/contacts/${task.contact._id}`}
+                            className="flex items-center gap-1 min-w-0 hover:text-[#ff5603] transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <span className="truncate underline">{task.contact.fullName}</span>
+                          </Link>
                         )}
                         {task.contact && task.opportunity && (
-                          <span className="text-muted-foreground">|</span>
+                          <span className="text-muted-foreground flex-shrink-0">|</span>
                         )}
                         {task.opportunity && (
-                          <div className="flex items-center gap-1">
-                            <Target className="h-3 w-3 text-muted-foreground" />
-                            <span>{task.opportunity.name}</span>
-                          </div>
+                          <Link
+                            href={`/pipeline?opportunityId=${task.opportunity._id}`}
+                            className="flex items-center gap-1 min-w-0 hover:text-[#ff5603] transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Target className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <span className="truncate underline">{task.opportunity.name}</span>
+                          </Link>
                         )}
                       </div>
                     ) : (

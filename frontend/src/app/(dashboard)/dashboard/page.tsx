@@ -11,6 +11,7 @@ import {
   User,
   Clock,
   TrendingUp,
+  CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -156,6 +157,71 @@ const pendingMessages: PendingMessage[] = [
   },
 ];
 
+interface PendingTask {
+  _id: string;
+  title: string;
+  dueDate: string;
+  priority: "high" | "medium" | "low";
+  contactName?: string;
+  opportunityName?: string;
+}
+
+// Fixed mock data for pending tasks
+const pendingTasks: PendingTask[] = [
+  {
+    _id: "t1",
+    title: "Follow up on solar proposal",
+    dueDate: "Today",
+    priority: "high",
+    contactName: "Juan Santos",
+    opportunityName: "Santos Residence - 5kW System",
+  },
+  {
+    _id: "t2",
+    title: "Send revised quote",
+    dueDate: "Today",
+    priority: "high",
+    contactName: "Pedro Rodriguez",
+    opportunityName: "Rodriguez Commercial Building",
+  },
+  {
+    _id: "t3",
+    title: "Schedule site inspection",
+    dueDate: "Tomorrow",
+    priority: "medium",
+    contactName: "Ana Dela Cruz",
+    opportunityName: "Dela Cruz Residence",
+  },
+  {
+    _id: "t4",
+    title: "Prepare installation timeline",
+    dueDate: "Dec 23",
+    priority: "medium",
+    contactName: "Teresa Villanueva",
+    opportunityName: "Villanueva Residence",
+  },
+  {
+    _id: "t5",
+    title: "Review financing options",
+    dueDate: "Dec 24",
+    priority: "low",
+    contactName: "Roberto Mendoza",
+    opportunityName: "Mendoza Commercial",
+  },
+];
+
+const priorityColors: Record<PendingTask["priority"], string> = {
+  high: "bg-red-500",
+  medium: "bg-yellow-500",
+  low: "bg-gray-400",
+};
+
+const priorityLabels: Record<PendingTask["priority"], string> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
 const typeLabels: Record<AppointmentType, string> = {
   discovery_call: "Discovery Call",
   field_inspection: "Field Inspection",
@@ -275,6 +341,65 @@ export default function DashboardPage() {
               <Trophy className="h-6 w-6 text-green-500" />
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Pending Tasks Section */}
+      <div className="bg-white rounded-lg border">
+        <div className="p-4 border-b">
+          <div className="flex items-center gap-2">
+            <CheckSquare className="h-5 w-5 text-[#ff5603]" />
+            <h2 className="font-semibold text-foreground">Pending Tasks</h2>
+            <Badge variant="secondary" className="ml-auto">
+              {pendingTasks.length}
+            </Badge>
+          </div>
+        </div>
+        <div className="divide-y">
+          {pendingTasks.length > 0 ? (
+            pendingTasks.map((task) => (
+              <div
+                key={task._id}
+                className="p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-foreground">
+                      {task.title}
+                    </p>
+                    {task.opportunityName && (
+                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                        <Building2 className="h-3 w-3" />
+                        <span className="truncate">{task.opportunityName}</span>
+                      </div>
+                    )}
+                    {task.contactName && (
+                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                        <User className="h-3 w-3" />
+                        <span>{task.contactName}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      <span>Due: {task.dueDate}</span>
+                    </div>
+                  </div>
+                  <Badge
+                    className={cn(
+                      "text-white text-xs shrink-0",
+                      priorityColors[task.priority]
+                    )}
+                  >
+                    {priorityLabels[task.priority]}
+                  </Badge>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              No pending tasks
+            </div>
+          )}
         </div>
       </div>
 

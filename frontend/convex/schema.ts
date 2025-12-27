@@ -154,6 +154,13 @@ export default defineSchema({
     contactId: v.id("contacts"),
     stage: pipelineStage,
     estimatedValue: v.number(),
+    location: v.optional(v.string()),
+    locationLat: v.optional(v.number()),
+    locationLng: v.optional(v.number()),
+    locationCapturedAt: v.optional(v.number()),
+    // OpenSolar integration
+    openSolarProjectId: v.optional(v.number()),
+    openSolarProjectUrl: v.optional(v.string()),
     notes: v.optional(v.string()),
     expectedCloseDate: v.optional(v.number()),
     lostReason: v.optional(v.string()),

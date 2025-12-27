@@ -35,11 +35,37 @@ import {
   Trash2,
   Loader2,
   AlertCircle,
+  MoreHorizontal,
+  Pencil,
+  X,
+  Check,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { TaskEditModal } from "@/components/tasks/task-edit-modal";
+import { Task } from "@/components/tasks/task-table";
+import { TaskStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type ContentView = "messages" | "tasks" | "appointments_invoices" | "documents";
 type Channel = "facebook" | "instagram";
+
+// Social media icons
+const FacebookIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+  </svg>
+);
+
+const InstagramIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+  </svg>
+);
 
 const sourceLabels: Record<ContactSource, string> = {
   website: "Website",
@@ -84,6 +110,19 @@ export default function ContactDetailPage({
   const [messageError, setMessageError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Task state
+  const [isEditTaskModalOpen, setIsEditTaskModalOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+
+  // Contact edit state
+  const [isEditingContact, setIsEditingContact] = useState(false);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [isSavingContact, setIsSavingContact] = useState(false);
+
   // Convex queries
   const contact = useQuery(api.contacts.getWithRelations, {
     id: id as Id<"contacts">,
@@ -92,6 +131,14 @@ export default function ContactDetailPage({
   // Convex actions/mutations
   const sendMetaMessage = useAction(api.meta.sendMessage);
   const markAllAsRead = useMutation(api.messages.markAllAsRead);
+
+  // Task mutations
+  const toggleTaskComplete = useMutation(api.tasks.toggleComplete);
+  const updateTaskStatus = useMutation(api.tasks.updateStatus);
+  const removeTask = useMutation(api.tasks.remove);
+
+  // Contact mutation
+  const updateContact = useMutation(api.contacts.update);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -107,10 +154,59 @@ export default function ContactDetailPage({
     }
   }, [activeView, contact?._id, markAllAsRead]);
 
+  // Initialize edit fields when contact loads
+  useEffect(() => {
+    if (contact) {
+      setEditFirstName(contact.firstName || "");
+      setEditLastName(contact.lastName || "");
+      setEditPhone(contact.phone || "");
+      setEditEmail(contact.email || "");
+    }
+  }, [contact]);
+
+  // Contact edit handlers
+  const handleStartEditContact = () => {
+    if (contact) {
+      setEditFirstName(contact.firstName || "");
+      setEditLastName(contact.lastName || "");
+      setEditPhone(contact.phone || "");
+      setEditEmail(contact.email || "");
+      setIsEditingContact(true);
+    }
+  };
+
+  const handleCancelEditContact = () => {
+    setIsEditingContact(false);
+    if (contact) {
+      setEditFirstName(contact.firstName || "");
+      setEditLastName(contact.lastName || "");
+      setEditPhone(contact.phone || "");
+      setEditEmail(contact.email || "");
+    }
+  };
+
+  const handleSaveContact = async () => {
+    if (!contact?._id) return;
+
+    setIsSavingContact(true);
+    try {
+      await updateContact({
+        id: contact._id,
+        firstName: editFirstName.trim(),
+        lastName: editLastName.trim(),
+        phone: editPhone.trim() || undefined,
+        email: editEmail.trim() || undefined,
+      });
+      setIsEditingContact(false);
+    } catch (error) {
+      console.error("Failed to update contact:", error);
+    } finally {
+      setIsSavingContact(false);
+    }
+  };
+
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
+    return "₱" + new Intl.NumberFormat("en-PH", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -168,6 +264,39 @@ export default function ContactDetailPage({
 
   const canSendMessage = (): boolean => {
     return contact?.messagingWindow?.canSend || false;
+  };
+
+  // Task handlers
+  const handleToggleTaskComplete = async (taskId: Id<"tasks">) => {
+    try {
+      await toggleTaskComplete({ id: taskId });
+    } catch (error) {
+      console.error("Failed to toggle task:", error);
+    }
+  };
+
+  const handleTaskStatusChange = async (taskId: Id<"tasks">, status: TaskStatus) => {
+    try {
+      await updateTaskStatus({ id: taskId, status });
+    } catch (error) {
+      console.error("Failed to update task status:", error);
+    }
+  };
+
+  const handleEditTask = (task: any) => {
+    // Convert to Task type for the modal
+    setSelectedTask(task as Task);
+    setIsEditTaskModalOpen(true);
+  };
+
+  const handleDeleteTask = async (taskId: Id<"tasks">) => {
+    if (confirm("Are you sure you want to delete this task?")) {
+      try {
+        await removeTask({ id: taskId });
+      } catch (error) {
+        console.error("Failed to delete task:", error);
+      }
+    }
   };
 
   const handleSendMessage = async () => {
@@ -240,33 +369,6 @@ export default function ContactDetailPage({
 
   const renderMessages = () => (
     <div className="flex flex-col h-full">
-      {/* Messaging Window Status */}
-      {channel && messagingWindow && (
-        <div className="px-4 py-2 bg-muted/50 border-b flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2 text-xs">
-            <Badge className={cn(
-              "text-white",
-              channel === "facebook" ? "bg-blue-600" : "bg-pink-500"
-            )}>
-              {channel === "facebook" ? "Facebook" : "Instagram"}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-1 text-xs">
-            <Clock className="h-3.5 w-3.5" />
-            <span className={cn(
-              messagingWindow.isStandardWindow ? "text-green-600" :
-              messagingWindow.canSend ? "text-amber-600" : "text-red-600"
-            )}>
-              {messagingWindow.isStandardWindow
-                ? `24h window: ${formatTimeRemaining(messagingWindow.expiresAt - Date.now())}`
-                : messagingWindow.canSend
-                ? `Human agent: ${formatTimeRemaining(messagingWindow.expiresAt - Date.now())}`
-                : "Window expired"}
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Messages List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {contact.messages.length === 0 ? (
@@ -381,11 +483,30 @@ export default function ContactDetailPage({
     </div>
   );
 
+  const taskStatusConfig: Record<TaskStatus, { label: string; className: string }> = {
+    pending: {
+      label: "Pending",
+      className: "bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer",
+    },
+    doing: {
+      label: "Doing",
+      className: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 cursor-pointer",
+    },
+    completed: {
+      label: "Completed",
+      className: "bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer",
+    },
+  };
+
   const renderTasks = () => (
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold">Tasks</h3>
-        <Button size="sm" className="bg-[#ff5603] hover:bg-[#ff5603]/90">
+        <Button
+          size="sm"
+          onClick={() => setIsCreateTaskModalOpen(true)}
+          className="bg-[#ff5603] hover:bg-[#ff5603]/90 cursor-pointer"
+        >
           <Plus className="h-4 w-4 mr-1" />
           Add Task
         </Button>
@@ -396,9 +517,16 @@ export default function ContactDetailPage({
           return (
             <div
               key={task._id}
-              className="flex items-start gap-3 p-3 rounded-lg border bg-white"
+              className={cn(
+                "flex items-start gap-3 p-3 rounded-lg border bg-white",
+                isCompleted && "bg-muted/30"
+              )}
             >
-              <Checkbox checked={isCompleted} className="mt-1" />
+              <Checkbox
+                checked={isCompleted}
+                onCheckedChange={() => handleToggleTaskComplete(task._id)}
+                className="mt-1 border-gray-300"
+              />
               <div className="flex-1 min-w-0">
                 <p
                   className={cn(
@@ -409,7 +537,10 @@ export default function ContactDetailPage({
                   {task.title}
                 </p>
                 {task.description && (
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className={cn(
+                    "text-xs text-muted-foreground mt-1",
+                    isCompleted && "line-through"
+                  )}>
                     {task.description}
                   </p>
                 )}
@@ -424,15 +555,40 @@ export default function ContactDetailPage({
                 </div>
               </div>
               <Badge
-                variant="outline"
+                variant="secondary"
                 className={cn(
-                  task.status === "completed" && "border-green-500 text-green-600",
-                  task.status === "doing" && "border-yellow-500 text-yellow-600",
-                  task.status === "pending" && "border-slate-400 text-slate-600"
+                  "text-xs",
+                  taskStatusConfig[task.status as TaskStatus].className
                 )}
+                onClick={() => {
+                  const statuses: TaskStatus[] = ["pending", "doing", "completed"];
+                  const currentIndex = statuses.indexOf(task.status as TaskStatus);
+                  const nextStatus = statuses[(currentIndex + 1) % statuses.length];
+                  handleTaskStatusChange(task._id, nextStatus);
+                }}
               >
-                {task.status}
+                {taskStatusConfig[task.status as TaskStatus].label}
               </Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleEditTask(task)}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDeleteTask(task._id)}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           );
         })}
@@ -620,17 +776,42 @@ export default function ContactDetailPage({
               <div className="h-16 w-16 rounded-full bg-[#ff5603]/10 flex items-center justify-center">
                 <User className="h-8 w-8 text-[#ff5603]" />
               </div>
-              <div>
-                <h2 className="text-xl font-semibold">{contact.fullName}</h2>
+              <div className="flex-1">
+                {isEditingContact ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={editFirstName}
+                      onChange={(e) => setEditFirstName(e.target.value)}
+                      placeholder="First name"
+                      className="h-8 text-sm"
+                    />
+                    <Input
+                      value={editLastName}
+                      onChange={(e) => setEditLastName(e.target.value)}
+                      placeholder="Last name"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                ) : (
+                  <h2 className="text-xl font-semibold">{contact.fullName}</h2>
+                )}
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline">
-                    {sourceLabels[contact.source as ContactSource] || contact.source}
-                  </Badge>
                   {contact.facebookPsid && (
-                    <Badge className="bg-blue-600 text-white text-xs">FB</Badge>
+                    <Badge className="bg-blue-600 text-white text-xs flex items-center gap-1">
+                      <FacebookIcon className="h-3 w-3" />
+                      Facebook
+                    </Badge>
                   )}
                   {contact.instagramScopedId && (
-                    <Badge className="bg-pink-500 text-white text-xs">IG</Badge>
+                    <Badge className="bg-pink-500 text-white text-xs flex items-center gap-1">
+                      <InstagramIcon className="h-3 w-3" />
+                      Instagram
+                    </Badge>
+                  )}
+                  {!contact.facebookPsid && !contact.instagramScopedId && (
+                    <Badge variant="outline">
+                      {sourceLabels[contact.source as ContactSource] || contact.source}
+                    </Badge>
                   )}
                 </div>
               </div>
@@ -638,22 +819,107 @@ export default function ContactDetailPage({
 
             {/* Contact Info */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Contact Information
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Contact Information
+                </h3>
+                {isEditingContact ? (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelEditContact}
+                      disabled={isSavingContact}
+                      className="h-7 w-7 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSaveContact}
+                      disabled={isSavingContact || !editFirstName.trim() || !editLastName.trim()}
+                      className="h-7 w-7 p-0 text-green-600 hover:text-green-700"
+                    >
+                      {isSavingContact ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleStartEditContact}
+                    className="h-7 w-7 p-0"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
 
-              {contact.phone && (
-                <div className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{contact.phone}</span>
-                </div>
-              )}
+              {isEditingContact ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      placeholder="Phone number"
+                      className="h-8 text-sm flex-1"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      placeholder="Email address"
+                      type="email"
+                      className="h-8 text-sm flex-1"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  {contact.phone ? (
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{contact.phone}</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleStartEditContact}
+                      className="flex items-center gap-3 text-muted-foreground hover:text-foreground transition-colors group"
+                    >
+                      <Phone className="h-4 w-4" />
+                      <span className="text-sm flex items-center gap-1">
+                        <Plus className="h-3 w-3" />
+                        Add phone
+                      </span>
+                    </button>
+                  )}
 
-              {contact.email && (
-                <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{contact.email}</span>
-                </div>
+                  {contact.email ? (
+                    <div className="flex items-center gap-3">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{contact.email}</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleStartEditContact}
+                      className="flex items-center gap-3 text-muted-foreground hover:text-foreground transition-colors group"
+                    >
+                      <Mail className="h-4 w-4" />
+                      <span className="text-sm flex items-center gap-1">
+                        <Plus className="h-3 w-3" />
+                        Add email
+                      </span>
+                    </button>
+                  )}
+                </>
               )}
 
               {contact.address && (
@@ -672,11 +938,11 @@ export default function ContactDetailPage({
                 </h3>
 
                 <div
-                  className="flex items-start gap-3 cursor-pointer hover:text-[#ff5603] transition-colors group"
+                  className="flex items-start gap-3 cursor-pointer hover:text-[#ff5603] transition-colors"
                   onClick={() => router.push(`/pipeline?opportunityId=${primaryOpportunity._id}`)}
                 >
                   <Building2 className="h-4 w-4 text-muted-foreground mt-0.5" />
-                  <span className="text-sm group-hover:underline">{primaryOpportunity.name}</span>
+                  <span className="text-sm underline">{primaryOpportunity.name}</span>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -743,6 +1009,27 @@ export default function ContactDetailPage({
           </div>
         </div>
       </div>
+
+      {/* Task Edit Modal */}
+      <TaskEditModal
+        task={selectedTask}
+        open={isEditTaskModalOpen}
+        onOpenChange={(open) => {
+          setIsEditTaskModalOpen(open);
+          if (!open) setSelectedTask(null);
+        }}
+      />
+
+      {/* Task Create Modal */}
+      <TaskEditModal
+        task={null}
+        mode="create"
+        defaultContactId={contact._id}
+        open={isCreateTaskModalOpen}
+        onOpenChange={setIsCreateTaskModalOpen}
+        showOverlay
+        offsetForSidebar
+      />
     </div>
   );
 }

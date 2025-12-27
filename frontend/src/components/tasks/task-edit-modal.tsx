@@ -23,12 +23,20 @@ import {
 } from "@/components/ui/select";
 import { User, Target } from "lucide-react";
 import { Task } from "./task-table";
+import { cn } from "@/lib/utils";
 
 interface TaskEditModalProps {
   task: Task | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  // Create mode props
+  mode?: "edit" | "create";
+  defaultContactId?: Id<"contacts">;
+  defaultOpportunityId?: Id<"opportunities">;
+  // Styling props
+  showOverlay?: boolean;
+  offsetForSidebar?: boolean; // Offset modal to center in content area (excluding sidebar)
 }
 
 interface FormData {
@@ -53,28 +61,48 @@ export function TaskEditModal({
   open,
   onOpenChange,
   onSuccess,
+  mode = "edit",
+  defaultContactId,
+  defaultOpportunityId,
+  showOverlay = false,
+  offsetForSidebar = false,
 }: TaskEditModalProps) {
+  const isCreateMode = mode === "create";
+
   const [formData, setFormData] = useState<FormData>({
     title: "",
     description: "",
     dueDate: "",
     assignedTo: "",
-    contactId: null,
-    opportunityId: null,
+    contactId: defaultContactId || null,
+    opportunityId: defaultOpportunityId || null,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string>("");
 
   // Fetch data for dropdowns
   const users = useQuery(api.users.list, {});
-  const contacts = useQuery(api.contacts.list, {});
-  const opportunities = useQuery(api.opportunities.list, {});
+  // Only fetch contacts/opportunities if not in create mode with defaults
+  const contacts = useQuery(api.contacts.list, isCreateMode ? "skip" : {});
+  const opportunities = useQuery(api.opportunities.list, isCreateMode ? "skip" : {});
 
   const updateTask = useMutation(api.tasks.update);
+  const createTask = useMutation(api.tasks.create);
 
-  // Initialize form when task changes
+  // Initialize form when task changes or modal opens
   useEffect(() => {
-    if (task) {
+    if (isCreateMode && open) {
+      // Reset form for create mode
+      setFormData({
+        title: "",
+        description: "",
+        dueDate: "",
+        assignedTo: "",
+        contactId: defaultContactId || null,
+        opportunityId: defaultOpportunityId || null,
+      });
+      setSelectedOption("");
+    } else if (task) {
       setFormData({
         title: task.title,
         description: task.description || "",
@@ -95,7 +123,7 @@ export function TaskEditModal({
         setSelectedOption("none");
       }
     }
-  }, [task]);
+  }, [task, isCreateMode, open, defaultContactId, defaultOpportunityId]);
 
   // Build combined contact/opportunity options
   const contactOpportunityOptions: ContactOpportunityOption[] = [];
@@ -158,26 +186,42 @@ export function TaskEditModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.title.trim() || !task) {
+    if (!formData.title.trim()) {
+      return;
+    }
+
+    if (!isCreateMode && !task) {
       return;
     }
 
     setIsSaving(true);
     try {
-      await updateTask({
-        id: task._id,
-        title: formData.title,
-        description: formData.description || undefined,
-        dueDate: formData.dueDate ? new Date(formData.dueDate).getTime() : undefined,
-        assignedTo: formData.assignedTo ? (formData.assignedTo as Id<"users">) : undefined,
-        contactId: formData.contactId || undefined,
-        opportunityId: formData.opportunityId || undefined,
-      });
+      if (isCreateMode) {
+        await createTask({
+          title: formData.title,
+          description: formData.description || undefined,
+          dueDate: formData.dueDate ? new Date(formData.dueDate).getTime() : undefined,
+          assignedTo: formData.assignedTo ? (formData.assignedTo as Id<"users">) : undefined,
+          contactId: formData.contactId || undefined,
+          opportunityId: formData.opportunityId || undefined,
+          status: "pending",
+        });
+      } else {
+        await updateTask({
+          id: task!._id,
+          title: formData.title,
+          description: formData.description || undefined,
+          dueDate: formData.dueDate ? new Date(formData.dueDate).getTime() : undefined,
+          assignedTo: formData.assignedTo ? (formData.assignedTo as Id<"users">) : undefined,
+          contactId: formData.contactId || undefined,
+          opportunityId: formData.opportunityId || undefined,
+        });
+      }
 
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
-      console.error("Failed to update task:", error);
+      console.error(`Failed to ${isCreateMode ? "create" : "update"} task:`, error);
     } finally {
       setIsSaving(false);
     }
@@ -194,16 +238,20 @@ export function TaskEditModal({
 
   const displayOption = getDisplayValue();
 
-  if (!task) return null;
+  // Only return null in edit mode when no task is provided
+  if (!isCreateMode && !task) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[500px] bg-background border shadow-lg"
-        hideOverlay
+        className={cn(
+          "sm:max-w-[500px] bg-background border shadow-lg",
+          offsetForSidebar && "left-[calc(50%+160px)]"
+        )}
+        hideOverlay={!showOverlay}
       >
         <DialogHeader>
-          <DialogTitle>Edit Task</DialogTitle>
+          <DialogTitle>{isCreateMode ? "Add Task" : "Edit Task"}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -267,52 +315,54 @@ export function TaskEditModal({
             </Select>
           </div>
 
-          {/* Contact & Opportunity Combined */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Contact & Opportunity (optional)</label>
-            <Select
-              value={selectedOption}
-              onValueChange={handleOptionChange}
-            >
-              <SelectTrigger className="w-full">
-                {displayOption ? (
-                  <div className="flex items-center gap-2 text-sm">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span>{displayOption.contactName}</span>
-                    {displayOption.opportunityName && (
-                      <>
-                        <span className="text-muted-foreground">|</span>
-                        <Target className="h-4 w-4 text-muted-foreground" />
-                        <span>{displayOption.opportunityName}</span>
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  <SelectValue placeholder="Select contact & opportunity" />
-                )}
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">
-                  <span className="text-muted-foreground">None</span>
-                </SelectItem>
-                {contactOpportunityOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    <div className="flex items-center gap-2">
+          {/* Contact & Opportunity Combined - Only show in edit mode */}
+          {!isCreateMode && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Contact & Opportunity (optional)</label>
+              <Select
+                value={selectedOption}
+                onValueChange={handleOptionChange}
+              >
+                <SelectTrigger className="w-full">
+                  {displayOption ? (
+                    <div className="flex items-center gap-2 text-sm">
                       <User className="h-4 w-4 text-muted-foreground" />
-                      <span>{option.contactName}</span>
-                      {option.opportunityName && (
+                      <span>{displayOption.contactName}</span>
+                      {displayOption.opportunityName && (
                         <>
                           <span className="text-muted-foreground">|</span>
                           <Target className="h-4 w-4 text-muted-foreground" />
-                          <span>{option.opportunityName}</span>
+                          <span>{displayOption.opportunityName}</span>
                         </>
                       )}
                     </div>
+                  ) : (
+                    <SelectValue placeholder="Select contact & opportunity" />
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    <span className="text-muted-foreground">None</span>
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                  {contactOpportunityOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span>{option.contactName}</span>
+                        {option.opportunityName && (
+                          <>
+                            <span className="text-muted-foreground">|</span>
+                            <Target className="h-4 w-4 text-muted-foreground" />
+                            <span>{option.opportunityName}</span>
+                          </>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <DialogFooter className="pt-4">
             <Button
@@ -328,7 +378,7 @@ export function TaskEditModal({
               className="bg-[#ff5603] hover:bg-[#e64d00] cursor-pointer"
               disabled={isSaving || !formData.title.trim()}
             >
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving ? (isCreateMode ? "Creating..." : "Saving...") : (isCreateMode ? "Create Task" : "Save Changes")}
             </Button>
           </DialogFooter>
         </form>

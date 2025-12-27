@@ -178,6 +178,11 @@ export const listForPipeline = query({
         // Get contact
         const contact = await ctx.db.get(opp.contactId);
 
+        // Get assigned user (System Consultant)
+        const assignedUser = opp.assignedTo
+          ? await ctx.db.get(opp.assignedTo)
+          : null;
+
         // Get next scheduled appointment (pending, not completed/cancelled)
         const appointment = await ctx.db
           .query("appointments")
@@ -196,6 +201,12 @@ export const listForPipeline = query({
           name: opp.name,
           stage: opp.stage,
           estimatedValue: opp.estimatedValue,
+          location: opp.location,
+          locationLat: opp.locationLat,
+          locationLng: opp.locationLng,
+          locationCapturedAt: opp.locationCapturedAt,
+          openSolarProjectId: opp.openSolarProjectId,
+          openSolarProjectUrl: opp.openSolarProjectUrl,
           notes: opp.notes,
           createdAt: opp.createdAt,
           updatedAt: opp.updatedAt,
@@ -210,6 +221,21 @@ export const listForPipeline = query({
                 source: contact.source,
               }
             : null,
+          systemConsultant: assignedUser
+            ? {
+                _id: assignedUser._id,
+                firstName: assignedUser.firstName,
+                lastName: assignedUser.lastName,
+                email: assignedUser.email,
+                phone: assignedUser.phone,
+              }
+            : {
+                _id: null as any,
+                firstName: "Juan",
+                lastName: "Dela Cruz",
+                email: "juan.delacruz@salinassolar.com",
+                phone: "+63 912 345 6789",
+              },
           scheduledAppointment: appointment
             ? {
                 _id: appointment._id,
@@ -404,6 +430,12 @@ export const update = mutation({
     id: v.id("opportunities"),
     name: v.optional(v.string()),
     estimatedValue: v.optional(v.number()),
+    location: v.optional(v.string()),
+    locationLat: v.optional(v.number()),
+    locationLng: v.optional(v.number()),
+    locationCapturedAt: v.optional(v.number()),
+    openSolarProjectId: v.optional(v.number()),
+    openSolarProjectUrl: v.optional(v.string()),
     notes: v.optional(v.string()),
     expectedCloseDate: v.optional(v.number()),
     lostReason: v.optional(v.string()),
