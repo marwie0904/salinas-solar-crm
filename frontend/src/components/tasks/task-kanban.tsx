@@ -1,39 +1,28 @@
 "use client";
 
+import Link from "next/link";
 import { TaskStatus } from "@/lib/types";
 import { Id } from "../../../convex/_generated/dataModel";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Calendar, User, Target } from "lucide-react";
-
-// Task type from Convex query (enriched with relations)
-interface Task {
-  _id: Id<"tasks">;
-  title: string;
-  description?: string;
-  status: TaskStatus;
-  priority?: "low" | "medium" | "high";
-  dueDate?: number;
-  completedAt?: number;
-  contactId?: Id<"contacts">;
-  opportunityId?: Id<"opportunities">;
-  assignedTo?: Id<"users">;
-  isDeleted: boolean;
-  createdBy?: Id<"users">;
-  createdAt: number;
-  updatedAt: number;
-  isOverdue?: boolean;
-  contact?: { _id: Id<"contacts">; fullName: string } | null;
-  opportunity?: { _id: Id<"opportunities">; name: string } | null;
-  assignedUser?: { _id: Id<"users">; fullName: string } | null;
-}
+import { Calendar, User, Target, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Task } from "./task-table";
 
 interface TaskKanbanProps {
   tasks: Task[];
   onToggleComplete: (taskId: Id<"tasks">) => void;
   onStatusChange: (taskId: Id<"tasks">, status: TaskStatus) => void;
+  onEdit: (task: Task) => void;
+  onDelete: (taskId: Id<"tasks">) => void;
 }
 
 const columns: { status: TaskStatus; label: string; color: string }[] = [
@@ -46,6 +35,8 @@ export function TaskKanban({
   tasks,
   onToggleComplete,
   onStatusChange,
+  onEdit,
+  onDelete,
 }: TaskKanbanProps) {
   const getTasksByStatus = (status: TaskStatus) =>
     tasks.filter((task) => task.status === status);
@@ -71,7 +62,7 @@ export function TaskKanban({
                 <Card
                   key={task._id}
                   className={cn(
-                    "cursor-pointer transition-all hover:shadow-md",
+                    "transition-all hover:shadow-md",
                     isCompleted && "opacity-60"
                   )}
                 >
@@ -92,6 +83,26 @@ export function TaskKanban({
                           {task.title}
                         </h4>
                       </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 -mt-1 -mr-1">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onEdit(task)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => onDelete(task._id)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </CardHeader>
                   <CardContent className="p-4 pt-0 pl-11">
@@ -109,19 +120,27 @@ export function TaskKanban({
                       {(task.contact || task.opportunity) && (
                         <div className="flex items-center gap-2">
                           {task.contact && (
-                            <>
+                            <Link
+                              href={`/contacts/${task.contact._id}`}
+                              className="flex items-center gap-1 hover:text-[#ff5603] transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <User className="h-3 w-3" />
-                              <span>{task.contact.fullName}</span>
-                            </>
+                              <span className="underline">{task.contact.fullName}</span>
+                            </Link>
                           )}
                           {task.contact && task.opportunity && (
                             <span>|</span>
                           )}
                           {task.opportunity && (
-                            <>
+                            <Link
+                              href={`/pipeline?opportunityId=${task.opportunity._id}`}
+                              className="flex items-center gap-1 hover:text-[#ff5603] transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <Target className="h-3 w-3" />
-                              <span>{task.opportunity.name}</span>
-                            </>
+                              <span className="underline">{task.opportunity.name}</span>
+                            </Link>
                           )}
                         </div>
                       )}
