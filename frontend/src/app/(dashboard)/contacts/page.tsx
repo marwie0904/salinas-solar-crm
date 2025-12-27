@@ -189,11 +189,13 @@ export default function ContactsPage() {
                         className="flex items-center gap-2 cursor-pointer hover:text-[#ff5603] transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/pipeline?opportunityId=${contact.opportunity._id}`);
+                          if (contact.opportunity) {
+                            router.push(`/pipeline?opportunityId=${contact.opportunity._id}`);
+                          }
                         }}
                       >
                         <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="max-w-[200px] truncate hover:underline">
+                        <span className="max-w-[200px] truncate underline">
                           {contact.opportunity.name}
                         </span>
                       </div>
