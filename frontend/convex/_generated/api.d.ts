@@ -24,6 +24,7 @@ import type * as openSolar from "../openSolar.js";
 import type * as opportunities from "../opportunities.js";
 import type * as payments from "../payments.js";
 import type * as products from "../products.js";
+import type * as semaphore from "../semaphore.js";
 import type * as tasks from "../tasks.js";
 import type * as users from "../users.js";
 
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   opportunities: typeof opportunities;
   payments: typeof payments;
   products: typeof products;
+  semaphore: typeof semaphore;
   tasks: typeof tasks;
   users: typeof users;
 }>;

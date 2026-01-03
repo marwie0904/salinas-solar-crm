@@ -134,7 +134,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "2",
     name: "Rodriguez Commercial Building",
-    stage: "scheduled_discovery_call",
+    stage: "to_call",
     estimatedValue: 450000,
     contact: {
       _id: "c2",
@@ -195,7 +195,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "3",
     name: "Dela Cruz Family Home",
-    stage: "discovery_call",
+    stage: "booked_call",
     estimatedValue: 180000,
     contact: {
       _id: "c3",
@@ -433,7 +433,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "7",
     name: "Garcia Condo Unit",
-    stage: "no_show_discovery_call",
+    stage: "did_not_answer",
     estimatedValue: 95000,
     contact: {
       _id: "c7",
@@ -462,7 +462,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "8",
     name: "Reyes Farm Solar",
-    stage: "field_inspection",
+    stage: "for_ocular",
     estimatedValue: 520000,
     contact: {
       _id: "c8",

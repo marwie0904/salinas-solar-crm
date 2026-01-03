@@ -27,11 +27,12 @@ export const getPipelineValue = query({
 
     const stages = [
       "inbox",
-      "scheduled_discovery_call",
-      "discovery_call",
-      "no_show_discovery_call",
-      "field_inspection",
-      "to_follow_up",
+      "to_call",
+      "did_not_answer",
+      "booked_call",
+      "did_not_book_call",
+      "for_ocular",
+      "follow_up",
       "contract_drafting",
       "contract_signing",
       "closed",

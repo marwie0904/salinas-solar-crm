@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Channel = "facebook" | "instagram";
+type Channel = "facebook" | "instagram" | "sms";
 
 interface Conversation {
   contact: {
@@ -61,6 +61,13 @@ const FacebookIcon = ({ className }: { className?: string }) => (
 const InstagramIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+  </svg>
+);
+
+const SmsIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+    <path d="M7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/>
   </svg>
 );
 
@@ -122,7 +129,8 @@ export default function MessagesPage() {
   );
 
   // Convex actions/mutations
-  const sendMessage = useAction(api.meta.sendMessage);
+  const sendMetaMessage = useAction(api.meta.sendMessage);
+  const sendSmsMessage = useAction(api.semaphore.sendMessage);
   const markAllAsRead = useMutation(api.messages.markAllAsRead);
 
   // Get selected conversation
@@ -131,12 +139,24 @@ export default function MessagesPage() {
   );
   const selectedContact = selectedConversation?.contact;
 
-  // Determine channel from contact
+  // Determine channel from contact - prioritize SMS for contacts with phone numbers
   const getSelectedChannel = (): Channel | null => {
     if (!selectedContact) return null;
+    // Prioritize SMS if contact has phone number
+    if (selectedContact.phone) return "sms";
     if (selectedContact.facebookPsid) return "facebook";
     if (selectedContact.instagramScopedId) return "instagram";
     return null;
+  };
+
+  // Get available channels for this contact
+  const getAvailableChannels = (): Channel[] => {
+    if (!selectedContact) return [];
+    const channels: Channel[] = [];
+    if (selectedContact.phone) channels.push("sms");
+    if (selectedContact.facebookPsid) channels.push("facebook");
+    if (selectedContact.instagramScopedId) channels.push("instagram");
+    return channels;
   };
 
   const getPlatformUserId = (): string | null => {
@@ -149,10 +169,10 @@ export default function MessagesPage() {
   // Get current channel for window status query
   const currentChannel = getSelectedChannel();
 
-  // Messaging window status query (after we have channel info)
+  // Messaging window status query (only for Facebook/Instagram - SMS has no window)
   const windowStatus = useQuery(
     api.messages.getMessagingWindowStatus,
-    selectedContactId && currentChannel
+    selectedContactId && currentChannel && (currentChannel === "facebook" || currentChannel === "instagram")
       ? { contactId: selectedContactId, channel: currentChannel }
       : "skip"
   );
@@ -184,10 +204,9 @@ export default function MessagesPage() {
     if (!newMessage.trim() || !selectedContactId) return;
 
     const channel = getSelectedChannel();
-    const platformUserId = getPlatformUserId();
 
-    if (!channel || !platformUserId) {
-      setError("This contact has no Facebook or Instagram connection");
+    if (!channel) {
+      setError("This contact has no messaging options available");
       return;
     }
 
@@ -195,13 +214,40 @@ export default function MessagesPage() {
     setError(null);
 
     try {
-      const result = await sendMessage({
-        contactId: selectedContactId,
-        channel,
-        platformUserId,
-        content: newMessage.trim(),
-        senderName: "CRM User",
-      });
+      let result: { success: boolean; messageId?: string; error?: string };
+
+      if (channel === "sms") {
+        // Send via Semaphore SMS
+        if (!selectedContact?.phone) {
+          setError("Contact has no phone number");
+          setSending(false);
+          return;
+        }
+
+        result = await sendSmsMessage({
+          contactId: selectedContactId,
+          phoneNumber: selectedContact.phone,
+          content: newMessage.trim(),
+          senderName: "CRM User",
+        });
+      } else {
+        // Send via Meta (Facebook/Instagram)
+        const platformUserId = getPlatformUserId();
+
+        if (!platformUserId) {
+          setError("This contact has no Facebook or Instagram connection");
+          setSending(false);
+          return;
+        }
+
+        result = await sendMetaMessage({
+          contactId: selectedContactId,
+          channel,
+          platformUserId,
+          content: newMessage.trim(),
+          senderName: "CRM User",
+        });
+      }
 
       if (result.success) {
         setNewMessage("");
@@ -218,6 +264,9 @@ export default function MessagesPage() {
   const canSendMessage = () => {
     const channel = getSelectedChannel();
     if (!channel) return false;
+    // SMS has no window restrictions
+    if (channel === "sms") return true;
+    // Facebook/Instagram require messaging window
     if (!windowStatus) return false;
     return windowStatus.canSendAny || windowStatus.canSendHumanAgent;
   };
@@ -262,6 +311,11 @@ export default function MessagesPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
+                      {conv.contact.phone && (
+                        <div className={cn("h-4 w-4 rounded flex items-center justify-center shrink-0", channelColors.sms)}>
+                          <SmsIcon className="h-2.5 w-2.5 text-white" />
+                        </div>
+                      )}
                       {conv.contact.facebookPsid && (
                         <div className={cn("h-4 w-4 rounded flex items-center justify-center shrink-0", channelColors.facebook)}>
                           <FacebookIcon className="h-2.5 w-2.5 text-white" />
@@ -326,6 +380,11 @@ export default function MessagesPage() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
+                    {getSelectedChannel() === "sms" && (
+                      <div className={cn("h-5 w-5 rounded flex items-center justify-center shrink-0", channelColors.sms)}>
+                        <SmsIcon className="h-3 w-3 text-white" />
+                      </div>
+                    )}
                     {getSelectedChannel() === "facebook" && (
                       <div className={cn("h-5 w-5 rounded flex items-center justify-center shrink-0", channelColors.facebook)}>
                         <FacebookIcon className="h-3 w-3 text-white" />
@@ -425,7 +484,9 @@ export default function MessagesPage() {
                         {message.channel && (
                           <span className="flex items-center gap-1">
                             via
-                            {message.channel === "facebook" ? (
+                            {message.channel === "sms" ? (
+                              <SmsIcon className="h-3 w-3" />
+                            ) : message.channel === "facebook" ? (
                               <FacebookIcon className="h-3 w-3" />
                             ) : message.channel === "instagram" ? (
                               <InstagramIcon className="h-3 w-3" />
@@ -456,9 +517,9 @@ export default function MessagesPage() {
             <div className="p-4 border-t bg-white shrink-0">
               {!getSelectedChannel() ? (
                 <div className="text-center py-2 text-muted-foreground text-sm">
-                  This contact has no Facebook or Instagram connection.
+                  This contact has no phone number or social connection.
                   <br />
-                  They need to message you first.
+                  Add a phone number to send SMS.
                 </div>
               ) : !canSendMessage() ? (
                 <div className="text-center py-2 text-amber-600 text-sm">
@@ -468,7 +529,7 @@ export default function MessagesPage() {
               ) : (
                 <div className="flex gap-2">
                   <Input
-                    placeholder={`Message via ${getSelectedChannel() === "facebook" ? "Facebook" : "Instagram"}...`}
+                    placeholder={`Message via ${getSelectedChannel() === "sms" ? "SMS" : getSelectedChannel() === "facebook" ? "Facebook" : "Instagram"}...`}
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => {

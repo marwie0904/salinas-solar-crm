@@ -41,11 +41,12 @@ interface PipelineKanbanProps {
 
 const stages: { stage: PipelineStage; color: string }[] = [
   { stage: "inbox", color: "bg-slate-500" },
-  { stage: "scheduled_discovery_call", color: "bg-blue-500" },
-  { stage: "discovery_call", color: "bg-cyan-500" },
-  { stage: "no_show_discovery_call", color: "bg-red-400" },
-  { stage: "field_inspection", color: "bg-purple-500" },
-  { stage: "to_follow_up", color: "bg-amber-500" },
+  { stage: "to_call", color: "bg-blue-500" },
+  { stage: "did_not_answer", color: "bg-red-400" },
+  { stage: "booked_call", color: "bg-cyan-500" },
+  { stage: "did_not_book_call", color: "bg-amber-500" },
+  { stage: "for_ocular", color: "bg-purple-500" },
+  { stage: "follow_up", color: "bg-yellow-500" },
   { stage: "contract_drafting", color: "bg-orange-500" },
   { stage: "contract_signing", color: "bg-indigo-500" },
   { stage: "closed", color: "bg-green-500" },
