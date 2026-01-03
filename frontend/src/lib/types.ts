@@ -9,11 +9,12 @@ export type TaskPriority = "low" | "medium" | "high";
 
 export type PipelineStage =
   | "inbox"
-  | "scheduled_discovery_call"
-  | "discovery_call"
-  | "no_show_discovery_call"
-  | "field_inspection"
-  | "to_follow_up"
+  | "to_call"
+  | "did_not_answer"
+  | "booked_call"
+  | "did_not_book_call"
+  | "for_ocular"
+  | "follow_up"
   | "contract_drafting"
   | "contract_signing"
   | "closed";
@@ -55,6 +56,12 @@ export type PaymentMethod =
   | "maya"
   | "other";
 
+export type PaymentType =
+  | "one_time"
+  | "installment"
+  | "downpayment"
+  | "progress_billing";
+
 export type UserRole = "admin" | "sales" | "technician";
 
 // ============================================
@@ -63,11 +70,12 @@ export type UserRole = "admin" | "sales" | "technician";
 
 export const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
   inbox: "Inbox",
-  scheduled_discovery_call: "Scheduled Discovery Call",
-  discovery_call: "Discovery Call",
-  no_show_discovery_call: "No Show Discovery Call",
-  field_inspection: "Field Inspection",
-  to_follow_up: "To Follow Up",
+  to_call: "To Call",
+  did_not_answer: "Did Not Answer",
+  booked_call: "Booked Call",
+  did_not_book_call: "Did Not Book Call",
+  for_ocular: "For Ocular",
+  follow_up: "Follow Up",
   contract_drafting: "Contract Drafting",
   contract_signing: "Contract Signing",
   closed: "Closed",
@@ -75,14 +83,15 @@ export const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
 
 export const PIPELINE_STAGE_DESCRIPTIONS: Record<PipelineStage, string> = {
   inbox: "New leads that have just entered the system and are awaiting initial review and qualification by the sales team.",
-  scheduled_discovery_call: "Leads who have been contacted and have a discovery call scheduled to discuss their solar needs and requirements.",
-  discovery_call: "The initial consultation has been completed. The lead's requirements, property details, and budget have been assessed.",
-  no_show_discovery_call: "Leads who missed their scheduled discovery call appointment and need to be re-engaged to reschedule.",
-  field_inspection: "An on-site property assessment has been scheduled to evaluate the installation requirements and site conditions.",
-  to_follow_up: "Leads requiring additional follow-up after the field inspection, such as addressing questions or providing more information.",
-  contract_drafting: "The proposal and contract documents are being prepared based on the site assessment and agreed terms.",
-  contract_signing: "The contract has been sent to the client and is awaiting their review and signature to finalize the agreement.",
-  closed: "The deal has been finalized and the contract has been signed. The project is ready to move to the installation phase.",
+  to_call: "Leads that need to be contacted for the first time to discuss their solar needs.",
+  did_not_answer: "Leads who did not answer the initial call attempt and need to be called again.",
+  booked_call: "Leads who have a discovery call scheduled to discuss their solar requirements.",
+  did_not_book_call: "Leads who were contacted but did not schedule a call and need follow-up.",
+  for_ocular: "Leads scheduled for an on-site ocular inspection to assess installation requirements.",
+  follow_up: "Leads requiring additional follow-up after initial contact or inspection.",
+  contract_drafting: "The proposal and contract documents are being prepared based on the assessment and agreed terms.",
+  contract_signing: "The contract has been sent to the client and is awaiting their review and signature.",
+  closed: "The deal has been finalized and the contract has been signed. Ready for installation.",
 };
 
 export const CONTACT_SOURCE_LABELS: Record<ContactSource, string> = {
@@ -141,6 +150,13 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   gcash: "GCash",
   maya: "Maya",
   other: "Other",
+};
+
+export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
+  one_time: "One-Time Payment",
+  installment: "Installment",
+  downpayment: "Downpayment",
+  progress_billing: "Progress Billing",
 };
 
 // ============================================
@@ -287,6 +303,10 @@ export interface Invoice {
   total: number;
   amountPaid: number;
   status: InvoiceStatus;
+  paymentType?: PaymentType;
+  paymentMethod?: PaymentMethod;
+  installmentAmount?: number;
+  numberOfInstallments?: number;
   notes?: string;
   dueDate: number;
   dateSent?: number;

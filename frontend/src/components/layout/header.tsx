@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,12 @@ interface HeaderProps {
 }
 
 export function Header({ sidebarCollapsed }: HeaderProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const handleCall = (phoneNumber: string) => {
     console.log("Calling:", phoneNumber);
     // TODO: Implement actual calling functionality
@@ -40,20 +47,30 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
 
       {/* Right - Icons */}
       <div className="flex items-center gap-2">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-[#ff5603]"
-            >
-              <Phone className="h-5 w-5" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-auto p-4">
-            <DialPad onCall={handleCall} />
-          </PopoverContent>
-        </Popover>
+        {mounted ? (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-[#ff5603]"
+              >
+                <Phone className="h-5 w-5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-auto p-4">
+              <DialPad onCall={handleCall} />
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-[#ff5603]"
+          >
+            <Phone className="h-5 w-5" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"

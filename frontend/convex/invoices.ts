@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { invoiceStatus } from "./schema";
+import { invoiceStatus, paymentType, paymentMethod } from "./schema";
 import {
   now,
   generateInvoiceNumber,
@@ -241,6 +241,10 @@ export const create = mutation({
     ),
     taxRate: v.optional(v.number()),
     discountAmount: v.optional(v.number()),
+    paymentType: v.optional(paymentType),
+    paymentMethod: v.optional(paymentMethod),
+    installmentAmount: v.optional(v.number()),
+    numberOfInstallments: v.optional(v.number()),
     notes: v.optional(v.string()),
     dueDate: v.number(),
     createdBy: v.optional(v.id("users")),
@@ -269,6 +273,10 @@ export const create = mutation({
       total,
       amountPaid: 0,
       status: "pending",
+      paymentType: args.paymentType,
+      paymentMethod: args.paymentMethod,
+      installmentAmount: args.installmentAmount,
+      numberOfInstallments: args.numberOfInstallments,
       notes: args.notes,
       dueDate: args.dueDate,
       isDeleted: false,
@@ -291,6 +299,53 @@ export const create = mutation({
         createdAt: timestamp,
       });
     }
+
+    await logCreation(ctx, "invoice", invoiceId, args.createdBy);
+
+    return invoiceId;
+  },
+});
+
+/**
+ * Create a simple invoice without line items (for quick invoice creation)
+ */
+export const createSimple = mutation({
+  args: {
+    opportunityId: v.id("opportunities"),
+    total: v.number(),
+    paymentType: paymentType,
+    paymentMethod: paymentMethod,
+    installmentAmount: v.optional(v.number()),
+    numberOfInstallments: v.optional(v.number()),
+    dueDate: v.number(),
+    notes: v.optional(v.string()),
+    createdBy: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const timestamp = now();
+
+    // Generate invoice number
+    const invoiceNumber = await generateInvoiceNumber(ctx);
+
+    // Create invoice
+    const invoiceId = await ctx.db.insert("invoices", {
+      invoiceNumber,
+      opportunityId: args.opportunityId,
+      subtotal: args.total,
+      total: args.total,
+      amountPaid: 0,
+      status: "pending",
+      paymentType: args.paymentType,
+      paymentMethod: args.paymentMethod,
+      installmentAmount: args.installmentAmount,
+      numberOfInstallments: args.numberOfInstallments,
+      notes: args.notes,
+      dueDate: args.dueDate,
+      isDeleted: false,
+      createdBy: args.createdBy,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
 
     await logCreation(ctx, "invoice", invoiceId, args.createdBy);
 

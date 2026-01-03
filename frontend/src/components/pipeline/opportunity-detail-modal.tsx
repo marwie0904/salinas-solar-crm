@@ -64,6 +64,16 @@ import { LocationCaptureModal, LocationDisplay } from "./location-capture-modal"
 import { AppointmentModal, Appointment } from "@/components/appointments/appointment-modal";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { DocumentList } from "@/components/documents/document-list";
+import { InvoiceCreateModal } from "@/components/invoices";
+import { generateInvoicePDF } from "@/components/invoices/invoice-pdf-generator";
+import {
+  InvoiceStatus,
+  PaymentType,
+  PaymentMethod,
+  INVOICE_STATUS_LABELS,
+  PAYMENT_TYPE_LABELS,
+  PAYMENT_METHOD_LABELS,
+} from "@/lib/types";
 
 type Channel = "facebook" | "instagram";
 
@@ -79,11 +89,12 @@ type NavItem = "details" | "messages" | "tasks" | "documents" | "invoices";
 
 const stageOptions: { value: PipelineStage; label: string }[] = [
   { value: "inbox", label: PIPELINE_STAGE_LABELS.inbox },
-  { value: "scheduled_discovery_call", label: PIPELINE_STAGE_LABELS.scheduled_discovery_call },
-  { value: "discovery_call", label: PIPELINE_STAGE_LABELS.discovery_call },
-  { value: "no_show_discovery_call", label: PIPELINE_STAGE_LABELS.no_show_discovery_call },
-  { value: "field_inspection", label: PIPELINE_STAGE_LABELS.field_inspection },
-  { value: "to_follow_up", label: PIPELINE_STAGE_LABELS.to_follow_up },
+  { value: "to_call", label: PIPELINE_STAGE_LABELS.to_call },
+  { value: "did_not_answer", label: PIPELINE_STAGE_LABELS.did_not_answer },
+  { value: "booked_call", label: PIPELINE_STAGE_LABELS.booked_call },
+  { value: "did_not_book_call", label: PIPELINE_STAGE_LABELS.did_not_book_call },
+  { value: "for_ocular", label: PIPELINE_STAGE_LABELS.for_ocular },
+  { value: "follow_up", label: PIPELINE_STAGE_LABELS.follow_up },
   { value: "contract_drafting", label: PIPELINE_STAGE_LABELS.contract_drafting },
   { value: "contract_signing", label: PIPELINE_STAGE_LABELS.contract_signing },
   { value: "closed", label: PIPELINE_STAGE_LABELS.closed },
@@ -152,6 +163,9 @@ export function OpportunityDetailModal({
   // Appointment edit state
   const [isEditAppointmentModalOpen, setIsEditAppointmentModalOpen] = useState(false);
 
+  // Invoice state
+  const [isCreateInvoiceModalOpen, setIsCreateInvoiceModalOpen] = useState(false);
+
   // Name editing state
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
@@ -186,6 +200,13 @@ export function OpportunityDetailModal({
     api.documents.getByOpportunity,
     opportunity ? { opportunityId: opportunity._id } : "skip"
   );
+
+  // Invoice queries
+  const invoices = useQuery(
+    api.invoices.getByOpportunity,
+    opportunity ? { opportunityId: opportunity._id } : "skip"
+  );
+
   const toggleTaskComplete = useMutation(api.tasks.toggleComplete);
   const updateTaskStatus = useMutation(api.tasks.updateStatus);
   const removeTask = useMutation(api.tasks.remove);
@@ -1014,6 +1035,126 @@ export function OpportunityDetailModal({
     </div>
   );
 
+  const invoiceStatusColors: Record<InvoiceStatus, string> = {
+    pending: "bg-amber-500",
+    partially_paid: "bg-blue-500",
+    paid_full: "bg-green-500",
+    cancelled: "bg-red-500",
+  };
+
+  const handleDownloadInvoicePDF = (invoice: any) => {
+    const pdfData = {
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceDate: new Date(invoice.createdAt).toISOString(),
+      dueDate: new Date(invoice.dueDate).toISOString().split("T")[0],
+      billedTo: {
+        name: editedOpportunity.contact
+          ? `${editedOpportunity.contact.firstName} ${editedOpportunity.contact.lastName}`
+          : "Customer",
+        address: editedOpportunity.contact?.address || "",
+      },
+      opportunityName: editedOpportunity.name,
+      paymentType: invoice.paymentType || "one_time",
+      paymentMethod: invoice.paymentMethod || "bank_transfer",
+      total: invoice.total,
+      installmentAmount: invoice.installmentAmount,
+      numberOfInstallments: invoice.numberOfInstallments,
+      notes: invoice.notes,
+    };
+
+    const pdf = generateInvoicePDF(pdfData);
+    pdf.download();
+  };
+
+  const renderInvoices = () => (
+    <div className="space-y-4">
+      {/* Add Invoice Button */}
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          onClick={() => setIsCreateInvoiceModalOpen(true)}
+          className="bg-[#ff5603] hover:bg-[#e64d00] gap-2 cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />
+          Create Invoice
+        </Button>
+      </div>
+
+      {/* Invoices List */}
+      {!invoices ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : invoices.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <Receipt className="h-12 w-12 mx-auto mb-3 opacity-50" />
+          <p>No invoices for this opportunity</p>
+          <p className="text-sm mt-2">Click "Create Invoice" to create one</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {invoices.map((invoice) => (
+            <div
+              key={invoice._id}
+              className="p-4 rounded-lg border bg-white hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <Receipt className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{invoice.invoiceNumber}</span>
+                    <Badge
+                      className={cn(
+                        "text-white text-xs",
+                        invoiceStatusColors[invoice.status as InvoiceStatus]
+                      )}
+                    >
+                      {INVOICE_STATUS_LABELS[invoice.status as InvoiceStatus]}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Total:</span>{" "}
+                      <span className="font-medium">{formatCurrency(invoice.total)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Paid:</span>{" "}
+                      <span className="font-medium text-green-600">
+                        {formatCurrency(invoice.amountPaid)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Due:</span>{" "}
+                      {new Date(invoice.dueDate).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </div>
+                    {invoice.paymentType && (
+                      <div>
+                        <span className="text-muted-foreground">Type:</span>{" "}
+                        {PAYMENT_TYPE_LABELS[invoice.paymentType as PaymentType]}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDownloadInvoicePDF(invoice)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <FileText className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const renderContent = () => {
     switch (activeNav) {
       case "details":
@@ -1025,7 +1166,7 @@ export function OpportunityDetailModal({
       case "documents":
         return renderDocuments();
       case "invoices":
-        return renderPlaceholder(Receipt, "Invoices will appear here");
+        return renderInvoices();
       default:
         return renderDetails();
     }
@@ -1277,6 +1418,13 @@ export function OpportunityDetailModal({
           appointment={editedOpportunity.scheduledAppointment as Appointment}
         />
       )}
+
+      {/* Invoice Create Modal */}
+      <InvoiceCreateModal
+        open={isCreateInvoiceModalOpen}
+        onOpenChange={setIsCreateInvoiceModalOpen}
+        preselectedOpportunityId={editedOpportunity._id}
+      />
     </Dialog>
   );
 }

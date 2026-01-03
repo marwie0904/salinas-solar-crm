@@ -7,11 +7,12 @@ import { v } from "convex/values";
 
 export const pipelineStage = v.union(
   v.literal("inbox"),
-  v.literal("scheduled_discovery_call"),
-  v.literal("discovery_call"),
-  v.literal("no_show_discovery_call"),
-  v.literal("field_inspection"),
-  v.literal("to_follow_up"),
+  v.literal("to_call"),
+  v.literal("did_not_answer"),
+  v.literal("booked_call"),
+  v.literal("did_not_book_call"),
+  v.literal("for_ocular"),
+  v.literal("follow_up"),
   v.literal("contract_drafting"),
   v.literal("contract_signing"),
   v.literal("closed")
@@ -85,6 +86,13 @@ export const paymentMethod = v.union(
   v.literal("gcash"),
   v.literal("maya"),
   v.literal("other")
+);
+
+export const paymentType = v.union(
+  v.literal("one_time"),
+  v.literal("installment"),
+  v.literal("downpayment"),
+  v.literal("progress_billing")
 );
 
 export const userRole = v.union(
@@ -294,6 +302,11 @@ export default defineSchema({
     total: v.number(),
     amountPaid: v.number(),
     status: invoiceStatus,
+    // Payment type and method
+    paymentType: v.optional(paymentType),
+    paymentMethod: v.optional(paymentMethod),
+    installmentAmount: v.optional(v.number()),
+    numberOfInstallments: v.optional(v.number()),
     notes: v.optional(v.string()),
     dueDate: v.number(),
     dateSent: v.optional(v.number()),

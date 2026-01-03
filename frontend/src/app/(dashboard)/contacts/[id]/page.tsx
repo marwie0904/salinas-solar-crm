@@ -48,8 +48,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TaskEditModal } from "@/components/tasks/task-edit-modal";
 import { Task } from "@/components/tasks/task-table";
-import { TaskStatus } from "@/lib/types";
+import { TaskStatus, INVOICE_STATUS_LABELS, PAYMENT_TYPE_LABELS, PaymentType } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { InvoiceCreateModal } from "@/components/invoices";
+import { generateInvoicePDF } from "@/components/invoices/invoice-pdf-generator";
 
 type ContentView = "messages" | "tasks" | "appointments_invoices" | "documents";
 type Channel = "facebook" | "instagram";
@@ -80,11 +82,12 @@ const sourceLabels: Record<ContactSource, string> = {
 
 const stageColors: Record<PipelineStage, string> = {
   inbox: "bg-slate-500",
-  scheduled_discovery_call: "bg-blue-500",
-  discovery_call: "bg-cyan-500",
-  no_show_discovery_call: "bg-red-400",
-  field_inspection: "bg-purple-500",
-  to_follow_up: "bg-amber-500",
+  to_call: "bg-blue-500",
+  did_not_answer: "bg-red-400",
+  booked_call: "bg-cyan-500",
+  did_not_book_call: "bg-amber-500",
+  for_ocular: "bg-purple-500",
+  follow_up: "bg-yellow-500",
   contract_drafting: "bg-orange-500",
   contract_signing: "bg-indigo-500",
   closed: "bg-green-500",
@@ -114,6 +117,9 @@ export default function ContactDetailPage({
   const [isEditTaskModalOpen, setIsEditTaskModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+
+  // Invoice state
+  const [isCreateInvoiceModalOpen, setIsCreateInvoiceModalOpen] = useState(false);
 
   // Contact edit state
   const [isEditingContact, setIsEditingContact] = useState(false);
@@ -366,6 +372,28 @@ export default function ContactDetailPage({
   const channel = getChannel();
   const messagingWindow = contact.messagingWindow;
   const primaryOpportunity = contact.opportunities?.[0];
+
+  const handleDownloadInvoicePDF = (invoice: any) => {
+    const pdfData = {
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceDate: new Date(invoice.createdAt).toISOString(),
+      dueDate: new Date(invoice.dueDate).toISOString().split("T")[0],
+      billedTo: {
+        name: contact.fullName,
+        address: contact.address || "",
+      },
+      opportunityName: primaryOpportunity?.name || "",
+      paymentType: invoice.paymentType || "one_time",
+      paymentMethod: invoice.paymentMethod || "bank_transfer",
+      total: invoice.total,
+      installmentAmount: invoice.installmentAmount,
+      numberOfInstallments: invoice.numberOfInstallments,
+      notes: invoice.notes,
+    };
+
+    const pdf = generateInvoicePDF(pdfData);
+    pdf.download();
+  };
 
   const renderMessages = () => (
     <div className="flex flex-col h-full">
@@ -667,35 +695,66 @@ export default function ContactDetailPage({
             <Receipt className="h-4 w-4 text-[#ff5603]" />
             Invoices
           </h3>
-          <Button size="sm" variant="outline">
+          <Button
+            size="sm"
+            onClick={() => setIsCreateInvoiceModalOpen(true)}
+            className="bg-[#ff5603] hover:bg-[#e64d00] cursor-pointer"
+          >
             <Plus className="h-4 w-4 mr-1" />
             Create Invoice
           </Button>
         </div>
         <div className="space-y-3">
-          {contact.invoices.map((invoice) => (
+          {contact.invoices.map((invoice: any) => (
             <div
               key={invoice._id}
-              className="p-3 rounded-lg border bg-white flex justify-between items-center"
+              className="p-4 rounded-lg border bg-white hover:bg-muted/50 transition-colors"
             >
-              <div>
-                <p className="font-medium text-sm">{invoice.invoiceNumber}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Due: {formatDate(invoice.dueDate)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-sm">
-                  {formatCurrency(invoice.total)}
-                </p>
-                <Badge
-                  className={cn(
-                    "mt-1 text-white text-xs",
-                    invoiceStatusColors[invoice.status as InvoiceStatus]
-                  )}
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <Receipt className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{invoice.invoiceNumber}</span>
+                    <Badge
+                      className={cn(
+                        "text-white text-xs",
+                        invoiceStatusColors[invoice.status as InvoiceStatus]
+                      )}
+                    >
+                      {INVOICE_STATUS_LABELS[invoice.status as InvoiceStatus]}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Total:</span>{" "}
+                      <span className="font-medium">{formatCurrency(invoice.total)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Paid:</span>{" "}
+                      <span className="font-medium text-green-600">
+                        {formatCurrency(invoice.amountPaid)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Due:</span>{" "}
+                      {formatDate(invoice.dueDate)}
+                    </div>
+                    {invoice.paymentType && (
+                      <div>
+                        <span className="text-muted-foreground">Type:</span>{" "}
+                        {PAYMENT_TYPE_LABELS[invoice.paymentType as PaymentType]}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDownloadInvoicePDF(invoice)}
+                  className="text-muted-foreground hover:text-foreground"
                 >
-                  {invoice.status}
-                </Badge>
+                  <Download className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           ))}
@@ -1029,6 +1088,13 @@ export default function ContactDetailPage({
         onOpenChange={setIsCreateTaskModalOpen}
         showOverlay
         offsetForSidebar
+      />
+
+      {/* Invoice Create Modal */}
+      <InvoiceCreateModal
+        open={isCreateInvoiceModalOpen}
+        onOpenChange={setIsCreateInvoiceModalOpen}
+        preselectedOpportunityId={primaryOpportunity?._id}
       />
     </div>
   );
