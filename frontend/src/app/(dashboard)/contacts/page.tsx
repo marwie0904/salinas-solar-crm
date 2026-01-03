@@ -49,11 +49,12 @@ const InstagramIcon = ({ className }: { className?: string }) => (
 
 const stageColors: Record<PipelineStage, string> = {
   inbox: "bg-slate-500",
-  scheduled_discovery_call: "bg-blue-500",
-  discovery_call: "bg-cyan-500",
-  no_show_discovery_call: "bg-red-400",
-  field_inspection: "bg-purple-500",
-  to_follow_up: "bg-amber-500",
+  to_call: "bg-blue-500",
+  did_not_answer: "bg-red-400",
+  booked_call: "bg-cyan-500",
+  did_not_book_call: "bg-amber-500",
+  for_ocular: "bg-purple-500",
+  follow_up: "bg-yellow-500",
   contract_drafting: "bg-orange-500",
   contract_signing: "bg-indigo-500",
   closed: "bg-green-500",
