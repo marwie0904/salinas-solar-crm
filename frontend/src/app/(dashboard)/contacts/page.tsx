@@ -84,28 +84,28 @@ export default function ContactsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Contacts</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Contacts</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             Manage your customer contacts and leads.
           </p>
         </div>
-        <Button className="bg-[#ff5603] hover:bg-[#ff5603]/90">
+        <Button className="bg-[#ff5603] hover:bg-[#ff5603]/90 h-10 touch-target w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Add Contact
         </Button>
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
+      <div className="relative w-full sm:max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search contacts..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
+          className="pl-9 h-10"
         />
       </div>
 

@@ -50,7 +50,14 @@ import {
   CheckCircle2,
   Download,
   Loader2,
+  Sun,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Error tooltip component
 function ErrorTooltip({ message }: { message: string }) {
@@ -62,6 +69,24 @@ function ErrorTooltip({ message }: { message: string }) {
   );
 }
 
+// OpenSolar pre-filled indicator tooltip
+function OpenSolarIndicator() {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex items-center ml-1.5 cursor-help">
+            <Sun className="h-4 w-4 text-yellow-500" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="bg-gray-900 text-white text-xs px-2 py-1">
+          Pre-filled from OpenSolar project
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 // Form field wrapper with error state
 interface FormFieldProps {
   children: React.ReactNode;
@@ -69,13 +94,15 @@ interface FormFieldProps {
   required?: boolean;
   error?: string;
   className?: string;
+  isOpenSolarPrefilled?: boolean;
 }
 
-function FormField({ children, label, required, error, className = "" }: FormFieldProps) {
+function FormField({ children, label, required, error, className = "", isOpenSolarPrefilled }: FormFieldProps) {
   return (
     <div className={`space-y-2 ${className}`}>
-      <label className="text-sm font-medium">
+      <label className="text-sm font-medium flex items-center">
         {label} {required && <span className="text-red-500">*</span>}
+        {isOpenSolarPrefilled && <OpenSolarIndicator />}
       </label>
       {error && <ErrorTooltip message={error} />}
       {children}
@@ -169,6 +196,16 @@ interface FormErrors {
   totalAmount?: string;
 }
 
+// OpenSolar prefill data structure
+interface OpenSolarPrefillData {
+  systemType?: SystemType;
+  systemSize?: number;
+  batteryCapacity?: number;
+  projectLocation?: string;
+  totalContractAmount?: number;
+  materials?: AgreementMaterial[];
+}
+
 interface PrefillData {
   clientName?: string;
   clientAddress?: string;
@@ -177,6 +214,10 @@ interface PrefillData {
   opportunityId?: Id<"opportunities">;
   opportunityName?: string;
   contactId?: Id<"contacts">;
+  // OpenSolar data
+  openSolarData?: OpenSolarPrefillData;
+  isLoadingOpenSolar?: boolean;
+  openSolarError?: string | null;
 }
 
 interface AgreementFormProps {
@@ -184,13 +225,39 @@ interface AgreementFormProps {
 }
 
 export function AgreementForm({ prefillData }: AgreementFormProps) {
-  // Merge prefill data with defaults
+  // Track which fields are pre-filled from OpenSolar
+  const openSolarFields = {
+    systemType: !!prefillData?.openSolarData?.systemType,
+    systemSize: !!prefillData?.openSolarData?.systemSize && prefillData.openSolarData.systemSize > 0,
+    batteryCapacity: !!prefillData?.openSolarData?.batteryCapacity && prefillData.openSolarData.batteryCapacity > 0,
+    projectLocation: !!prefillData?.openSolarData?.projectLocation,
+    totalAmount: !!prefillData?.openSolarData?.totalContractAmount && prefillData.openSolarData.totalContractAmount > 0,
+    materials: !!prefillData?.openSolarData?.materials && prefillData.openSolarData.materials.length > 0,
+  };
+
+  // Merge prefill data with defaults, prioritizing OpenSolar data
+  const openSolar = prefillData?.openSolarData;
   const initialFormData: AgreementFormData = {
     ...defaultFormData,
     clientName: prefillData?.clientName || defaultFormData.clientName,
     clientAddress: prefillData?.clientAddress || defaultFormData.clientAddress,
-    projectLocation: prefillData?.projectLocation || defaultFormData.projectLocation,
-    totalAmount: prefillData?.totalAmount || defaultFormData.totalAmount,
+    // Use OpenSolar data if available, otherwise fall back to URL params
+    projectLocation: openSolar?.projectLocation || prefillData?.projectLocation || defaultFormData.projectLocation,
+    totalAmount: openSolar?.totalContractAmount || prefillData?.totalAmount || defaultFormData.totalAmount,
+    systemType: openSolar?.systemType || defaultFormData.systemType,
+    systemSize: openSolar?.systemSize || defaultFormData.systemSize,
+    batteryCapacity: openSolar?.batteryCapacity || defaultFormData.batteryCapacity,
+    // Use OpenSolar materials if available, otherwise use defaults
+    materials: openSolar?.materials && openSolar.materials.length > 0
+      ? [
+          ...openSolar.materials,
+          // Add standard items that OpenSolar might not include
+          { name: "Mounting Structures", quantity: 1, model: "", specifications: "" },
+          { name: "Complete AC/DC Cables and Connectors", quantity: 1, model: "", specifications: "" },
+          { name: "Combiner Box and Safety Switches", quantity: 1, model: "", specifications: "" },
+          { name: "Monitoring System", quantity: 1, model: "", specifications: "" },
+        ]
+      : defaultFormData.materials,
   };
 
   const [formData, setFormData] = useState<AgreementFormData>(initialFormData);
@@ -445,7 +512,52 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
+      {/* OpenSolar Loading/Error State */}
+      {prefillData?.isLoadingOpenSolar && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-yellow-600" />
+              <div>
+                <p className="font-medium text-yellow-800">Loading OpenSolar project data...</p>
+                <p className="text-sm text-yellow-600">Fetching system details to pre-fill the agreement form.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {prefillData?.openSolarError && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              <div>
+                <p className="font-medium text-red-800">Could not load OpenSolar data</p>
+                <p className="text-sm text-red-600">{prefillData.openSolarError}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {prefillData?.openSolarData && !prefillData.isLoadingOpenSolar && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <Sun className="h-5 w-5 text-yellow-500" />
+              <div>
+                <p className="font-medium text-green-800">OpenSolar data loaded</p>
+                <p className="text-sm text-green-600">
+                  System details have been pre-filled. Look for the <Sun className="h-3 w-3 inline text-yellow-500" /> icon next to pre-filled fields.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Client Information */}
       <Card>
         <CardHeader>
@@ -510,7 +622,7 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <FormField label="System Type" required>
+            <FormField label="System Type" required isOpenSolarPrefilled={openSolarFields.systemType}>
               <Select
                 value={formData.systemType}
                 onValueChange={(value: SystemType) => setFormData({ ...formData, systemType: value })}
@@ -528,7 +640,7 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
               </Select>
             </FormField>
             <div ref={systemSizeRef}>
-              <FormField label="System Size (kW)" required error={errors.systemSize}>
+              <FormField label="System Size (kW)" required error={errors.systemSize} isOpenSolarPrefilled={openSolarFields.systemSize}>
                 <Input
                   type="number"
                   step="0.01"
@@ -543,7 +655,7 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
               </FormField>
             </div>
             {formData.systemType === "hybrid" && (
-              <FormField label="Battery Capacity (kWh)">
+              <FormField label="Battery Capacity (kWh)" isOpenSolarPrefilled={openSolarFields.batteryCapacity}>
                 <Input
                   type="number"
                   step="0.01"
@@ -555,7 +667,7 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
             )}
           </div>
           <div ref={projectLocationRef}>
-            <FormField label="Project Location" required error={errors.projectLocation}>
+            <FormField label="Project Location" required error={errors.projectLocation} isOpenSolarPrefilled={openSolarFields.projectLocation}>
               <Textarea
                 placeholder="Enter complete project installation location"
                 value={formData.projectLocation}
@@ -569,7 +681,7 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
             </FormField>
           </div>
           <div ref={totalAmountRef}>
-            <FormField label="Total Contract Amount (PHP)" required error={errors.totalAmount}>
+            <FormField label="Total Contract Amount (PHP)" required error={errors.totalAmount} isOpenSolarPrefilled={openSolarFields.totalAmount}>
               <Input
                 type="number"
                 step="0.01"
@@ -595,39 +707,44 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
             Materials List
+            {openSolarFields.materials && <OpenSolarIndicator />}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {formData.materials.map((material, index) => (
-            <div key={index} className="flex gap-2 items-start">
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2">
+            <div key={index} className="flex gap-2 items-start p-3 md:p-0 border md:border-0 rounded-lg md:rounded-none">
+              <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-2">
                 <Input
                   placeholder="Material name"
                   value={material.name}
                   onChange={(e) => updateMaterial(index, "name", e.target.value)}
+                  className="col-span-2 md:col-span-1 h-10"
                 />
                 <Input
                   type="number"
                   placeholder="Qty"
                   value={material.quantity || ""}
                   onChange={(e) => updateMaterial(index, "quantity", parseInt(e.target.value) || 0)}
+                  className="h-10"
                 />
                 <Input
                   placeholder="Model"
                   value={material.model}
                   onChange={(e) => updateMaterial(index, "model", e.target.value)}
+                  className="h-10"
                 />
                 <Input
                   placeholder="Specifications"
                   value={material.specifications}
                   onChange={(e) => updateMaterial(index, "specifications", e.target.value)}
+                  className="col-span-2 md:col-span-1 h-10"
                 />
               </div>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => removeMaterial(index)}
-                className="shrink-0"
+                className="shrink-0 h-10 w-10 touch-target"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -879,12 +996,12 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
       </Card>
 
       {/* Generate Button */}
-      <div className="flex justify-end">
+      <div className="flex justify-center md:justify-end sticky bottom-0 bg-background py-4 border-t md:border-0 -mx-4 px-4 md:mx-0 md:px-0 md:relative md:py-0 safe-area-inset-bottom">
         <Button
           onClick={handleGenerate}
           disabled={isGenerating}
           size="lg"
-          className="bg-[#ff5603] hover:bg-[#e64d00]"
+          className="bg-[#ff5603] hover:bg-[#e64d00] w-full md:w-auto h-12 md:h-11 touch-target"
         >
           <FileText className="h-5 w-5 mr-2" />
           {isGenerating ? "Generating..." : "Generate Agreement PDF"}
@@ -893,7 +1010,7 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
 
       {/* Success Dialog */}
       <Dialog open={showSuccessDialog} onOpenChange={handleCloseSuccessDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md mx-auto rounded-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -930,13 +1047,13 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
               </div>
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-3 mt-4">
-            <Button variant="outline" onClick={handleCloseSuccessDialog}>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 mt-4">
+            <Button variant="outline" onClick={handleCloseSuccessDialog} className="h-10 touch-target">
               Close
             </Button>
             <Button
               onClick={handleManualDownload}
-              className="bg-[#ff5603] hover:bg-[#e64d00] gap-2"
+              className="bg-[#ff5603] hover:bg-[#e64d00] gap-2 h-10 touch-target"
             >
               <Download className="h-4 w-4" />
               Download Again

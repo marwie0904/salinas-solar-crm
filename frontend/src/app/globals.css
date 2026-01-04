@@ -125,3 +125,74 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Touch-friendly utilities for mobile/tablet */
+@layer utilities {
+  /* Ensure touch targets are at least 44px (Apple HIG recommendation) */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Prevent text selection on touch drag */
+  .touch-none {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Smooth scrolling for touch devices */
+  .touch-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Hide scrollbar but allow scrolling (for touch swipe) */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Tap highlight removal for iOS */
+  .tap-transparent {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Safe area padding for notched devices */
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-area-inset-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-inset-left {
+    padding-left: env(safe-area-inset-left);
+  }
+  .safe-area-inset-right {
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Responsive modal fixes */
+@media (max-width: 768px) {
+  [data-slot="dialog-content"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* Kanban horizontal scroll for touch */
+.kanban-scroll {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.kanban-column {
+  scroll-snap-align: start;
+}

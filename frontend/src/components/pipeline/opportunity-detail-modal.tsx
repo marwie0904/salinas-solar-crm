@@ -1174,18 +1174,18 @@ export function OpportunityDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl w-[75vw] h-[60vh] p-0 gap-0 overflow-hidden flex flex-col">
+      <DialogContent className="max-w-5xl w-full md:w-[90vw] lg:w-[75vw] h-full md:h-[85vh] lg:h-[70vh] md:max-h-[85vh] p-0 gap-0 overflow-hidden flex flex-col md:rounded-lg">
         {/* Header */}
-        <DialogHeader className="p-6 pb-4 border-b">
+        <DialogHeader className="p-4 md:p-6 pb-3 md:pb-4 border-b flex-shrink-0">
           <div className="flex items-start justify-between">
-            <div className="flex-1 pr-8">
-              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+            <div className="flex-1 pr-2 md:pr-8 min-w-0">
+              <DialogTitle className="text-lg md:text-xl font-bold flex items-center gap-2">
                 {isEditingName ? (
-                  <div className="flex items-center gap-2 flex-1">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <Input
                       value={editedName}
                       onChange={(e) => setEditedName(e.target.value)}
-                      className="text-xl font-bold h-9"
+                      className="text-lg md:text-xl font-bold h-9 min-w-0"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && editedName.trim()) {
@@ -1200,7 +1200,7 @@ export function OpportunityDetailModal({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0"
+                      className="h-8 w-8 p-0 flex-shrink-0"
                       onClick={() => {
                         setEditedName(editedOpportunity.name);
                         setIsEditingName(false);
@@ -1211,7 +1211,7 @@ export function OpportunityDetailModal({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
+                      className="h-8 w-8 p-0 text-green-600 hover:text-green-700 flex-shrink-0"
                       disabled={!editedName.trim()}
                       onClick={() => {
                         if (editedName.trim()) {
@@ -1225,11 +1225,11 @@ export function OpportunityDetailModal({
                   </div>
                 ) : (
                   <>
-                    <span>{editedOpportunity.name}</span>
+                    <span className="truncate">{editedOpportunity.name}</span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0"
+                      className="h-7 w-7 p-0 flex-shrink-0"
                       onClick={() => {
                         setEditedName(editedOpportunity.name);
                         setIsEditingName(true);
@@ -1240,14 +1240,14 @@ export function OpportunityDetailModal({
                   </>
                 )}
               </DialogTitle>
-              <div className="flex items-center justify-between mt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-2">
                 <Select
                   value={editedOpportunity.stage}
                   onValueChange={(value: PipelineStage) =>
                     setEditedOpportunity({ ...editedOpportunity, stage: value })
                   }
                 >
-                  <SelectTrigger className="w-[200px] h-8 text-sm">
+                  <SelectTrigger className="w-full sm:w-[200px] h-10 sm:h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1262,7 +1262,7 @@ export function OpportunityDetailModal({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-2"
+                    className="h-10 sm:h-8 gap-2 flex-1 sm:flex-initial text-xs sm:text-sm"
                     onClick={() => {
                       // Build query params with opportunity data
                       const params = new URLSearchParams();
@@ -1290,21 +1290,28 @@ export function OpportunityDetailModal({
                       params.set("opportunityId", editedOpportunity._id);
                       params.set("opportunityName", editedOpportunity.name);
 
+                      // OpenSolar project ID for fetching system data
+                      if (editedOpportunity.openSolarProjectId) {
+                        params.set("openSolarProjectId", editedOpportunity.openSolarProjectId.toString());
+                      }
+
                       onOpenChange(false);
                       router.push(`/agreements?${params.toString()}`);
                     }}
                   >
                     <FileText className="h-4 w-4" />
-                    Generate Agreement
+                    <span className="hidden sm:inline">Generate Agreement</span>
+                    <span className="sm:hidden">Agreement</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-2"
+                    className="h-10 sm:h-8 gap-2 flex-1 sm:flex-initial text-xs sm:text-sm"
                     onClick={() => setIsLocationModalOpen(true)}
                   >
                     <MapPin className="h-4 w-4" />
-                    {editedOpportunity.locationLat ? "Update Location" : "Capture Location"}
+                    <span className="hidden sm:inline">{editedOpportunity.locationLat ? "Update Location" : "Capture Location"}</span>
+                    <span className="sm:hidden">Location</span>
                   </Button>
                 </div>
               </div>
@@ -1312,10 +1319,37 @@ export function OpportunityDetailModal({
           </div>
         </DialogHeader>
 
-        {/* Body with sidebar navigation */}
-        <div className="flex flex-1 overflow-hidden">
-          {/* Left Navigation */}
-          <nav className="w-56 border-r bg-muted/30 p-3 flex-shrink-0">
+        {/* Body with navigation */}
+        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+          {/* Mobile/Tablet: Horizontal scrollable tabs at top */}
+          <nav className="md:hidden border-b bg-muted/30 flex-shrink-0 overflow-x-auto scrollbar-hide">
+            <ul className="flex p-2 gap-1 min-w-max">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeNav === item.id;
+
+                return (
+                  <li key={item.id}>
+                    <button
+                      onClick={() => setActiveNav(item.id)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap touch-target tap-transparent",
+                        isActive
+                          ? "bg-[#ff5603] text-white"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted"
+                      )}
+                    >
+                      <Icon className="h-4 w-4 flex-shrink-0" />
+                      <span>{item.label}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+
+          {/* Desktop: Left sidebar navigation */}
+          <nav className="hidden md:block w-56 border-r bg-muted/30 p-3 flex-shrink-0">
             <ul className="space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -1341,38 +1375,40 @@ export function OpportunityDetailModal({
             </ul>
           </nav>
 
-          {/* Right Content Area */}
+          {/* Content Area */}
           {activeNav === "messages" ? (
             <div className="flex-1 flex flex-col overflow-hidden">
               {renderMessages()}
             </div>
           ) : (
-            <ScrollArea className="flex-1 p-6">
+            <ScrollArea className="flex-1 p-4 md:p-6">
               {renderContent()}
             </ScrollArea>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t flex items-center justify-end gap-3">
+        <div className="p-3 md:p-4 border-t flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 flex-shrink-0 safe-area-inset-bottom">
           <Button
             variant="destructive"
             onClick={handleDelete}
-            className="mr-auto"
+            className="sm:mr-auto order-last sm:order-first h-10 touch-target"
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Delete
           </Button>
-          <Button variant="outline" onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="bg-[#ff5603] hover:bg-[#e64d00]"
-          >
-            {isSaving ? "Saving..." : "Save Changes"}
-          </Button>
+          <div className="flex gap-2 sm:gap-3">
+            <Button variant="outline" onClick={handleCancel} className="flex-1 sm:flex-initial h-10 touch-target">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex-1 sm:flex-initial bg-[#ff5603] hover:bg-[#e64d00] h-10 touch-target"
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
 

@@ -12,6 +12,7 @@ import {
   DragOverlay,
   DragStartEvent,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   rectIntersection,
@@ -242,6 +243,12 @@ export function PipelineKanban({
       activationConstraint: {
         distance: 8,
       },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 8,
+      },
     })
   );
 
@@ -345,7 +352,7 @@ export function PipelineKanban({
   // Render static version during SSR
   if (!isMounted) {
     return (
-      <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-220px)]">
+      <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 h-[calc(100vh-200px)] md:h-[calc(100vh-220px)] kanban-scroll touch-scroll scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
         {stages.map((stageConfig) => {
           const stageOpportunities = getOpportunitiesByStage(stageConfig.stage);
           const stageTotal = getStageTotal(stageConfig.stage);
@@ -353,7 +360,7 @@ export function PipelineKanban({
           return (
             <div
               key={stageConfig.stage}
-              className="flex-shrink-0 w-[280px] flex flex-col"
+              className="flex-shrink-0 w-[260px] md:w-[280px] flex flex-col kanban-column"
             >
               <div className="mb-3">
                 <div className="flex items-center gap-2 mb-1">
@@ -407,7 +414,7 @@ export function PipelineKanban({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-220px)]">
+      <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 h-[calc(100vh-200px)] md:h-[calc(100vh-220px)] kanban-scroll touch-scroll scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
         {stages.map((stageConfig) => {
           const stageOpportunities = getOpportunitiesByStage(stageConfig.stage);
           const stageTotal = getStageTotal(stageConfig.stage);
@@ -416,7 +423,7 @@ export function PipelineKanban({
           return (
             <div
               key={stageConfig.stage}
-              className="flex-shrink-0 w-[280px] flex flex-col"
+              className="flex-shrink-0 w-[260px] md:w-[280px] flex flex-col kanban-column"
             >
               <div className="mb-3">
                 <div className="flex items-center gap-2 mb-1">
