@@ -156,16 +156,16 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Invoices</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Invoices</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             Manage and track your invoices.
           </p>
         </div>
         <Button
-          className="bg-[#ff5603] hover:bg-[#ff5603]/90"
+          className="bg-[#ff5603] hover:bg-[#ff5603]/90 h-10 touch-target w-full sm:w-auto"
           onClick={() => setIsCreateModalOpen(true)}
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -174,13 +174,13 @@ export default function InvoicesPage() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-sm">
+      <div className="relative w-full sm:max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search invoices..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
+          className="pl-9 h-10"
         />
       </div>
 
@@ -277,7 +277,7 @@ export default function InvoicesPage() {
 
       {/* Invoice Detail Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg mx-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -417,6 +417,7 @@ export default function InvoicesPage() {
                 <Button
                   variant="outline"
                   onClick={() => handleDownloadPDF(selectedInvoice)}
+                  className="h-10 touch-target"
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Download PDF

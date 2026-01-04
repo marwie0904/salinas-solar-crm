@@ -61,27 +61,27 @@ export default function TasksPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Task List Management</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Task List Management</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             Manage and track your tasks efficiently.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* View Toggle */}
           <Tabs
             value={viewMode}
             onValueChange={(v) => setViewMode(v as ViewMode)}
           >
-            <TabsList className="bg-muted">
-              <TabsTrigger value="table" className="gap-2">
+            <TabsList className="bg-muted h-10">
+              <TabsTrigger value="table" className="gap-2 h-8 touch-target">
                 <LayoutList className="h-4 w-4" />
                 <span className="hidden sm:inline">Table</span>
               </TabsTrigger>
-              <TabsTrigger value="kanban" className="gap-2">
+              <TabsTrigger value="kanban" className="gap-2 h-8 touch-target">
                 <Kanban className="h-4 w-4" />
                 <span className="hidden sm:inline">Kanban</span>
               </TabsTrigger>
@@ -89,7 +89,7 @@ export default function TasksPage() {
           </Tabs>
           {/* Add Task Button */}
           <Button
-            className="bg-[#ff5603] hover:bg-[#e64d00] gap-2 cursor-pointer"
+            className="bg-[#ff5603] hover:bg-[#e64d00] gap-2 cursor-pointer h-10 touch-target"
             onClick={() => setIsCreateModalOpen(true)}
           >
             <Plus className="h-4 w-4" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -80,12 +80,28 @@ const typeColors: Record<AppointmentType, string> = {
 };
 
 type ViewMode = "calendar" | "list";
-type CalendarView = "month" | "week";
+type CalendarView = "month" | "week" | "3day";
 
 export default function AppointmentsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
-  const [calendarView, setCalendarView] = useState<CalendarView>("month");
+  const [calendarView, setCalendarView] = useState<CalendarView>("3day");
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check for mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      // Set default view based on screen size
+      if (mobile && calendarView === "week") {
+        setCalendarView("3day");
+      }
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, [calendarView]);
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -126,6 +142,16 @@ export default function AppointmentsPage() {
     return days;
   };
 
+  const get3Days = (date: Date) => {
+    const days = [];
+    for (let i = 0; i < 3; i++) {
+      const day = new Date(date);
+      day.setDate(date.getDate() + i);
+      days.push(day);
+    }
+    return days;
+  };
+
   const formatDateKey = (date: Date) => {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   };
@@ -138,8 +164,11 @@ export default function AppointmentsPage() {
     const newDate = new Date(currentDate);
     if (calendarView === "month") {
       newDate.setMonth(newDate.getMonth() + direction);
-    } else {
+    } else if (calendarView === "week") {
       newDate.setDate(newDate.getDate() + direction * 7);
+    } else {
+      // 3-day view
+      newDate.setDate(newDate.getDate() + direction * 3);
     }
     setCurrentDate(newDate);
   };
@@ -150,9 +179,11 @@ export default function AppointmentsPage() {
   ];
 
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const shortDayNames = ["S", "M", "T", "W", "T", "F", "S"];
 
   const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentDate);
   const weekDays = getWeekDays(currentDate);
+  const threeDays = get3Days(currentDate);
   const todayKey = formatDateKey(new Date());
 
   // Handlers
@@ -178,7 +209,7 @@ export default function AppointmentsPage() {
     await updateAppointmentStatus({ id: appointmentId, status });
   };
 
-  const renderCalendarCard = (appointment: Appointment) => (
+  const renderCalendarCard = (appointment: Appointment, compact: boolean = false) => (
     <div
       key={appointment._id}
       className={cn(
@@ -196,9 +227,11 @@ export default function AppointmentsPage() {
       )}>
         {appointment.title}
       </div>
-      <div className="truncate text-muted-foreground">{appointment.contact?.fullName || "Unknown"}</div>
+      {!compact && (
+        <div className="truncate text-muted-foreground">{appointment.contact?.fullName || "Unknown"}</div>
+      )}
       <Badge className={cn("mt-1 text-[10px] px-1.5 py-0 text-white", typeColors[appointment.appointmentType])}>
-        {typeLabels[appointment.appointmentType]}
+        {compact ? (appointment.appointmentType === "discovery_call" ? "Call" : "Inspect") : typeLabels[appointment.appointmentType]}
       </Badge>
     </div>
   );
@@ -211,17 +244,17 @@ export default function AppointmentsPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 -mx-4 px-4 md:mx-0 md:px-0">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Appointments</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Appointments</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             Schedule and manage your appointments.
           </p>
         </div>
         <Button
-          className="bg-[#ff5603] hover:bg-[#ff5603]/90"
+          className="bg-[#ff5603] hover:bg-[#ff5603]/90 h-10 touch-target w-full sm:w-auto"
           onClick={() => setIsCreateModalOpen(true)}
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -230,13 +263,13 @@ export default function AppointmentsPage() {
       </div>
 
       {/* View Toggle */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
           <Button
             variant={viewMode === "calendar" ? "default" : "outline"}
             size="sm"
             onClick={() => setViewMode("calendar")}
-            className={viewMode === "calendar" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : ""}
+            className={cn("h-10 touch-target flex-1 sm:flex-initial", viewMode === "calendar" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
           >
             <CalendarIcon className="h-4 w-4 mr-2" />
             Calendar
@@ -245,7 +278,7 @@ export default function AppointmentsPage() {
             variant={viewMode === "list" ? "default" : "outline"}
             size="sm"
             onClick={() => setViewMode("list")}
-            className={viewMode === "list" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : ""}
+            className={cn("h-10 touch-target flex-1 sm:flex-initial", viewMode === "list" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
           >
             <List className="h-4 w-4 mr-2" />
             List
@@ -253,12 +286,12 @@ export default function AppointmentsPage() {
         </div>
 
         {viewMode === "calendar" && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
             <Button
               variant={calendarView === "month" ? "default" : "outline"}
               size="sm"
               onClick={() => setCalendarView("month")}
-              className={calendarView === "month" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : ""}
+              className={cn("h-10 touch-target text-xs sm:text-sm px-2 sm:px-3", calendarView === "month" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
             >
               Month
             </Button>
@@ -266,9 +299,17 @@ export default function AppointmentsPage() {
               variant={calendarView === "week" ? "default" : "outline"}
               size="sm"
               onClick={() => setCalendarView("week")}
-              className={calendarView === "week" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : ""}
+              className={cn("h-10 touch-target text-xs sm:text-sm px-2 sm:px-3 hidden sm:flex", calendarView === "week" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
             >
               Week
+            </Button>
+            <Button
+              variant={calendarView === "3day" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setCalendarView("3day")}
+              className={cn("h-10 touch-target text-xs sm:text-sm px-2 sm:px-3", calendarView === "3day" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
+            >
+              3 Day
             </Button>
           </div>
         )}
@@ -278,29 +319,31 @@ export default function AppointmentsPage() {
       {viewMode === "calendar" && (
         <div className="rounded-lg border bg-white">
           {/* Calendar Header */}
-          <div className="flex items-center justify-between p-4 border-b">
-            <Button variant="ghost" size="sm" onClick={() => navigateMonth(-1)}>
+          <div className="flex items-center justify-between p-3 md:p-4 border-b">
+            <Button variant="ghost" size="sm" onClick={() => navigateMonth(-1)} className="h-10 w-10 touch-target p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-lg font-semibold">
+            <h2 className="text-base md:text-lg font-semibold text-center">
               {calendarView === "month"
                 ? `${monthNames[month]} ${year}`
-                : `Week of ${monthNames[weekDays[0].getMonth()]} ${weekDays[0].getDate()}, ${weekDays[0].getFullYear()}`}
+                : calendarView === "week"
+                ? `Week of ${monthNames[weekDays[0].getMonth()]} ${weekDays[0].getDate()}`
+                : `${monthNames[threeDays[0].getMonth()]} ${threeDays[0].getDate()} - ${threeDays[2].getDate()}`}
             </h2>
-            <Button variant="ghost" size="sm" onClick={() => navigateMonth(1)}>
+            <Button variant="ghost" size="sm" onClick={() => navigateMonth(1)} className="h-10 w-10 touch-target p-0">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
 
           {/* Calendar Grid */}
           {calendarView === "month" ? (
-            <div className="p-4">
+            <div className="p-2 md:p-4">
               {/* Day Headers */}
               <div className="grid grid-cols-7 gap-1 mb-2">
-                {dayNames.map((day) => (
+                {(isMobile ? shortDayNames : dayNames).map((day, i) => (
                   <div
-                    key={day}
-                    className="text-center text-sm font-medium text-muted-foreground py-2"
+                    key={i}
+                    className="text-center text-xs md:text-sm font-medium text-muted-foreground py-2"
                   >
                     {day}
                   </div>
@@ -313,7 +356,7 @@ export default function AppointmentsPage() {
                 {Array.from({ length: startingDayOfWeek }).map((_, index) => (
                   <div
                     key={`empty-${index}`}
-                    className="min-h-[100px] p-2 bg-muted/30 rounded"
+                    className="min-h-[60px] md:min-h-[100px] p-1 md:p-2 bg-muted/30 rounded"
                   />
                 ))}
 
@@ -328,23 +371,23 @@ export default function AppointmentsPage() {
                     <div
                       key={day}
                       className={cn(
-                        "min-h-[100px] p-2 rounded border",
+                        "min-h-[60px] md:min-h-[100px] p-1 md:p-2 rounded border",
                         isToday ? "border-[#ff5603] bg-[#ff5603]/5" : "border-transparent"
                       )}
                     >
                       <div
                         className={cn(
-                          "text-sm font-medium mb-1",
+                          "text-xs md:text-sm font-medium mb-1",
                           isToday ? "text-[#ff5603]" : ""
                         )}
                       >
                         {day}
                       </div>
                       <div className="space-y-1">
-                        {dayAppointments.slice(0, 2).map(renderCalendarCard)}
-                        {dayAppointments.length > 2 && (
-                          <div className="text-xs text-muted-foreground">
-                            +{dayAppointments.length - 2} more
+                        {dayAppointments.slice(0, isMobile ? 1 : 2).map((apt) => renderCalendarCard(apt, isMobile))}
+                        {dayAppointments.length > (isMobile ? 1 : 2) && (
+                          <div className="text-[10px] md:text-xs text-muted-foreground">
+                            +{dayAppointments.length - (isMobile ? 1 : 2)} more
                           </div>
                         )}
                       </div>
@@ -353,10 +396,10 @@ export default function AppointmentsPage() {
                 })}
               </div>
             </div>
-          ) : (
+          ) : calendarView === "week" ? (
             /* Week View */
-            <div className="p-4">
-              <div className="grid grid-cols-7 gap-2">
+            <div className="p-2 md:p-4 overflow-x-auto">
+              <div className="grid grid-cols-7 gap-1 md:gap-2 min-w-[600px]">
                 {weekDays.map((day) => {
                   const dateKey = formatDateKey(day);
                   const dayAppointments = getAppointmentsForDate(dateKey);
@@ -370,12 +413,12 @@ export default function AppointmentsPage() {
                           isToday ? "bg-[#ff5603] text-white" : "bg-muted/50"
                         )}
                       >
-                        <div className="text-sm font-medium">
+                        <div className="text-xs md:text-sm font-medium">
                           {dayNames[day.getDay()]}
                         </div>
-                        <div className="text-lg font-bold">{day.getDate()}</div>
+                        <div className="text-base md:text-lg font-bold">{day.getDate()}</div>
                       </div>
-                      <div className="p-2 space-y-2 border-l border-r border-b rounded-b min-h-[250px]">
+                      <div className="p-1 md:p-2 space-y-2 border-l border-r border-b rounded-b min-h-[250px]">
                         {dayAppointments.map((apt) => (
                           <div
                             key={apt._id}
@@ -406,7 +449,70 @@ export default function AppointmentsPage() {
                           </div>
                         ))}
                         {dayAppointments.length === 0 && (
-                          <div className="text-xs text-muted-foreground text-center py-4">
+                          <div className="text-[10px] text-muted-foreground text-center py-4">
+                            —
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* 3-Day View */
+            <div className="p-2 md:p-4">
+              <div className="grid grid-cols-3 gap-2">
+                {threeDays.map((day) => {
+                  const dateKey = formatDateKey(day);
+                  const dayAppointments = getAppointmentsForDate(dateKey);
+                  const isToday = dateKey === todayKey;
+
+                  return (
+                    <div key={dateKey} className="min-h-[300px]">
+                      <div
+                        className={cn(
+                          "text-center p-2 rounded-t border-b",
+                          isToday ? "bg-[#ff5603] text-white" : "bg-muted/50"
+                        )}
+                      >
+                        <div className="text-xs md:text-sm font-medium">
+                          {dayNames[day.getDay()]}
+                        </div>
+                        <div className="text-lg md:text-xl font-bold">{day.getDate()}</div>
+                      </div>
+                      <div className="p-1.5 md:p-2 space-y-2 border-l border-r border-b rounded-b min-h-[250px]">
+                        {dayAppointments.map((apt) => (
+                          <div
+                            key={apt._id}
+                            className={cn(
+                              "p-2 rounded text-xs bg-white border cursor-pointer hover:shadow-sm transition-shadow active:bg-muted/50",
+                              apt.status === "cancelled" || apt.status === "no_show"
+                                ? "opacity-50"
+                                : ""
+                            )}
+                            onClick={() => handleEditClick(apt)}
+                          >
+                            <div className="font-medium flex items-center gap-1 mb-1 text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {apt.time}
+                            </div>
+                            <div className={cn(
+                              "font-medium truncate text-foreground text-sm",
+                              (apt.status === "cancelled" || apt.status === "no_show") && "line-through"
+                            )}>
+                              {apt.title}
+                            </div>
+                            <div className="truncate text-muted-foreground mt-0.5">
+                              {apt.contact?.fullName || "Unknown"}
+                            </div>
+                            <Badge className={cn("mt-1.5 text-[10px] px-1.5 py-0 text-white", typeColors[apt.appointmentType])}>
+                              {apt.appointmentType === "discovery_call" ? "Call" : "Inspect"}
+                            </Badge>
+                          </div>
+                        ))}
+                        {dayAppointments.length === 0 && (
+                          <div className="flex items-center justify-center h-full min-h-[200px] text-xs text-muted-foreground">
                             No appointments
                           </div>
                         )}
@@ -428,11 +534,11 @@ export default function AppointmentsPage() {
               <TableRow>
                 <TableHead>Date & Time</TableHead>
                 <TableHead>Title</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Assigned To</TableHead>
-                <TableHead>Type</TableHead>
+                <TableHead className="hidden sm:table-cell">Contact</TableHead>
+                <TableHead className="hidden md:table-cell">Assigned To</TableHead>
+                <TableHead className="hidden sm:table-cell">Type</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Location</TableHead>
+                <TableHead className="hidden lg:table-cell">Location</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -444,16 +550,15 @@ export default function AppointmentsPage() {
                 >
                   <TableCell onClick={() => handleEditClick(appointment)}>
                     <div className="flex items-center gap-2">
-                      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                      <CalendarIcon className="h-4 w-4 text-muted-foreground hidden sm:block" />
                       <div>
-                        <div className="font-medium">
+                        <div className="font-medium text-xs sm:text-sm">
                           {new Date(appointment.date).toLocaleDateString("en-US", {
                             month: "short",
                             day: "numeric",
-                            year: "numeric",
                           })}
                         </div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-xs sm:text-sm text-muted-foreground">
                           {appointment.time}
                         </div>
                       </div>
@@ -461,18 +566,19 @@ export default function AppointmentsPage() {
                   </TableCell>
                   <TableCell onClick={() => handleEditClick(appointment)}>
                     <span className={cn(
+                      "text-xs sm:text-sm",
                       (appointment.status === "cancelled" || appointment.status === "no_show") && "line-through opacity-50"
                     )}>
                       {appointment.title}
                     </span>
                   </TableCell>
-                  <TableCell onClick={() => handleEditClick(appointment)}>
+                  <TableCell onClick={() => handleEditClick(appointment)} className="hidden sm:table-cell">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
-                      <span>{appointment.contact?.fullName || "Unknown"}</span>
+                      <span className="text-xs sm:text-sm truncate max-w-[100px]">{appointment.contact?.fullName || "Unknown"}</span>
                     </div>
                   </TableCell>
-                  <TableCell onClick={() => handleEditClick(appointment)}>
+                  <TableCell onClick={() => handleEditClick(appointment)} className="hidden md:table-cell">
                     <div className="flex items-center gap-2">
                       <div className="h-6 w-6 rounded-full bg-[#ff5603] flex items-center justify-center text-white text-xs font-medium">
                         {appointment.assignedUser?.fullName
@@ -480,24 +586,24 @@ export default function AppointmentsPage() {
                           .map((n) => n[0])
                           .join("") || "?"}
                       </div>
-                      <span>{appointment.assignedUser?.fullName || "Unassigned"}</span>
+                      <span className="text-xs sm:text-sm truncate max-w-[80px]">{appointment.assignedUser?.fullName || "Unassigned"}</span>
                     </div>
                   </TableCell>
-                  <TableCell onClick={() => handleEditClick(appointment)}>
-                    <Badge className={`${typeColors[appointment.appointmentType]} text-white`}>
-                      {typeLabels[appointment.appointmentType]}
+                  <TableCell onClick={() => handleEditClick(appointment)} className="hidden sm:table-cell">
+                    <Badge className={`${typeColors[appointment.appointmentType]} text-white text-[10px] sm:text-xs`}>
+                      {isMobile ? (appointment.appointmentType === "discovery_call" ? "Call" : "Inspect") : typeLabels[appointment.appointmentType]}
                     </Badge>
                   </TableCell>
                   <TableCell onClick={() => handleEditClick(appointment)}>
-                    <Badge className={`${statusColors[appointment.status]} text-white`}>
+                    <Badge className={`${statusColors[appointment.status]} text-white text-[10px] sm:text-xs`}>
                       {statusLabels[appointment.status]}
                     </Badge>
                   </TableCell>
-                  <TableCell onClick={() => handleEditClick(appointment)}>
+                  <TableCell onClick={() => handleEditClick(appointment)} className="hidden lg:table-cell">
                     {appointment.location ? (
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span className="max-w-[150px] truncate">
+                        <span className="max-w-[150px] truncate text-xs sm:text-sm">
                           {appointment.location}
                         </span>
                       </div>
@@ -508,7 +614,7 @@ export default function AppointmentsPage() {
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 touch-target">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -584,18 +690,18 @@ export default function AppointmentsPage() {
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100%-2rem)] sm:max-w-md mx-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Appointment</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete &quot;{appointmentToDelete?.title}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="h-10 touch-target">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-red-600 hover:bg-red-700 h-10 touch-target"
             >
               Delete
             </AlertDialogAction>
