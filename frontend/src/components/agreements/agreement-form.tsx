@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useMutation, useAction } from "convex/react";
+import { useMutation, useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { blobToBase64 } from "@/lib/resend-api";
@@ -52,6 +52,8 @@ import {
   Download,
   Loader2,
   Sun,
+  Target,
+  Send,
 } from "lucide-react";
 import {
   Tooltip,
@@ -189,6 +191,7 @@ const PAYMENT_METHOD_OPTIONS: PaymentMethod[] = [
 ];
 
 interface FormErrors {
+  opportunity?: string;
   clientName?: string;
   clientAddress?: string;
   agreementDate?: string;
@@ -266,6 +269,11 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
+  // Selected opportunity state
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState<string>(
+    prefillData?.opportunityId || ""
+  );
+
   // Success dialog state
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [generatedPdf, setGeneratedPdf] = useState<GeneratedPDF | null>(null);
@@ -274,12 +282,37 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
+  // Fetch opportunities with contact info
+  const opportunities = useQuery(api.opportunities.list, {});
+
   // Convex mutations for saving PDF
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
   const createDocument = useMutation(api.documents.create);
   const sendAgreementEmail = useAction(api.email.sendAgreementEmail);
 
+  // Get selected opportunity details
+  const selectedOpportunity = opportunities?.find(
+    (opp) => opp._id === selectedOpportunityId
+  );
+
+  // Handle opportunity selection
+  const handleOpportunitySelect = (opportunityId: string) => {
+    setSelectedOpportunityId(opportunityId);
+    const opportunity = opportunities?.find((opp) => opp._id === opportunityId);
+    const contact = opportunity?.contact;
+    if (contact) {
+      setFormData((prev) => ({
+        ...prev,
+        clientName: `${contact.firstName} ${contact.lastName}`,
+        clientAddress: contact.address || "",
+      }));
+      clearError("clientName");
+      clearError("clientAddress");
+    }
+  };
+
   // Refs for scrolling to first error
+  const opportunityRef = useRef<HTMLDivElement>(null);
   const clientNameRef = useRef<HTMLDivElement>(null);
   const clientAddressRef = useRef<HTMLDivElement>(null);
   const agreementDateRef = useRef<HTMLDivElement>(null);
@@ -288,6 +321,7 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
   const totalAmountRef = useRef<HTMLDivElement>(null);
 
   const fieldRefs: Record<keyof FormErrors, React.RefObject<HTMLDivElement | null>> = {
+    opportunity: opportunityRef,
     clientName: clientNameRef,
     clientAddress: clientAddressRef,
     agreementDate: agreementDateRef,
@@ -310,6 +344,9 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
+    if (!selectedOpportunityId) {
+      newErrors.opportunity = "Please select a contact & opportunity";
+    }
     if (!formData.clientName.trim()) {
       newErrors.clientName = "Please fill in this required field";
     }
@@ -358,11 +395,8 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
       const pdf = generateAgreementPDF(formData);
       setGeneratedPdf(pdf);
 
-      // Trigger download immediately
-      pdf.download();
-
-      // Save to documents if we have an opportunity
-      if (prefillData?.opportunityId) {
+      // Save to documents (required - we always have an opportunity now)
+      if (selectedOpportunityId) {
         setIsSavingToDocuments(true);
 
         try {
@@ -388,8 +422,8 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
             mimeType: "application/pdf",
             storageId,
             fileSize: pdf.blob.size,
-            opportunityId: prefillData.opportunityId,
-            contactId: prefillData.contactId,
+            opportunityId: selectedOpportunityId as Id<"opportunities">,
+            contactId: selectedOpportunity?.contact?._id,
           });
 
           setSavedToDocuments(true);
@@ -402,16 +436,17 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
       }
 
       // Send email if contact has email
-      if (prefillData?.contactEmail) {
+      const contactEmail = selectedOpportunity?.contact?.email;
+      if (contactEmail) {
         try {
           // Convert PDF to base64 for email attachment
           const pdfBase64 = await blobToBase64(pdf.blob);
 
-          // Get first name from client name
-          const firstName = formData.clientName.split(" ")[0] || "Customer";
+          // Get first name from contact
+          const firstName = selectedOpportunity?.contact?.firstName || formData.clientName.split(" ")[0] || "Customer";
 
           const emailResult = await sendAgreementEmail({
-            to: prefillData.contactEmail,
+            to: contactEmail,
             firstName,
             location: formData.projectLocation,
             pdfBase64,
@@ -603,11 +638,45 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Contact & Opportunity Selection */}
+          <div ref={opportunityRef}>
+            <FormField label="Contact & Opportunity" required error={errors.opportunity}>
+              <Select
+                value={selectedOpportunityId}
+                onValueChange={(value) => {
+                  handleOpportunitySelect(value);
+                  clearError("opportunity");
+                }}
+              >
+                <SelectTrigger className={getInputClassName(!!errors.opportunity)}>
+                  <SelectValue placeholder="Select contact & opportunity" />
+                </SelectTrigger>
+                <SelectContent>
+                  {opportunities?.map((opp) => (
+                    <SelectItem key={opp._id} value={opp._id}>
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span>
+                          {opp.contact
+                            ? `${opp.contact.firstName} ${opp.contact.lastName}`
+                            : "No contact"}
+                        </span>
+                        <span className="text-muted-foreground">|</span>
+                        <Target className="h-4 w-4 text-muted-foreground" />
+                        <span>{opp.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div ref={clientNameRef}>
               <FormField label="Client Name" required error={errors.clientName}>
                 <Input
-                  placeholder="Enter client full name"
+                  placeholder="Auto-filled from contact"
                   value={formData.clientName}
                   onChange={(e) => {
                     setFormData({ ...formData, clientName: e.target.value });
@@ -634,7 +703,7 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
           <div ref={clientAddressRef}>
             <FormField label="Client Address" required error={errors.clientAddress}>
               <Textarea
-                placeholder="Enter complete client address"
+                placeholder="Auto-filled from contact"
                 value={formData.clientAddress}
                 onChange={(e) => {
                   setFormData({ ...formData, clientAddress: e.target.value });
@@ -1039,8 +1108,8 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
           size="lg"
           className="bg-[#ff5603] hover:bg-[#e64d00] w-full md:w-auto h-12 md:h-11 touch-target"
         >
-          <FileText className="h-5 w-5 mr-2" />
-          {isGenerating ? "Generating..." : "Generate Agreement PDF"}
+          <Send className="h-5 w-5 mr-2" />
+          {isGenerating ? "Generating & Sending..." : "Generate & Send"}
         </Button>
       </div>
 
@@ -1050,51 +1119,47 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
-              PDF Generated Successfully
+              Agreement Sent Successfully
             </DialogTitle>
             <DialogDescription asChild>
               <div className="pt-2 space-y-3">
+                {/* Document saved status */}
                 <div className="text-foreground font-medium">
-                  {prefillData?.opportunityId ? (
-                    isSavingToDocuments ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Saving to opportunity documents...
-                      </span>
-                    ) : savedToDocuments ? (
-                      "PDF downloaded and saved to opportunity documents."
-                    ) : (
-                      "PDF downloaded. (Could not save to documents)"
-                    )
+                  {isSavingToDocuments ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving to opportunity documents...
+                    </span>
+                  ) : savedToDocuments ? (
+                    <span className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Saved to opportunity documents
+                    </span>
                   ) : (
-                    "PDF downloaded successfully."
+                    <span className="flex items-center gap-2 text-red-500">
+                      <AlertCircle className="h-4 w-4" />
+                      Could not save to documents
+                    </span>
                   )}
                 </div>
                 {/* Email status */}
-                {prefillData?.contactEmail && (
-                  <div className="text-sm">
-                    {emailSent ? (
-                      <span className="text-green-600 flex items-center gap-1">
-                        <CheckCircle2 className="h-4 w-4" />
-                        Email sent to {prefillData.contactEmail}
-                      </span>
-                    ) : emailError ? (
-                      <span className="text-red-500 flex items-center gap-1">
-                        <AlertCircle className="h-4 w-4" />
-                        Failed to send email: {emailError}
-                      </span>
-                    ) : null}
-                  </div>
-                )}
-                <div className="text-sm text-muted-foreground">
-                  If the download did not start automatically,{" "}
-                  <button
-                    onClick={handleManualDownload}
-                    className="text-[#ff5603] hover:underline font-medium"
-                  >
-                    click here to download
-                  </button>
-                  .
+                <div className="text-sm">
+                  {emailSent ? (
+                    <span className="text-green-600 flex items-center gap-1">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Email sent to {selectedOpportunity?.contact?.email}
+                    </span>
+                  ) : emailError ? (
+                    <span className="text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      Failed to send email: {emailError}
+                    </span>
+                  ) : !selectedOpportunity?.contact?.email ? (
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      No email on file for this contact
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </DialogDescription>
@@ -1108,7 +1173,7 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
               className="bg-[#ff5603] hover:bg-[#e64d00] gap-2 h-10 touch-target"
             >
               <Download className="h-4 w-4" />
-              Download Again
+              Download PDF
             </Button>
           </div>
         </DialogContent>
