@@ -101,6 +101,14 @@ export const userRole = v.union(
   v.literal("technician")
 );
 
+export const agreementStatus = v.union(
+  v.literal("pending"),
+  v.literal("sent"),
+  v.literal("viewed"),
+  v.literal("signed"),
+  v.literal("expired")
+);
+
 // ============================================
 // SCHEMA DEFINITION
 // ============================================
@@ -419,4 +427,53 @@ export default defineSchema({
     .index("by_platform_user", ["channel", "platformUserId"])
     .index("by_standard_window", ["standardWindowExpiresAt"])
     .index("by_human_agent_window", ["humanAgentWindowExpiresAt"]),
+
+  // ----------------------------------------
+  // AGREEMENTS TABLE
+  // Stores solar installation agreements for digital signing
+  // ----------------------------------------
+  agreements: defineTable({
+    // Unique signing token for public access
+    signingToken: v.string(),
+    // Links
+    opportunityId: v.id("opportunities"),
+    contactId: v.id("contacts"),
+    documentId: v.optional(v.id("documents")), // Link to the PDF document
+    // Agreement details (stored for display on signing page)
+    clientName: v.string(),
+    clientAddress: v.string(),
+    projectLocation: v.string(),
+    systemType: v.string(),
+    systemSize: v.number(),
+    batteryCapacity: v.optional(v.number()),
+    totalAmount: v.number(),
+    agreementDate: v.string(),
+    // Materials and payments stored as JSON strings
+    materialsJson: v.string(),
+    paymentsJson: v.string(),
+    phasesJson: v.optional(v.string()),
+    warrantyTerms: v.optional(v.string()),
+    additionalTerms: v.optional(v.string()),
+    // Status tracking
+    status: agreementStatus,
+    sentAt: v.optional(v.number()),
+    viewedAt: v.optional(v.number()),
+    // Signature data
+    signatureData: v.optional(v.string()), // Base64 signature image
+    signedAt: v.optional(v.number()),
+    signedByName: v.optional(v.string()),
+    signedByIp: v.optional(v.string()),
+    // Signed PDF
+    signedDocumentId: v.optional(v.id("documents")),
+    // Metadata
+    expiresAt: v.optional(v.number()),
+    createdBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_signing_token", ["signingToken"])
+    .index("by_opportunity", ["opportunityId"])
+    .index("by_contact", ["contactId"])
+    .index("by_status", ["status"])
+    .index("by_created_at", ["createdAt"]),
 });

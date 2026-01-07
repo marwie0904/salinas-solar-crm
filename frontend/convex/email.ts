@@ -60,7 +60,8 @@ function generateInvoiceEmailHtml(
 
 function generateAgreementEmailHtml(
   firstName: string,
-  location: string
+  location: string,
+  signingUrl: string
 ): string {
   return `
 <!DOCTYPE html>
@@ -78,9 +79,17 @@ function generateAgreementEmailHtml(
   <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px;">
     <p style="font-size: 16px; margin-bottom: 20px;">Hi ${firstName},</p>
 
-    <p style="font-size: 16px; margin-bottom: 24px;">Please see the attached agreement for your home at <strong>${location}</strong>.</p>
+    <p style="font-size: 16px; margin-bottom: 24px;">Your solar installation agreement for your home at <strong>${location}</strong> is ready for your review and signature.</p>
 
-    <p style="font-size: 16px; margin-bottom: 24px;">Please review the agreement carefully. If you have any questions or would like to discuss any terms, feel free to reach out to us.</p>
+    <p style="font-size: 16px; margin-bottom: 24px;">Please click the button below to review and sign your agreement:</p>
+
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${signingUrl}" style="display: inline-block; background: #ff5603; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">Sign Agreement</a>
+    </div>
+
+    <p style="font-size: 14px; color: #666; margin-bottom: 16px;">
+      This link will expire in 30 days. If you have any questions about the agreement, please don't hesitate to contact us.
+    </p>
 
     <p style="font-size: 14px; color: #666; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
       Thank you for choosing Salinas Solar for your solar energy needs!
@@ -238,15 +247,14 @@ export const sendInvoiceEmail = action({
 });
 
 /**
- * Send an agreement email with PDF attachment
+ * Send an agreement email with signing link
  */
 export const sendAgreementEmail = action({
   args: {
     to: v.string(),
     firstName: v.string(),
     location: v.string(),
-    pdfBase64: v.optional(v.string()),
-    pdfFilename: v.optional(v.string()),
+    signingUrl: v.string(),
   },
   handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
     const apiKey = process.env.RESEND_API_KEY;
@@ -260,30 +268,14 @@ export const sendAgreementEmail = action({
       return { success: false, error: "No email address provided" };
     }
 
-    const html = generateAgreementEmailHtml(args.firstName, args.location);
+    const html = generateAgreementEmailHtml(args.firstName, args.location, args.signingUrl);
 
-    const body: {
-      from: string;
-      to: string[];
-      subject: string;
-      html: string;
-      attachments?: { filename: string; content: string }[];
-    } = {
+    const body = {
       from: fromEmail,
       to: [args.to],
-      subject: "Solar Installation Agreement - Salinas Solar",
+      subject: "Sign Your Solar Installation Agreement - Salinas Solar",
       html,
     };
-
-    // Add PDF attachment if provided
-    if (args.pdfBase64 && args.pdfFilename) {
-      body.attachments = [
-        {
-          filename: args.pdfFilename,
-          content: args.pdfBase64,
-        },
-      ];
-    }
 
     try {
       const response = await fetch(RESEND_API_URL, {

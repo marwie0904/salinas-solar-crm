@@ -285,9 +285,11 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
   // Fetch opportunities with contact info
   const opportunities = useQuery(api.opportunities.list, {});
 
-  // Convex mutations for saving PDF
+  // Convex mutations for saving PDF and creating agreement
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
   const createDocument = useMutation(api.documents.create);
+  const createAgreement = useMutation(api.agreements.create);
+  const markAgreementSent = useMutation(api.agreements.markSent);
   const sendAgreementEmail = useAction(api.email.sendAgreementEmail);
 
   // Get selected opportunity details
@@ -385,6 +387,11 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
       return;
     }
 
+    if (!selectedOpportunity?.contact?._id) {
+      alert("Please select an opportunity with a valid contact.");
+      return;
+    }
+
     setIsGenerating(true);
     setSavedToDocuments(false);
     setEmailSent(false);
@@ -395,65 +402,91 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
       const pdf = generateAgreementPDF(formData);
       setGeneratedPdf(pdf);
 
-      // Save to documents (required - we always have an opportunity now)
-      if (selectedOpportunityId) {
-        setIsSavingToDocuments(true);
+      let documentId: Id<"documents"> | undefined;
 
-        try {
-          // Get upload URL from Convex
-          const uploadUrl = await generateUploadUrl();
+      // Save PDF to documents
+      setIsSavingToDocuments(true);
+      try {
+        // Get upload URL from Convex
+        const uploadUrl = await generateUploadUrl();
 
-          // Upload PDF blob to Convex storage
-          const response = await fetch(uploadUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/pdf" },
-            body: pdf.blob,
-          });
+        // Upload PDF blob to Convex storage
+        const response = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/pdf" },
+          body: pdf.blob,
+        });
 
-          if (!response.ok) {
-            throw new Error("Upload failed");
-          }
-
-          const { storageId } = await response.json();
-
-          // Create document record
-          await createDocument({
-            name: pdf.filename,
-            mimeType: "application/pdf",
-            storageId,
-            fileSize: pdf.blob.size,
-            opportunityId: selectedOpportunityId as Id<"opportunities">,
-            contactId: selectedOpportunity?.contact?._id,
-          });
-
-          setSavedToDocuments(true);
-        } catch (uploadError) {
-          console.error("Error saving PDF to documents:", uploadError);
-          // Don't fail the whole operation, just log the error
-        } finally {
-          setIsSavingToDocuments(false);
+        if (!response.ok) {
+          throw new Error("Upload failed");
         }
+
+        const { storageId } = await response.json();
+
+        // Create document record
+        documentId = await createDocument({
+          name: pdf.filename,
+          mimeType: "application/pdf",
+          storageId,
+          fileSize: pdf.blob.size,
+          opportunityId: selectedOpportunityId as Id<"opportunities">,
+          contactId: selectedOpportunity.contact._id,
+        });
+
+        setSavedToDocuments(true);
+      } catch (uploadError) {
+        console.error("Error saving PDF to documents:", uploadError);
+      } finally {
+        setIsSavingToDocuments(false);
       }
 
-      // Send email if contact has email
-      const contactEmail = selectedOpportunity?.contact?.email;
+      // Build warranty terms string from individual warranty values
+      const warrantyTerms = [
+        `Solar Panel: ${formData.solarPanelWarranty} years`,
+        `Inverter: ${formData.inverterWarranty} years`,
+        `Battery: ${formData.batteryWarranty} years`,
+        `Mounting: ${formData.mountingWarranty} years`,
+      ].join(", ");
+
+      // Create agreement record for digital signing
+      const { agreementId, signingToken } = await createAgreement({
+        opportunityId: selectedOpportunityId as Id<"opportunities">,
+        contactId: selectedOpportunity.contact._id,
+        documentId,
+        clientName: formData.clientName,
+        clientAddress: formData.clientAddress,
+        projectLocation: formData.projectLocation,
+        systemType: formData.systemType,
+        systemSize: formData.systemSize,
+        batteryCapacity: formData.batteryCapacity || undefined,
+        totalAmount: formData.totalAmount,
+        agreementDate: formData.agreementDate,
+        materialsJson: JSON.stringify(formData.materials),
+        paymentsJson: JSON.stringify(formData.payments),
+        phasesJson: JSON.stringify(formData.phases),
+        warrantyTerms,
+        additionalTerms: formData.additionalNotes || undefined,
+      });
+
+      // Build signing URL
+      const signingUrl = `${window.location.origin}/sign/${signingToken}`;
+
+      // Send email with signing link if contact has email
+      const contactEmail = selectedOpportunity.contact.email;
       if (contactEmail) {
         try {
-          // Convert PDF to base64 for email attachment
-          const pdfBase64 = await blobToBase64(pdf.blob);
-
-          // Get first name from contact
-          const firstName = selectedOpportunity?.contact?.firstName || formData.clientName.split(" ")[0] || "Customer";
+          const firstName = selectedOpportunity.contact.firstName || formData.clientName.split(" ")[0] || "Customer";
 
           const emailResult = await sendAgreementEmail({
             to: contactEmail,
             firstName,
             location: formData.projectLocation,
-            pdfBase64,
-            pdfFilename: pdf.filename,
+            signingUrl,
           });
 
           if (emailResult.success) {
+            // Mark agreement as sent
+            await markAgreementSent({ agreementId });
             setEmailSent(true);
           } else {
             setEmailError(emailResult.error || "Failed to send email");
@@ -468,8 +501,8 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
       // Show success dialog
       setShowSuccessDialog(true);
     } catch (error) {
-      console.error("Error generating PDF:", error);
-      alert("Error generating PDF. Please try again.");
+      console.error("Error generating agreement:", error);
+      alert("Error generating agreement. Please try again.");
     } finally {
       setIsGenerating(false);
     }
