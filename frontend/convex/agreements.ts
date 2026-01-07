@@ -244,14 +244,24 @@ export const sign = action({
     signedByIp: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ success: boolean; signedAt: number; error?: string }> => {
+    console.log("[Sign Agreement] Starting sign action for token:", args.token.substring(0, 8) + "...");
+    console.log("[Sign Agreement] Signer name:", args.signedByName);
+
     // Get the agreement
     const agreement = await ctx.runQuery(internal.agreements.getByTokenInternal, {
       token: args.token,
     });
 
+    console.log("[Sign Agreement] Agreement found:", agreement ? "Yes" : "No");
+
     if (!agreement) {
       throw new Error("Agreement not found");
     }
+
+    console.log("[Sign Agreement] Agreement ID:", agreement._id);
+    console.log("[Sign Agreement] Agreement status:", agreement.status);
+    console.log("[Sign Agreement] Agreement documentId:", agreement.documentId || "None");
+    console.log("[Sign Agreement] Agreement opportunityId:", agreement.opportunityId);
 
     if (agreement.status === "signed") {
       throw new Error("Agreement has already been signed");
@@ -265,36 +275,54 @@ export const sign = action({
 
     // If there's an original document, create a signed version
     if (agreement.documentId) {
+      console.log("[Sign Agreement] Original document exists, attempting to create signed version...");
       try {
         // Get the original document
         const originalDoc = await ctx.runQuery(internal.agreements.getDocumentInternal, {
           id: agreement.documentId,
         });
 
+        console.log("[Sign Agreement] Original document fetched:", originalDoc ? "Yes" : "No");
+        if (originalDoc) {
+          console.log("[Sign Agreement] Original doc name:", originalDoc.name);
+          console.log("[Sign Agreement] Original doc storageId:", originalDoc.storageId || "None");
+        }
+
         if (originalDoc && originalDoc.storageId) {
           // Fetch the original PDF
           const pdfUrl = await ctx.storage.getUrl(originalDoc.storageId);
+          console.log("[Sign Agreement] PDF URL obtained:", pdfUrl ? "Yes" : "No");
 
           if (pdfUrl) {
+            console.log("[Sign Agreement] Fetching PDF from storage...");
             const pdfResponse = await fetch(pdfUrl);
+            console.log("[Sign Agreement] PDF fetch response status:", pdfResponse.status);
             const pdfBytes = await pdfResponse.arrayBuffer();
+            console.log("[Sign Agreement] PDF bytes received:", pdfBytes.byteLength);
 
             // Load the PDF
+            console.log("[Sign Agreement] Loading PDF with pdf-lib...");
             const pdfDoc = await PDFDocument.load(pdfBytes);
             const pages = pdfDoc.getPages();
             const lastPage = pages[pages.length - 1];
+            console.log("[Sign Agreement] PDF loaded, pages:", pages.length);
 
             // Extract signature image from data URL
+            console.log("[Sign Agreement] Processing signature image...");
             const signatureBase64 = args.signatureData.replace(/^data:image\/\w+;base64,/, "");
             const signatureBytes = Uint8Array.from(atob(signatureBase64), (c) => c.charCodeAt(0));
+            console.log("[Sign Agreement] Signature bytes:", signatureBytes.byteLength);
 
             // Embed the signature image
             let signatureImage;
             if (args.signatureData.includes("image/png")) {
+              console.log("[Sign Agreement] Embedding PNG signature...");
               signatureImage = await pdfDoc.embedPng(signatureBytes);
             } else {
+              console.log("[Sign Agreement] Embedding JPG signature...");
               signatureImage = await pdfDoc.embedJpg(signatureBytes);
             }
+            console.log("[Sign Agreement] Signature embedded successfully");
 
             // Calculate signature dimensions (max 200x80)
             const sigDims = signatureImage.scale(1);
@@ -303,6 +331,7 @@ export const sign = action({
             const scale = Math.min(maxWidth / sigDims.width, maxHeight / sigDims.height, 1);
             const sigWidth = sigDims.width * scale;
             const sigHeight = sigDims.height * scale;
+            console.log("[Sign Agreement] Signature dimensions:", sigWidth, "x", sigHeight);
 
             // Add signature at the bottom of the last page
             lastPage.drawImage(signatureImage, {
@@ -337,25 +366,36 @@ export const sign = action({
               font,
               color: rgb(0.4, 0.4, 0.4),
             });
+            console.log("[Sign Agreement] Text added to PDF");
 
             // Save the signed PDF
+            console.log("[Sign Agreement] Saving signed PDF...");
             const signedPdfBytes = await pdfDoc.save();
+            console.log("[Sign Agreement] Signed PDF bytes:", signedPdfBytes.byteLength);
 
             // Upload to storage
+            console.log("[Sign Agreement] Generating upload URL...");
             const uploadUrl = await ctx.storage.generateUploadUrl();
+            console.log("[Sign Agreement] Upload URL obtained");
+
             const pdfBlob = new Blob([signedPdfBytes as BlobPart], { type: "application/pdf" });
+            console.log("[Sign Agreement] Uploading signed PDF...");
             const uploadResponse = await fetch(uploadUrl, {
               method: "POST",
               headers: { "Content-Type": "application/pdf" },
               body: pdfBlob,
             });
+            console.log("[Sign Agreement] Upload response status:", uploadResponse.status);
 
             if (uploadResponse.ok) {
-              const { storageId } = await uploadResponse.json();
+              const uploadResult = await uploadResponse.json();
+              console.log("[Sign Agreement] Upload result:", JSON.stringify(uploadResult));
+              const { storageId } = uploadResult;
 
               // Create document name with -signed suffix
               const originalName = originalDoc.name.replace(/\.pdf$/i, "");
               const signedDocName = `${originalName}-signed.pdf`;
+              console.log("[Sign Agreement] Creating document record:", signedDocName);
 
               // Create document record
               signedDocumentId = await ctx.runMutation(
@@ -368,16 +408,26 @@ export const sign = action({
                   opportunityId: agreement.opportunityId,
                 }
               );
+              console.log("[Sign Agreement] Signed document created with ID:", signedDocumentId);
+            } else {
+              const errorText = await uploadResponse.text();
+              console.error("[Sign Agreement] Upload failed:", uploadResponse.status, errorText);
             }
           }
+        } else {
+          console.log("[Sign Agreement] No original document or no storageId");
         }
       } catch (error) {
-        console.error("Error creating signed PDF:", error);
+        console.error("[Sign Agreement] Error creating signed PDF:", error);
         // Continue without signed document - we'll still record the signature
       }
+    } else {
+      console.log("[Sign Agreement] No documentId on agreement, skipping signed PDF creation");
     }
 
     // Update the agreement with signature
+    console.log("[Sign Agreement] Updating agreement with signature...");
+    console.log("[Sign Agreement] signedDocumentId:", signedDocumentId || "None");
     const result = await ctx.runMutation(internal.agreements.updateSignedAgreement, {
       agreementId: agreement._id,
       signatureData: args.signatureData,
@@ -385,6 +435,7 @@ export const sign = action({
       signedByIp: args.signedByIp,
       signedDocumentId,
     });
+    console.log("[Sign Agreement] Agreement updated successfully");
 
     return result;
   },
