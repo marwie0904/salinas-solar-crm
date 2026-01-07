@@ -243,7 +243,7 @@ export const sign = action({
     signedByName: v.string(),
     signedByIp: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<{ success: boolean; signedAt: number; error?: string }> => {
+  handler: async (ctx, args): Promise<{ success: boolean; signedAt: number; signedDocumentUrl?: string; error?: string }> => {
     console.log("[Sign Agreement] Starting sign action for token:", args.token.substring(0, 8) + "...");
     console.log("[Sign Agreement] Signer name:", args.signedByName);
 
@@ -272,6 +272,7 @@ export const sign = action({
     }
 
     let signedDocumentId: Id<"documents"> | undefined;
+    let signedDocumentUrl: string | undefined;
 
     // If there's an original document, create a signed version
     if (agreement.documentId) {
@@ -392,6 +393,10 @@ export const sign = action({
               console.log("[Sign Agreement] Upload result:", JSON.stringify(uploadResult));
               const { storageId } = uploadResult;
 
+              // Get the URL for the signed document
+              signedDocumentUrl = await ctx.storage.getUrl(storageId) ?? undefined;
+              console.log("[Sign Agreement] Signed document URL obtained:", signedDocumentUrl ? "Yes" : "No");
+
               // Create document name with -signed suffix
               const originalName = originalDoc.name.replace(/\.pdf$/i, "");
               const signedDocName = `${originalName}-signed.pdf`;
@@ -436,8 +441,9 @@ export const sign = action({
       signedDocumentId,
     });
     console.log("[Sign Agreement] Agreement updated successfully");
+    console.log("[Sign Agreement] Returning signedDocumentUrl:", signedDocumentUrl || "None");
 
-    return result;
+    return { ...result, signedDocumentUrl };
   },
 });
 

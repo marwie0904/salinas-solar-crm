@@ -20,6 +20,7 @@ import {
   CreditCard,
   User,
   Clock,
+  Download,
 } from "lucide-react";
 import { formatPHP, SYSTEM_TYPE_LABELS, SystemType, PAYMENT_METHOD_LABELS, PaymentMethod } from "@/lib/types";
 
@@ -35,6 +36,7 @@ export default function SignAgreementPage() {
   const [signerName, setSignerName] = useState("");
   const [isSigning, setIsSigning] = useState(false);
   const [signedSuccess, setSignedSuccess] = useState(false);
+  const [signedDocumentUrl, setSignedDocumentUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Mark as viewed when page loads
@@ -66,12 +68,15 @@ export default function SignAgreementPage() {
     setError(null);
 
     try {
-      await signAgreement({
+      const result = await signAgreement({
         token,
         signatureData,
         signedByName: signerName.trim(),
       });
       setSignedSuccess(true);
+      if (result.signedDocumentUrl) {
+        setSignedDocumentUrl(result.signedDocumentUrl);
+      }
     } catch (err) {
       console.error("Failed to sign agreement:", err);
       setError(err instanceof Error ? err.message : "Failed to sign agreement");
@@ -137,6 +142,17 @@ export default function SignAgreementPage() {
             <p className="text-muted-foreground mb-4">
               Thank you for signing the agreement. Your signed copy has been saved.
             </p>
+            {signedDocumentUrl && (
+              <Button
+                asChild
+                className="mb-4 bg-[#ff5603] hover:bg-[#e64d00]"
+              >
+                <a href={signedDocumentUrl} download={`${agreement.clientName}_Signed_Agreement.pdf`} target="_blank" rel="noopener noreferrer">
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Signed Document
+                </a>
+              </Button>
+            )}
             {agreement.signedAt && (
               <p className="text-sm text-muted-foreground">
                 Signed on: {new Date(agreement.signedAt).toLocaleDateString("en-US", {
