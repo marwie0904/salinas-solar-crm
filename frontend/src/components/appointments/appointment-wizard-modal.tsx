@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -55,6 +55,8 @@ interface ContactOpportunityOption {
   id: string;
   contactId: Id<"contacts">;
   contactName: string;
+  contactEmail: string | null;
+  contactFirstName: string;
   opportunityId: Id<"opportunities"> | null;
   opportunityName: string | null;
 }
@@ -106,6 +108,7 @@ export function AppointmentWizardModal({
   const opportunities = useQuery(api.opportunities.list, {});
 
   const createAppointment = useMutation(api.appointments.create);
+  const sendAppointmentEmail = useAction(api.email.sendAppointmentEmail);
 
   // Reset wizard when modal opens
   useEffect(() => {
@@ -147,6 +150,8 @@ export function AppointmentWizardModal({
             id: `${contact._id}|${opp._id}`,
             contactId: contact._id,
             contactName: `${contact.firstName} ${contact.lastName}`,
+            contactEmail: contact.email || null,
+            contactFirstName: contact.firstName,
             opportunityId: opp._id,
             opportunityName: opp.name,
           });
@@ -156,6 +161,8 @@ export function AppointmentWizardModal({
           id: `${contact._id}|none`,
           contactId: contact._id,
           contactName: `${contact.firstName} ${contact.lastName}`,
+          contactEmail: contact.email || null,
+          contactFirstName: contact.firstName,
           opportunityId: null,
           opportunityName: null,
         });
@@ -339,6 +346,26 @@ export function AppointmentWizardModal({
         contactId: wizardData.contactId,
         opportunityId: wizardData.opportunityId || undefined,
       });
+
+      // Send email if contact has email
+      const selectedOption = contactOpportunityOptions.find(
+        (opt) => opt.id === wizardData.selectedContactOpportunity
+      );
+
+      if (selectedOption?.contactEmail) {
+        try {
+          await sendAppointmentEmail({
+            to: selectedOption.contactEmail,
+            firstName: selectedOption.contactFirstName,
+            assignedUserName: wizardData.assignedUserName,
+            date: wizardData.date,
+            time: wizardData.time,
+          });
+        } catch (emailError) {
+          // Log error but don't block the appointment creation
+          console.error("Failed to send appointment email:", emailError);
+        }
+      }
 
       onOpenChange(false);
       onSuccess?.();

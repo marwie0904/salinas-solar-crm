@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
+import { blobToBase64 } from "@/lib/resend-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -214,6 +215,7 @@ interface PrefillData {
   opportunityId?: Id<"opportunities">;
   opportunityName?: string;
   contactId?: Id<"contacts">;
+  contactEmail?: string;
   // OpenSolar data
   openSolarData?: OpenSolarPrefillData;
   isLoadingOpenSolar?: boolean;
@@ -269,10 +271,13 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
   const [generatedPdf, setGeneratedPdf] = useState<GeneratedPDF | null>(null);
   const [isSavingToDocuments, setIsSavingToDocuments] = useState(false);
   const [savedToDocuments, setSavedToDocuments] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   // Convex mutations for saving PDF
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
   const createDocument = useMutation(api.documents.create);
+  const sendAgreementEmail = useAction(api.email.sendAgreementEmail);
 
   // Refs for scrolling to first error
   const clientNameRef = useRef<HTMLDivElement>(null);
@@ -345,6 +350,8 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
 
     setIsGenerating(true);
     setSavedToDocuments(false);
+    setEmailSent(false);
+    setEmailError(null);
 
     try {
       // Generate the PDF
@@ -391,6 +398,35 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
           // Don't fail the whole operation, just log the error
         } finally {
           setIsSavingToDocuments(false);
+        }
+      }
+
+      // Send email if contact has email
+      if (prefillData?.contactEmail) {
+        try {
+          // Convert PDF to base64 for email attachment
+          const pdfBase64 = await blobToBase64(pdf.blob);
+
+          // Get first name from client name
+          const firstName = formData.clientName.split(" ")[0] || "Customer";
+
+          const emailResult = await sendAgreementEmail({
+            to: prefillData.contactEmail,
+            firstName,
+            location: formData.projectLocation,
+            pdfBase64,
+            pdfFilename: pdf.filename,
+          });
+
+          if (emailResult.success) {
+            setEmailSent(true);
+          } else {
+            setEmailError(emailResult.error || "Failed to send email");
+            console.error("Failed to send agreement email:", emailResult.error);
+          }
+        } catch (error) {
+          console.error("Error sending agreement email:", error);
+          setEmailError(error instanceof Error ? error.message : "Failed to send email");
         }
       }
 
@@ -1034,6 +1070,22 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
                     "PDF downloaded successfully."
                   )}
                 </div>
+                {/* Email status */}
+                {prefillData?.contactEmail && (
+                  <div className="text-sm">
+                    {emailSent ? (
+                      <span className="text-green-600 flex items-center gap-1">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Email sent to {prefillData.contactEmail}
+                      </span>
+                    ) : emailError ? (
+                      <span className="text-red-500 flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        Failed to send email: {emailError}
+                      </span>
+                    ) : null}
+                  </div>
+                )}
                 <div className="text-sm text-muted-foreground">
                   If the download did not start automatically,{" "}
                   <button

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
+import { blobToBase64 } from "@/lib/resend-api";
 import {
   Dialog,
   DialogContent,
@@ -90,6 +91,8 @@ export function InvoiceCreateModal({
     contactEmail: string;
     contactName: string;
     pdf: GeneratedPDF | null;
+    emailSent: boolean;
+    emailError?: string;
   } | null>(null);
 
   // Reset form when preselectedOpportunityId changes
@@ -105,6 +108,7 @@ export function InvoiceCreateModal({
   const createInvoice = useMutation(api.invoices.createSimple);
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
   const createDocument = useMutation(api.documents.create);
+  const sendInvoiceEmail = useAction(api.email.sendInvoiceEmail);
 
   // Get selected opportunity details
   const selectedOpportunity = opportunities?.find(
@@ -236,11 +240,44 @@ export function InvoiceCreateModal({
         invoiceId
       );
 
+      // Send email if contact has email
+      let emailSent = false;
+      let emailError: string | undefined;
+
+      if (contactEmail) {
+        try {
+          // Convert PDF to base64 for email attachment
+          const pdfBase64 = await blobToBase64(pdf.blob);
+
+          // For now, use a placeholder URL - in production this would be a real invoice view URL
+          const invoiceUrl = `${window.location.origin}/invoices`;
+
+          const emailResult = await sendInvoiceEmail({
+            to: contactEmail,
+            firstName: selectedOpportunity?.contact?.firstName || "Customer",
+            invoiceUrl,
+            pdfBase64,
+            pdfFilename: pdf.filename,
+          });
+
+          emailSent = emailResult.success;
+          if (!emailResult.success) {
+            emailError = emailResult.error;
+            console.error("Failed to send invoice email:", emailResult.error);
+          }
+        } catch (error) {
+          console.error("Error sending invoice email:", error);
+          emailError = error instanceof Error ? error.message : "Failed to send email";
+        }
+      }
+
       // Show success modal
       setSuccessData({
         contactEmail,
         contactName,
         pdf,
+        emailSent,
+        emailError,
       });
       setShowSuccessModal(true);
 
@@ -294,7 +331,11 @@ export function InvoiceCreateModal({
             <div className="flex items-center gap-2 text-muted-foreground mb-6">
               <Mail className="h-4 w-4" />
               <span>
-                Sent to: {successData.contactEmail || "No email on file"}
+                {successData.emailSent
+                  ? `Email sent to: ${successData.contactEmail}`
+                  : successData.contactEmail
+                    ? `Failed to send email: ${successData.emailError || "Unknown error"}`
+                    : "No email on file"}
               </span>
             </div>
             <div className="flex gap-3 w-full">

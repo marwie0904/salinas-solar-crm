@@ -313,6 +313,204 @@ export const updateOpportunityWithOpenSolar = internalMutation({
   },
 });
 
+// Types for OpenSolar system data
+interface OpenSolarHardware {
+  code: string;
+  manufacturer_name: string;
+  quantity: number;
+}
+
+interface OpenSolarSystemData {
+  id: number;
+  kw_stc: number;
+  module_quantity: number;
+  battery_total_kwh: number | null;
+  output_annual_kwh: number;
+  price_including_tax: number;
+  price_excluding_tax: number;
+  modules: OpenSolarHardware[];
+  inverters: OpenSolarHardware[];
+  batteries: OpenSolarHardware[];
+  others: OpenSolarHardware[];
+}
+
+export interface OpenSolarAgreementData {
+  // Project info
+  projectLocation: string;
+  projectAddress: string;
+  projectLocality: string;
+  projectState: string;
+  projectZip: string;
+  // System info
+  systemType: "hybrid" | "grid_tied";
+  systemSize: number; // kW
+  batteryCapacity: number; // kWh
+  annualProduction: number; // kWh
+  // Pricing
+  totalContractAmount: number;
+  priceExcludingTax: number;
+  // Materials
+  materials: {
+    name: string;
+    quantity: number;
+    model: string;
+    specifications: string;
+  }[];
+}
+
+/**
+ * Fetch OpenSolar project data for agreement generation
+ */
+export const getProjectForAgreement = action({
+  args: {
+    openSolarProjectId: v.number(),
+  },
+  handler: async (_, args): Promise<{ success: boolean; data?: OpenSolarAgreementData; error?: string }> => {
+    try {
+      // Fetch project details
+      const projectResponse = await fetch(
+        `${OPENSOLAR_API_URL}/orgs/${OPENSOLAR_ORG_ID}/projects/${args.openSolarProjectId}/`,
+        {
+          headers: {
+            "Authorization": `Bearer ${getToken()}`,
+          },
+        }
+      );
+
+      if (!projectResponse.ok) {
+        const errorText = await projectResponse.text();
+        console.error("OpenSolar project fetch error:", errorText);
+        return {
+          success: false,
+          error: `Failed to fetch project: ${projectResponse.status}`,
+        };
+      }
+
+      const project = await projectResponse.json();
+
+      // Fetch systems for the project
+      const systemsResponse = await fetch(
+        `${OPENSOLAR_API_URL}/orgs/${OPENSOLAR_ORG_ID}/projects/${args.openSolarProjectId}/systems/`,
+        {
+          headers: {
+            "Authorization": `Bearer ${getToken()}`,
+          },
+        }
+      );
+
+      if (!systemsResponse.ok) {
+        const errorText = await systemsResponse.text();
+        console.error("OpenSolar systems fetch error:", errorText);
+        return {
+          success: false,
+          error: `Failed to fetch systems: ${systemsResponse.status}`,
+        };
+      }
+
+      const systems: OpenSolarSystemData[] = await systemsResponse.json();
+
+      // Get the current/primary system (usually the first one or marked as current)
+      const primarySystem = systems.find((s: any) => s.is_current) || systems[0];
+
+      if (!primarySystem) {
+        return {
+          success: false,
+          error: "No system design found for this project. Please create a system design in OpenSolar first.",
+        };
+      }
+
+      // Build full address
+      const addressParts = [
+        project.address,
+        project.locality,
+        project.state,
+        project.zip,
+      ].filter(Boolean);
+      const fullAddress = addressParts.join(", ");
+
+      // Determine system type based on battery presence
+      const hasBattery = (primarySystem.battery_total_kwh && primarySystem.battery_total_kwh > 0) ||
+                         (primarySystem.batteries && primarySystem.batteries.length > 0);
+      const systemType = hasBattery ? "hybrid" : "grid_tied";
+
+      // Build materials list from hardware
+      const materials: OpenSolarAgreementData["materials"] = [];
+
+      // Add solar panels
+      if (primarySystem.modules && primarySystem.modules.length > 0) {
+        primarySystem.modules.forEach((mod) => {
+          materials.push({
+            name: "Solar Panels",
+            quantity: mod.quantity || primarySystem.module_quantity || 1,
+            model: `${mod.manufacturer_name} ${mod.code}`.trim(),
+            specifications: "",
+          });
+        });
+      }
+
+      // Add inverters
+      if (primarySystem.inverters && primarySystem.inverters.length > 0) {
+        primarySystem.inverters.forEach((inv) => {
+          materials.push({
+            name: "Inverter",
+            quantity: inv.quantity || 1,
+            model: `${inv.manufacturer_name} ${inv.code}`.trim(),
+            specifications: "",
+          });
+        });
+      }
+
+      // Add batteries
+      if (primarySystem.batteries && primarySystem.batteries.length > 0) {
+        primarySystem.batteries.forEach((bat) => {
+          materials.push({
+            name: "Solar Battery",
+            quantity: bat.quantity || 1,
+            model: `${bat.manufacturer_name} ${bat.code}`.trim(),
+            specifications: primarySystem.battery_total_kwh ? `${primarySystem.battery_total_kwh} kWh` : "",
+          });
+        });
+      }
+
+      // Add other equipment
+      if (primarySystem.others && primarySystem.others.length > 0) {
+        primarySystem.others.forEach((other) => {
+          materials.push({
+            name: other.code || "Additional Equipment",
+            quantity: other.quantity || 1,
+            model: other.manufacturer_name || "",
+            specifications: "",
+          });
+        });
+      }
+
+      return {
+        success: true,
+        data: {
+          projectLocation: fullAddress,
+          projectAddress: project.address || "",
+          projectLocality: project.locality || "",
+          projectState: project.state || "",
+          projectZip: project.zip || "",
+          systemType,
+          systemSize: primarySystem.kw_stc || 0,
+          batteryCapacity: primarySystem.battery_total_kwh || 0,
+          annualProduction: primarySystem.output_annual_kwh || 0,
+          totalContractAmount: primarySystem.price_including_tax || 0,
+          priceExcludingTax: primarySystem.price_excluding_tax || 0,
+          materials,
+        },
+      };
+    } catch (error) {
+      console.error("Failed to fetch OpenSolar project for agreement:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    }
+  },
+});
+
 /**
  * Helper function to parse address into components
  */
