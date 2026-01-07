@@ -25,15 +25,17 @@ export function SignaturePad({
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Responsive canvas sizing
+  // Responsive canvas sizing - use container width, maintain aspect ratio
   const [canvasSize, setCanvasSize] = useState({ width, height });
+  const aspectRatio = width / height;
 
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
-        const containerWidth = containerRef.current.clientWidth;
-        const newWidth = Math.min(containerWidth - 2, width); // -2 for border
-        const newHeight = Math.round((newWidth / width) * height);
+        // Use full container width (minus border)
+        const containerWidth = containerRef.current.clientWidth - 4; // -4 for border
+        const newWidth = Math.max(containerWidth, 200); // minimum 200px
+        const newHeight = Math.round(newWidth / aspectRatio);
         setCanvasSize({ width: newWidth, height: newHeight });
       }
     };
@@ -41,7 +43,7 @@ export function SignaturePad({
     updateSize();
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
-  }, [width, height]);
+  }, [aspectRatio]);
 
   // Initialize canvas
   useEffect(() => {
@@ -55,8 +57,6 @@ export function SignaturePad({
     const dpr = window.devicePixelRatio || 1;
     canvas.width = canvasSize.width * dpr;
     canvas.height = canvasSize.height * dpr;
-    canvas.style.width = `${canvasSize.width}px`;
-    canvas.style.height = `${canvasSize.height}px`;
     ctx.scale(dpr, dpr);
 
     // Set drawing styles
@@ -216,7 +216,8 @@ export function SignaturePad({
             >
               <canvas
                 ref={canvasRef}
-                className="touch-none cursor-crosshair"
+                className="touch-none cursor-crosshair block"
+                style={{ width: canvasSize.width, height: canvasSize.height }}
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
                 onMouseUp={stopDrawing}
