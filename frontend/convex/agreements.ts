@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query, action, internalMutation } from "./_generated/server";
+import { mutation, query, action, internalMutation, internalQuery } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 
@@ -121,7 +122,7 @@ export const getByToken = query({
 /**
  * Get agreement by token (internal - returns raw data for actions)
  */
-export const getByTokenInternal = query({
+export const getByTokenInternal = internalQuery({
   args: {
     token: v.string(),
   },
@@ -132,6 +133,18 @@ export const getByTokenInternal = query({
       .first();
 
     return agreement;
+  },
+});
+
+/**
+ * Get document by ID (internal - for actions)
+ */
+export const getDocumentInternal = internalQuery({
+  args: {
+    id: v.id("documents"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
   },
 });
 
@@ -232,11 +245,9 @@ export const sign = action({
   },
   handler: async (ctx, args): Promise<{ success: boolean; signedAt: number; error?: string }> => {
     // Get the agreement
-    const agreement = await ctx.runQuery(
-      // @ts-expect-error - internal API types
-      "agreements:getByTokenInternal",
-      { token: args.token }
-    );
+    const agreement = await ctx.runQuery(internal.agreements.getByTokenInternal, {
+      token: args.token,
+    });
 
     if (!agreement) {
       throw new Error("Agreement not found");
@@ -256,11 +267,9 @@ export const sign = action({
     if (agreement.documentId) {
       try {
         // Get the original document
-        const originalDoc = await ctx.runQuery(
-          // @ts-expect-error - internal API types
-          "documents:get",
-          { id: agreement.documentId }
-        );
+        const originalDoc = await ctx.runQuery(internal.agreements.getDocumentInternal, {
+          id: agreement.documentId,
+        });
 
         if (originalDoc && originalDoc.storageId) {
           // Fetch the original PDF
@@ -274,7 +283,6 @@ export const sign = action({
             const pdfDoc = await PDFDocument.load(pdfBytes);
             const pages = pdfDoc.getPages();
             const lastPage = pages[pages.length - 1];
-            const { width, height } = lastPage.getSize();
 
             // Extract signature image from data URL
             const signatureBase64 = args.signatureData.replace(/^data:image\/\w+;base64,/, "");
@@ -351,8 +359,7 @@ export const sign = action({
 
               // Create document record
               signedDocumentId = await ctx.runMutation(
-                // @ts-expect-error - internal API types
-                "agreements:createSignedDocument",
+                internal.agreements.createSignedDocument,
                 {
                   name: signedDocName,
                   mimeType: "application/pdf",
@@ -371,17 +378,13 @@ export const sign = action({
     }
 
     // Update the agreement with signature
-    const result = await ctx.runMutation(
-      // @ts-expect-error - internal API types
-      "agreements:updateSignedAgreement",
-      {
-        agreementId: agreement._id,
-        signatureData: args.signatureData,
-        signedByName: args.signedByName,
-        signedByIp: args.signedByIp,
-        signedDocumentId,
-      }
-    );
+    const result = await ctx.runMutation(internal.agreements.updateSignedAgreement, {
+      agreementId: agreement._id,
+      signatureData: args.signatureData,
+      signedByName: args.signedByName,
+      signedByIp: args.signedByIp,
+      signedDocumentId,
+    });
 
     return result;
   },

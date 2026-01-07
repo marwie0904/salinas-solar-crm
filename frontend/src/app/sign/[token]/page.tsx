@@ -135,7 +135,7 @@ export default function SignAgreementPage() {
             <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Agreement Signed</h2>
             <p className="text-muted-foreground mb-4">
-              Thank you for signing the agreement. A copy has been sent to your email.
+              Thank you for signing the agreement. Your signed copy has been saved.
             </p>
             {agreement.signedAt && (
               <p className="text-sm text-muted-foreground">
