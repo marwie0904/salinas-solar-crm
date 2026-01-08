@@ -509,4 +509,37 @@ export default defineSchema({
     .index("by_contact", ["contactId"])
     .index("by_status", ["status"])
     .index("by_created_at", ["createdAt"]),
+  // ----------------------------------------
+  // NOTIFICATIONS TABLE
+  // ----------------------------------------
+  notifications: defineTable({
+    userId: v.id("users"), // The user who receives the notification
+    type: v.union(
+      v.literal("lead_assigned"),
+      v.literal("appointment_scheduled"),
+      v.literal("agreement_approved"),
+      v.literal("task_due_tomorrow"),
+      v.literal("task_due_soon"),
+      v.literal("task_overdue")
+    ),
+    title: v.string(),
+    message: v.string(),
+    // Related entity references
+    opportunityId: v.optional(v.id("opportunities")),
+    contactId: v.optional(v.id("contacts")),
+    appointmentId: v.optional(v.id("appointments")),
+    agreementId: v.optional(v.id("agreements")),
+    taskId: v.optional(v.id("tasks")),
+    // Status
+    read: v.boolean(),
+    // For overdue task tracking - last notification sent timestamp
+    lastNotifiedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_read", ["userId", "read"])
+    .index("by_user_created", ["userId", "createdAt"])
+    .index("by_type", ["type"])
+    .index("by_task", ["taskId"])
+    .index("by_task_type", ["taskId", "type"]),
 });

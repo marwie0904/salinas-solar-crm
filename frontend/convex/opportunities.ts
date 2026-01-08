@@ -577,6 +577,24 @@ export const assign = mutation({
       updatedAt: now(),
     });
 
+    // Create notification for the assigned user
+    const contact = await ctx.db.get(opportunity.contactId);
+    const contactName = contact
+      ? getFullName(contact.firstName, contact.lastName)
+      : "Unknown";
+    const location = opportunity.location || contact?.address || "";
+
+    await ctx.db.insert("notifications", {
+      userId: args.assignedTo,
+      type: "lead_assigned",
+      title: "New Lead Assigned",
+      message: `${contactName}${location ? ` from ${location}` : ""} has been assigned to you`,
+      opportunityId: args.id,
+      contactId: opportunity.contactId,
+      read: false,
+      createdAt: now(),
+    });
+
     return args.id;
   },
 });

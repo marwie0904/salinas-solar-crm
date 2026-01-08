@@ -21,4 +21,17 @@ crons.daily(
   internal.autoSms.sendDailyAppointmentReminders
 );
 
+/**
+ * Check for task due notifications every hour
+ * This handles:
+ * - Tasks due in 1 hour
+ * - Tasks due tomorrow (sent at 7 AM PHT)
+ * - Overdue tasks (sent once when overdue, then every 24 hours)
+ */
+crons.hourly(
+  "task-due-notifications",
+  { minuteUTC: 0 },
+  internal.notifications.createTaskDueNotifications
+);
+
 export default crons;

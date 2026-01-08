@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DialPad } from "@/components/calling/dial-pad";
-import { Search, Phone, Bell, Menu, LogOut, User, UserPlus, Calendar, AlertCircle, CheckCircle, Clock, FileCheck } from "lucide-react";
+import { Search, Phone, Bell, Menu, LogOut, User, UserPlus, Calendar, AlertCircle, Clock, FileCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
 
@@ -27,66 +30,6 @@ type NotificationType =
   | "task_due_tomorrow"
   | "task_due_soon"
   | "task_overdue";
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: NotificationType;
-  createdAt: Date;
-  read: boolean;
-}
-
-const mockNotifications: Notification[] = [
-  {
-    id: "1",
-    title: "New Lead Assigned",
-    message: "John Smith from 123 Main St has been assigned to you",
-    type: "lead_assigned",
-    createdAt: new Date(Date.now() - 1000 * 60 * 5), // 5 mins ago
-    read: false,
-  },
-  {
-    id: "2",
-    title: "Task Due in 1 Hour",
-    message: "Follow up call with Maria Garcia",
-    type: "task_due_soon",
-    createdAt: new Date(Date.now() - 1000 * 60 * 10), // 10 mins ago
-    read: false,
-  },
-  {
-    id: "3",
-    title: "New Appointment Scheduled",
-    message: "Site visit scheduled with Robert Johnson tomorrow at 2:00 PM",
-    type: "appointment_scheduled",
-    createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 mins ago
-    read: false,
-  },
-  {
-    id: "4",
-    title: "Agreement Approved",
-    message: "Sarah Williams signed the agreement on 456 Oak Ave Solar Installation",
-    type: "agreement_approved",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-    read: false,
-  },
-  {
-    id: "5",
-    title: "Task Due Tomorrow",
-    message: "Send proposal to David Miller",
-    type: "task_due_tomorrow",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5), // 5 hours ago
-    read: true,
-  },
-  {
-    id: "6",
-    title: "Overdue Task",
-    message: "Schedule installation for Thompson residence - 2 days overdue",
-    type: "task_overdue",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-    read: true,
-  },
-];
 
 function formatTimeAgo(date: Date): string {
   const now = new Date();
@@ -128,27 +71,28 @@ interface HeaderProps {
 
 export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps) {
   const [mounted, setMounted] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { user, logout } = useAuth();
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Fetch notifications from Convex
+  const userId = user?.id as Id<"users"> | undefined;
+  const notifications = useQuery(
+    api.notifications.getForUser,
+    userId ? { userId, limit: 50 } : "skip"
+  );
+  const markAllAsReadMutation = useMutation(api.notifications.markAllAsRead);
+
+  const unreadCount = notifications?.filter((n) => !n.read).length ?? 0;
   const hasUnread = unreadCount > 0;
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const markAllAsRead = () => {
-    setNotifications((prev) =>
-      prev.map((n) => ({ ...n, read: true }))
-    );
-  };
-
-  const handleNotificationsOpen = (open: boolean) => {
+  const handleNotificationsOpen = async (open: boolean) => {
     setNotificationsOpen(open);
-    if (open && hasUnread) {
-      markAllAsRead();
+    if (open && hasUnread && userId) {
+      await markAllAsReadMutation({ userId });
     }
   };
 
@@ -247,14 +191,14 @@ export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps)
           <PopoverContent align="end" className="w-80 p-0">
             <div className="flex items-center justify-between px-4 py-3 border-b">
               <h3 className="font-semibold text-sm">Notifications</h3>
-              {notifications.length > 0 && (
+              {notifications && notifications.length > 0 && (
                 <span className="text-xs text-muted-foreground">
                   {unreadCount > 0 ? `${unreadCount} new` : "All read"}
                 </span>
               )}
             </div>
             <ScrollArea className="h-[300px]">
-              {notifications.length === 0 ? (
+              {!notifications || notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                   <Bell className="h-8 w-8 mb-2 opacity-50" />
                   <p className="text-sm">No notifications</p>
@@ -263,7 +207,7 @@ export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps)
                 <div className="divide-y">
                   {notifications.map((notification) => (
                     <div
-                      key={notification.id}
+                      key={notification._id}
                       className={cn(
                         "flex gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors",
                         !notification.read && "bg-[#ff5603]/5"
@@ -288,7 +232,7 @@ export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps)
                           {notification.message}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {formatTimeAgo(notification.createdAt)}
+                          {formatTimeAgo(new Date(notification.createdAt))}
                         </p>
                       </div>
                     </div>

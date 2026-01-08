@@ -405,10 +405,27 @@ export const create = mutation({
 
     await logCreation(ctx, "appointment", appointmentId, args.createdBy);
 
-    // Send appointment set SMS notification
+    // Get contact and assigned user for notifications
     const contact = await ctx.db.get(args.contactId);
     const assignedUser = await ctx.db.get(args.assignedTo);
+    const contactName = contact
+      ? getFullName(contact.firstName, contact.lastName)
+      : "Unknown";
 
+    // Create notification for the assigned user
+    await ctx.db.insert("notifications", {
+      userId: args.assignedTo,
+      type: "appointment_scheduled",
+      title: "New Appointment Scheduled",
+      message: `${args.title} with ${contactName} on ${args.date} at ${args.time}`,
+      appointmentId: appointmentId,
+      contactId: args.contactId,
+      opportunityId: args.opportunityId,
+      read: false,
+      createdAt: timestamp,
+    });
+
+    // Send appointment set SMS notification
     if (contact?.phone && assignedUser) {
       // Format date for SMS
       const [year, month, day] = args.date.split("-").map(Number);

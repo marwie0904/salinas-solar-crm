@@ -25,6 +25,7 @@ import type * as lib_helpers from "../lib/helpers.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as messages from "../messages.js";
 import type * as meta from "../meta.js";
+import type * as notifications from "../notifications.js";
 import type * as openSolar from "../openSolar.js";
 import type * as opportunities from "../opportunities.js";
 import type * as payments from "../payments.js";
@@ -57,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   "lib/validators": typeof lib_validators;
   messages: typeof messages;
   meta: typeof meta;
+  notifications: typeof notifications;
   openSolar: typeof openSolar;
   opportunities: typeof opportunities;
   payments: typeof payments;

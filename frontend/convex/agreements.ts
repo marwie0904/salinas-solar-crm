@@ -216,6 +216,10 @@ export const updateSignedAgreement = internalMutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+
+    // Get agreement details for notification
+    const agreement = await ctx.db.get(args.agreementId);
+
     await ctx.db.patch(args.agreementId, {
       status: "signed",
       signatureData: args.signatureData,
@@ -225,6 +229,25 @@ export const updateSignedAgreement = internalMutation({
       signedDocumentId: args.signedDocumentId,
       updatedAt: now,
     });
+
+    // Create notification for the opportunity owner (system consultant)
+    if (agreement) {
+      const opportunity = await ctx.db.get(agreement.opportunityId);
+      if (opportunity?.assignedTo) {
+        await ctx.db.insert("notifications", {
+          userId: opportunity.assignedTo,
+          type: "agreement_approved",
+          title: "Agreement Approved",
+          message: `${agreement.clientName} signed the agreement on ${opportunity.name}`,
+          agreementId: args.agreementId,
+          opportunityId: agreement.opportunityId,
+          contactId: agreement.contactId,
+          read: false,
+          createdAt: now,
+        });
+      }
+    }
+
     return { success: true, signedAt: now };
   },
 });
