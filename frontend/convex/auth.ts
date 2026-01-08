@@ -322,6 +322,29 @@ export const seedSystemConsultant = mutation({
   },
 });
 
+// Remove duplicate Alex Cruz (jgs@salinassolarservices.com version)
+export const removeDuplicateAlexCruz = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const results: string[] = [];
+
+    // Find Alex Cruz with jgs email in users table
+    const users = await ctx.db.query("users").collect();
+    const alexCruzJgs = users.find(
+      (u) => u.firstName === "Alex" && u.lastName === "Cruz" && u.email === "jgs@salinassolarservices.com"
+    );
+
+    if (alexCruzJgs) {
+      await ctx.db.delete(alexCruzJgs._id);
+      results.push("Deleted CRM user: Alex Cruz (jgs@salinassolarservices.com)");
+    } else {
+      results.push("Alex Cruz (jgs@salinassolarservices.com) not found in users");
+    }
+
+    return { success: true, results };
+  },
+});
+
 // Clean expired sessions mutation (can be run periodically)
 export const cleanExpiredSessions = mutation({
   args: {},

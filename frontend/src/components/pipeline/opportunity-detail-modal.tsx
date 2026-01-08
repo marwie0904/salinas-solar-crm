@@ -313,7 +313,7 @@ export function OpportunityDetailModal({
         if (selectedConsultant && selectedConsultant.email) {
           // Build the opportunity URL
           const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-          const opportunityUrl = `${baseUrl}/pipeline?opportunity=${editedOpportunity._id}`;
+          const opportunityUrl = `${baseUrl}/pipeline?opportunityId=${editedOpportunity._id}`;
 
           // Send notification email
           try {
