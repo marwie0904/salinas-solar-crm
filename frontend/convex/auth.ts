@@ -204,6 +204,87 @@ export const seedUsers = mutation({
   },
 });
 
+// Add new auth user and CRM users
+export const seedAdditionalUsers = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const results: string[] = [];
+
+    // Add Jay R. Salinas auth user
+    const existingAuthUser = await ctx.db
+      .query("authUsers")
+      .withIndex("by_email", (q) => q.eq("email", "jgs@salinassolarservices.com"))
+      .first();
+
+    if (!existingAuthUser) {
+      await ctx.db.insert("authUsers", {
+        email: "jgs@salinassolarservices.com",
+        passwordHash: simpleHash("salinas123"),
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      results.push("Created auth user: jgs@salinassolarservices.com");
+    } else {
+      results.push("Auth user already exists: jgs@salinassolarservices.com");
+    }
+
+    // Add Jay R. Salinas CRM user
+    const existingCrmUser1 = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", "jgs@salinassolarservices.com"))
+      .first();
+
+    if (!existingCrmUser1) {
+      await ctx.db.insert("users", {
+        firstName: "Jay R.",
+        lastName: "Salinas",
+        email: "jgs@salinassolarservices.com",
+        phone: "+63 917 824 2334",
+        role: "project_manager",
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      results.push("Created CRM user: Jay R. Salinas");
+    } else {
+      results.push("CRM user already exists: Jay R. Salinas");
+    }
+
+    // Update or create Mar Wie Ang CRM user
+    const existingCrmUser2 = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", "marwie0904@gmail.com"))
+      .first();
+
+    if (existingCrmUser2) {
+      await ctx.db.patch(existingCrmUser2._id, {
+        firstName: "Mar Wie",
+        lastName: "Ang",
+        phone: "+63 976 522 9475",
+        role: "developer",
+        updatedAt: now,
+      });
+      results.push("Updated CRM user: Mar Wie Ang");
+    } else {
+      await ctx.db.insert("users", {
+        firstName: "Mar Wie",
+        lastName: "Ang",
+        email: "marwie0904@gmail.com",
+        phone: "+63 976 522 9475",
+        role: "developer",
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      results.push("Created CRM user: Mar Wie Ang");
+    }
+
+    return { success: true, results };
+  },
+});
+
 // Clean expired sessions mutation (can be run periodically)
 export const cleanExpiredSessions = mutation({
   args: {},

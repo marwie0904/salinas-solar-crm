@@ -98,7 +98,9 @@ export const paymentType = v.union(
 export const userRole = v.union(
   v.literal("admin"),
   v.literal("sales"),
-  v.literal("technician")
+  v.literal("technician"),
+  v.literal("project_manager"),
+  v.literal("developer")
 );
 
 export const agreementStatus = v.union(
