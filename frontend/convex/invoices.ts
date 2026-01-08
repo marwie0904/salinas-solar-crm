@@ -561,3 +561,135 @@ export const recalculateTotals = mutation({
     return args.id;
   },
 });
+
+// ============================================
+// PUBLIC INVOICE VIEWING
+// ============================================
+
+/**
+ * Generate a viewing token for public invoice access
+ */
+function generateViewingToken(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let token = "";
+  for (let i = 0; i < 32; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+}
+
+/**
+ * Generate or get viewing token for an invoice
+ */
+export const generateViewingLink = mutation({
+  args: { id: v.id("invoices") },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.id);
+    if (!invoice || invoice.isDeleted) {
+      throw new Error("Invoice not found");
+    }
+
+    // Return existing token if available
+    if (invoice.viewingToken) {
+      return { token: invoice.viewingToken };
+    }
+
+    // Generate new token
+    const viewingToken = generateViewingToken();
+    await ctx.db.patch(args.id, {
+      viewingToken,
+      updatedAt: now(),
+    });
+
+    return { token: viewingToken };
+  },
+});
+
+/**
+ * Get invoice by public viewing token (no auth required)
+ */
+export const getByToken = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db
+      .query("invoices")
+      .withIndex("by_viewing_token", (q) => q.eq("viewingToken", args.token))
+      .first();
+
+    if (!invoice || invoice.isDeleted) {
+      return null;
+    }
+
+    const opportunity = await ctx.db.get(invoice.opportunityId);
+    const contact = opportunity
+      ? await ctx.db.get(opportunity.contactId)
+      : null;
+
+    // Get line items
+    const lineItems = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_invoice_order", (q) => q.eq("invoiceId", invoice._id))
+      .collect();
+
+    // Enrich line items with product data
+    const enrichedLineItems = await Promise.all(
+      lineItems.map(async (item) => {
+        const product = item.productId
+          ? await ctx.db.get(item.productId)
+          : null;
+        return {
+          ...item,
+          product: product ? { _id: product._id, name: product.name } : null,
+        };
+      })
+    );
+
+    // Get payments
+    const payments = await ctx.db
+      .query("payments")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", invoice._id))
+      .order("desc")
+      .collect();
+
+    return {
+      _id: invoice._id,
+      invoiceNumber: invoice.invoiceNumber,
+      subtotal: invoice.subtotal,
+      taxRate: invoice.taxRate,
+      taxAmount: invoice.taxAmount,
+      discountAmount: invoice.discountAmount,
+      total: invoice.total,
+      amountPaid: invoice.amountPaid,
+      status: invoice.status,
+      paymentType: invoice.paymentType,
+      paymentMethod: invoice.paymentMethod,
+      notes: invoice.notes,
+      dueDate: invoice.dueDate,
+      dateSent: invoice.dateSent,
+      paidAt: invoice.paidAt,
+      createdAt: invoice.createdAt,
+      opportunity: opportunity
+        ? { _id: opportunity._id, name: opportunity.name }
+        : null,
+      contact: contact
+        ? {
+            _id: contact._id,
+            fullName: getFullName(contact.firstName, contact.lastName),
+            email: contact.email,
+            phone: contact.phone,
+            address: contact.address,
+          }
+        : null,
+      lineItems: enrichedLineItems,
+      payments: payments.map((p) => ({
+        _id: p._id,
+        amount: p.amount,
+        paymentMethod: p.paymentMethod,
+        referenceNumber: p.referenceNumber,
+        paymentDate: p.paymentDate,
+      })),
+      isOverdue: isOverdue(invoice.dueDate) && invoice.status !== "paid_full",
+      remainingBalance: invoice.total - invoice.amountPaid,
+    };
+  },
+});

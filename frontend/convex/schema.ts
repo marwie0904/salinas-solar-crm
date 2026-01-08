@@ -115,6 +115,33 @@ export const agreementStatus = v.union(
 
 export default defineSchema({
   // ----------------------------------------
+  // AUTH USERS TABLE (for login)
+  // ----------------------------------------
+  authUsers: defineTable({
+    email: v.string(),
+    passwordHash: v.string(),
+    isActive: v.boolean(),
+    lastLoginAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_active", ["isActive"]),
+
+  // ----------------------------------------
+  // SESSIONS TABLE
+  // ----------------------------------------
+  sessions: defineTable({
+    authUserId: v.id("authUsers"),
+    sessionToken: v.string(),
+    expiresAt: v.number(), // 7 days from creation
+    createdAt: v.number(),
+  })
+    .index("by_token", ["sessionToken"])
+    .index("by_user", ["authUserId"])
+    .index("by_expires", ["expiresAt"]),
+
+  // ----------------------------------------
   // USERS TABLE
   // ----------------------------------------
   users: defineTable({
@@ -319,6 +346,8 @@ export default defineSchema({
     dueDate: v.number(),
     dateSent: v.optional(v.number()),
     paidAt: v.optional(v.number()),
+    // Public viewing token for sharing invoices
+    viewingToken: v.optional(v.string()),
     isDeleted: v.boolean(),
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
@@ -330,7 +359,8 @@ export default defineSchema({
     .index("by_due_date", ["dueDate"])
     .index("by_deleted", ["isDeleted"])
     .index("by_deleted_status", ["isDeleted", "status"])
-    .index("by_created_at", ["createdAt"]),
+    .index("by_created_at", ["createdAt"])
+    .index("by_viewing_token", ["viewingToken"]),
 
   // ----------------------------------------
   // INVOICE LINE ITEMS TABLE

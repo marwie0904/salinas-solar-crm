@@ -2,6 +2,7 @@
 
 import { AppLayout } from "@/components/layout";
 import { ConvexClientProvider } from "@/components/providers/convex-provider";
+import { AuthProvider, RequireAuth } from "@/components/providers/auth-provider";
 
 export default function DashboardLayout({
   children,
@@ -10,7 +11,11 @@ export default function DashboardLayout({
 }) {
   return (
     <ConvexClientProvider>
-      <AppLayout>{children}</AppLayout>
+      <AuthProvider>
+        <RequireAuth>
+          <AppLayout>{children}</AppLayout>
+        </RequireAuth>
+      </AuthProvider>
     </ConvexClientProvider>
   );
 }

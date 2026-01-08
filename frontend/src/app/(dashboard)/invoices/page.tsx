@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import {
@@ -36,6 +36,9 @@ import {
   Building2,
   Download,
   Loader2,
+  Share2,
+  Check,
+  Copy,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -105,9 +108,12 @@ export default function InvoicesPage() {
     useState<InvoiceWithDetails | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Fetch invoices from Convex
   const invoices = useQuery(api.invoices.list, {});
+  const generateViewingLink = useMutation(api.invoices.generateViewingLink);
 
   const filteredInvoices = invoices?.filter(
     (invoice) =>
@@ -145,6 +151,22 @@ export default function InvoicesPage() {
 
     const pdf = generateInvoicePDF(pdfData);
     pdf.download();
+  };
+
+  const handleShareLink = async (invoice: InvoiceWithDetails) => {
+    setIsGeneratingLink(true);
+    setCopiedLink(false);
+    try {
+      const result = await generateViewingLink({ id: invoice._id });
+      const link = `${window.location.origin}/invoice/${result.token}`;
+      await navigator.clipboard.writeText(link);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (error) {
+      console.error("Failed to generate share link:", error);
+    } finally {
+      setIsGeneratingLink(false);
+    }
   };
 
   if (invoices === undefined) {
@@ -414,6 +436,21 @@ export default function InvoicesPage() {
 
               {/* Actions */}
               <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleShareLink(selectedInvoice)}
+                  disabled={isGeneratingLink}
+                  className="h-10 touch-target"
+                >
+                  {isGeneratingLink ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : copiedLink ? (
+                    <Check className="h-4 w-4 mr-2 text-green-600" />
+                  ) : (
+                    <Share2 className="h-4 w-4 mr-2" />
+                  )}
+                  {copiedLink ? "Link Copied!" : "Share Link"}
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => handleDownloadPDF(selectedInvoice)}

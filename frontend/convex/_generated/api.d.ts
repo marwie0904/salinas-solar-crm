@@ -12,6 +12,7 @@ import type * as activityLogs from "../activityLogs.js";
 import type * as agreements from "../agreements.js";
 import type * as analytics from "../analytics.js";
 import type * as appointments from "../appointments.js";
+import type * as auth from "../auth.js";
 import type * as contacts from "../contacts.js";
 import type * as documents from "../documents.js";
 import type * as email from "../email.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   agreements: typeof agreements;
   analytics: typeof analytics;
   appointments: typeof appointments;
+  auth: typeof auth;
   contacts: typeof contacts;
   documents: typeof documents;
   email: typeof email;

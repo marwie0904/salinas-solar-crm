@@ -8,9 +8,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DialPad } from "@/components/calling/dial-pad";
-import { Search, Phone, Bell, Menu } from "lucide-react";
+import { Search, Phone, Bell, Menu, LogOut, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/providers/auth-provider";
 
 interface HeaderProps {
   sidebarCollapsed: boolean;
@@ -20,6 +27,7 @@ interface HeaderProps {
 
 export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps) {
   const [mounted, setMounted] = useState(false);
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     setMounted(true);
@@ -28,6 +36,11 @@ export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps)
   const handleCall = (phoneNumber: string) => {
     console.log("Calling:", phoneNumber);
     // TODO: Implement actual calling functionality
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = "/login";
   };
 
   return (
@@ -108,6 +121,33 @@ export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps)
           {/* Notification badge */}
           <span className="absolute top-2 right-2 h-2 w-2 bg-[#ff5603] rounded-full" />
         </Button>
+
+        {/* User menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 text-muted-foreground hover:text-[#ff5603] touch-target tap-transparent"
+            >
+              <User className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {user && (
+              <div className="px-2 py-1.5 text-sm text-muted-foreground border-b mb-1">
+                {user.email}
+              </div>
+            )}
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="text-red-600 focus:text-red-600 cursor-pointer"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

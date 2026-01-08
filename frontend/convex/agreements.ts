@@ -326,26 +326,56 @@ export const sign = action({
             }
             console.log("[Sign Agreement] Signature embedded successfully");
 
-            // Calculate signature dimensions (max 150x50 to fit in signature line)
+            // Calculate signature dimensions (max 100x35 to fit on signature line)
             const sigDims = signatureImage.scale(1);
-            const maxWidth = 150;
-            const maxHeight = 50;
+            const maxWidth = 100;
+            const maxHeight = 35;
             const scale = Math.min(maxWidth / sigDims.width, maxHeight / sigDims.height, 1);
             const sigWidth = sigDims.width * scale;
             const sigHeight = sigDims.height * scale;
             console.log("[Sign Agreement] Signature dimensions:", sigWidth, "x", sigHeight);
 
             // Position for "FOR THE CLIENT:" section
-            // Based on PDF structure: marginLeft=25mm≈71pt, signature section is near bottom
-            // The "By:" line for client is approximately at y=205 from bottom (after WITNESSES section)
-            const signatureX = 100; // After "By: " text
-            const signatureY = 205; // Position in "FOR THE CLIENT: By:" line area
-            const nameY = signatureY - sigHeight - 5; // Name below signature
-            const dateY = nameY - 15; // Date below name
+            // The PDF generator uses jsPDF with mm from top, pdf-lib uses points from bottom
+            // A4 page: 297mm height = 841.89 points
+            // 1mm = 2.835 points
+            //
+            // The signature section position depends on whether it's on a new page or at the
+            // bottom of an existing page. We use page count as a heuristic:
+            // - With 3+ pages: signature section likely on dedicated last page (starts at top)
+            // - With 1-2 pages: signature section likely at bottom of last page
+            //
+            // NEW PAGE scenario (signature section starts at marginTop=20mm):
+            // - "By:" line at ~y=105mm from top = 544 points from bottom
+            // - "Date:" line at ~y=118mm from top = 507 points from bottom
+            //
+            // SAME PAGE scenario (signature section near bottom, starts ~y=200mm from top):
+            // - "By:" line at ~y=252mm from top = 128 points from bottom
+            // - "Date:" line at ~y=265mm from top = 91 points from bottom
+
+            const signatureX = 85; // After "By: " text, on the signature line
+            const dateX = 97; // After "Date: " text
+
+            let signatureY: number;
+            let dateY: number;
+
+            if (pages.length >= 3) {
+              // Signature section on dedicated last page, starting from top
+              console.log("[Sign Agreement] Using NEW PAGE positioning (3+ pages)");
+              signatureY = 544;
+              dateY = 507;
+            } else {
+              // Signature section at bottom of last page
+              console.log("[Sign Agreement] Using SAME PAGE positioning (1-2 pages)");
+              signatureY = 128;
+              dateY = 91;
+            }
 
             console.log("[Sign Agreement] Placing signature at x:", signatureX, "y:", signatureY);
+            console.log("[Sign Agreement] Placing date at x:", dateX, "y:", dateY);
 
-            // Add signature in the "FOR THE CLIENT:" section
+            // Add signature on the "By:" line in "FOR THE CLIENT:" section
+            // The signature is drawn with its bottom-left corner at (x, y)
             lastPage.drawImage(signatureImage, {
               x: signatureX,
               y: signatureY,
@@ -353,34 +383,23 @@ export const sign = action({
               height: sigHeight,
             });
 
-            // Add signer name and date below signature
+            // Add date on the "Date:" line (client name is already in the PDF)
             const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
             const signedDate = new Date().toLocaleDateString("en-US", {
               year: "numeric",
               month: "long",
               day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
             });
 
-            // Draw name under signature (replaces the blank line)
-            lastPage.drawText(args.signedByName, {
-              x: 100,
-              y: nameY,
-              size: 10,
-              font,
-              color: rgb(0, 0, 0),
-            });
-
-            // Draw date on the Date: line
+            // Draw date on the Date: line only
             lastPage.drawText(signedDate, {
-              x: 100,
+              x: dateX,
               y: dateY,
-              size: 10,
+              size: 11,
               font,
               color: rgb(0, 0, 0),
             });
-            console.log("[Sign Agreement] Signature and text added to FOR THE CLIENT section");
+            console.log("[Sign Agreement] Signature and date added to FOR THE CLIENT section");
 
             // Save the signed PDF
             console.log("[Sign Agreement] Saving signed PDF...");
