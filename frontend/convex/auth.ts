@@ -293,7 +293,7 @@ export const seedSystemConsultant = mutation({
     const results: string[] = [];
 
     // Alex Cruz - System Consultant (test user)
-    const alexEmail = "jgs@salinassolarservices.com";
+    const alexEmail = "marwie0904@gmail.com";
 
     // Always create new auth user for testing
     await ctx.db.insert("authUsers", {
