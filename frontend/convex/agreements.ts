@@ -3,6 +3,7 @@ import { mutation, query, action, internalMutation, internalQuery } from "./_gen
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { getFullName } from "./lib/helpers";
 
 // Generate a random signing token
 function generateSigningToken(): string {
@@ -80,11 +81,36 @@ export const markSent = mutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+
+    // Get agreement details for SMS
+    const agreement = await ctx.db.get(args.agreementId);
+    if (!agreement) {
+      throw new Error("Agreement not found");
+    }
+
     await ctx.db.patch(args.agreementId, {
       status: "sent",
       sentAt: now,
       updatedAt: now,
     });
+
+    // Send agreement sent SMS notification
+    const contact = await ctx.db.get(agreement.contactId);
+    if (contact?.phone && contact?.email) {
+      await ctx.scheduler.runAfter(0, internal.autoSms.internalSendAgreementSentSms, {
+        phoneNumber: contact.phone,
+        firstName: contact.firstName,
+        email: contact.email,
+      });
+
+      // Schedule 3-day reminder if not signed
+      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+      await ctx.scheduler.runAfter(threeDaysMs, internal.autoSms.internalCheckAndSendAgreementReminder, {
+        agreementId: args.agreementId,
+        phoneNumber: contact.phone,
+        firstName: contact.firstName,
+      });
+    }
   },
 });
 

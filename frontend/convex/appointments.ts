@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { appointmentType, appointmentStatus } from "./schema";
 import { getFullName, now, startOfDay, endOfDay } from "./lib/helpers";
 import {
@@ -403,6 +404,31 @@ export const create = mutation({
     });
 
     await logCreation(ctx, "appointment", appointmentId, args.createdBy);
+
+    // Send appointment set SMS notification
+    const contact = await ctx.db.get(args.contactId);
+    const assignedUser = await ctx.db.get(args.assignedTo);
+
+    if (contact?.phone && assignedUser) {
+      // Format date for SMS
+      const [year, month, day] = args.date.split("-").map(Number);
+      const dateObj = new Date(year, month - 1, day);
+      const formattedDate = dateObj.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+
+      await ctx.scheduler.runAfter(0, internal.autoSms.internalSendAppointmentSetSms, {
+        phoneNumber: contact.phone,
+        firstName: contact.firstName,
+        date: formattedDate,
+        time: args.time,
+        location: args.location || contact.address || "To be confirmed",
+        systemConsultantFullName: getFullName(assignedUser.firstName, assignedUser.lastName),
+      });
+    }
 
     return appointmentId;
   },

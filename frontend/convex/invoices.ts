@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { invoiceStatus, paymentType, paymentMethod } from "./schema";
 import {
   now,
@@ -432,6 +433,27 @@ export const send = mutation({
     });
 
     await logActivity(ctx, "invoice", args.id, "invoice_sent", undefined, args.sentBy);
+
+    // Send invoice sent SMS notification
+    const opportunity = await ctx.db.get(invoice.opportunityId);
+    if (opportunity) {
+      const contact = await ctx.db.get(opportunity.contactId);
+      if (contact?.phone && contact?.email) {
+        await ctx.scheduler.runAfter(0, internal.autoSms.internalSendInvoiceSentSms, {
+          phoneNumber: contact.phone,
+          firstName: contact.firstName,
+          email: contact.email,
+        });
+
+        // Schedule 3-day reminder if not paid
+        const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+        await ctx.scheduler.runAfter(threeDaysMs, internal.autoSms.internalCheckAndSendInvoiceReminder, {
+          invoiceId: args.id,
+          phoneNumber: contact.phone,
+          firstName: contact.firstName,
+        });
+      }
+    }
 
     return args.id;
   },
