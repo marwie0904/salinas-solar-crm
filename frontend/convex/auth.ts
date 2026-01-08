@@ -285,6 +285,43 @@ export const seedAdditionalUsers = mutation({
   },
 });
 
+// Seed Alex Cruz as System Consultant
+export const seedSystemConsultant = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const results: string[] = [];
+
+    // Alex Cruz - System Consultant (test user)
+    const alexEmail = "jgs@salinassolarservices.com";
+
+    // Always create new auth user for testing
+    await ctx.db.insert("authUsers", {
+      email: alexEmail,
+      passwordHash: simpleHash("solar123"),
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    results.push(`Created auth user: ${alexEmail}`);
+
+    // Always create new CRM user for testing
+    await ctx.db.insert("users", {
+      firstName: "Alex",
+      lastName: "Cruz",
+      email: alexEmail,
+      phone: "+63 912 345 6789",
+      role: "system_consultant",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    results.push("Created CRM user: Alex Cruz (System Consultant)");
+
+    return { success: true, results };
+  },
+});
+
 // Clean expired sessions mutation (can be run periodically)
 export const cleanExpiredSessions = mutation({
   args: {},

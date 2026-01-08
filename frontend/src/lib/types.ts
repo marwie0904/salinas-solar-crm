@@ -62,7 +62,13 @@ export type PaymentType =
   | "downpayment"
   | "progress_billing";
 
-export type UserRole = "admin" | "sales" | "technician";
+export type UserRole =
+  | "admin"
+  | "sales"
+  | "technician"
+  | "project_manager"
+  | "developer"
+  | "system_consultant";
 
 // ============================================
 // LABEL MAPS
@@ -157,6 +163,15 @@ export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
   installment: "Installment",
   downpayment: "Downpayment",
   progress_billing: "Progress Billing",
+};
+
+export const USER_ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Admin",
+  sales: "Sales",
+  technician: "Technician",
+  project_manager: "Project Manager",
+  developer: "Developer",
+  system_consultant: "System Consultant",
 };
 
 // ============================================

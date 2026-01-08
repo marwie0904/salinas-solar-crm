@@ -100,7 +100,8 @@ export const userRole = v.union(
   v.literal("sales"),
   v.literal("technician"),
   v.literal("project_manager"),
-  v.literal("developer")
+  v.literal("developer"),
+  v.literal("system_consultant")
 );
 
 export const agreementStatus = v.union(

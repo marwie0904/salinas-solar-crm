@@ -170,12 +170,20 @@ export function OpportunityDetailModal({
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
 
+  // System consultant state
+  const [selectedConsultantId, setSelectedConsultantId] = useState<string | null>(null);
+
   const updateOpportunity = useMutation(api.opportunities.update);
   const updateStage = useMutation(api.opportunities.updateStage);
   const removeOpportunity = useMutation(api.opportunities.remove);
 
   // OpenSolar action
   const createOpenSolarProject = useAction(api.openSolar.createProject);
+
+  // System consultant query and actions
+  const systemConsultants = useQuery(api.users.listSystemConsultants);
+  const assignOpportunity = useMutation(api.opportunities.assign);
+  const sendConsultantAssignmentEmail = useAction(api.email.sendConsultantAssignmentEmail);
 
   // Message queries and actions
   const messages = useQuery(
@@ -224,6 +232,8 @@ export function OpportunityDetailModal({
       setIsCreateTaskModalOpen(false);
       setIsEditingName(false);
       setEditedName(opportunity.name);
+      // Set selected consultant ID from opportunity's systemConsultant
+      setSelectedConsultantId(opportunity.systemConsultant?._id || null);
     }
   }, [open, opportunity]);
 
@@ -285,6 +295,55 @@ export function OpportunityDetailModal({
         openSolarProjectUrl: editedOpportunity.openSolarProjectUrl,
         notes: editedOpportunity.notes,
       });
+
+      // Check if system consultant changed
+      const originalConsultantId = opportunity?.systemConsultant?._id;
+      if (selectedConsultantId && selectedConsultantId !== originalConsultantId) {
+        // Assign the new consultant
+        await assignOpportunity({
+          id: editedOpportunity._id,
+          assignedTo: selectedConsultantId as any,
+        });
+
+        // Find the selected consultant to get their email and name
+        const selectedConsultant = systemConsultants?.find(
+          (c) => c._id === selectedConsultantId
+        );
+
+        if (selectedConsultant && selectedConsultant.email) {
+          // Build the opportunity URL
+          const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+          const opportunityUrl = `${baseUrl}/pipeline?opportunity=${editedOpportunity._id}`;
+
+          // Send notification email
+          try {
+            await sendConsultantAssignmentEmail({
+              to: selectedConsultant.email,
+              consultantFirstName: selectedConsultant.firstName,
+              opportunityName: editedOpportunity.name,
+              opportunityUrl,
+            });
+            console.log("Consultant assignment email sent successfully");
+          } catch (emailError) {
+            console.error("Failed to send consultant assignment email:", emailError);
+            // Don't block the save if email fails
+          }
+        }
+
+        // Update local state with new consultant info
+        setEditedOpportunity({
+          ...editedOpportunity,
+          systemConsultant: selectedConsultant
+            ? {
+                _id: selectedConsultant._id,
+                firstName: selectedConsultant.firstName,
+                lastName: selectedConsultant.lastName,
+                email: selectedConsultant.email,
+                phone: selectedConsultant.phone,
+              }
+            : editedOpportunity.systemConsultant,
+        });
+      }
 
       onSave(editedOpportunity);
       onOpenChange(false);
@@ -531,25 +590,56 @@ export function OpportunityDetailModal({
           <HardHat className="h-4 w-4 text-[#ff5603]" />
           System Consultant
         </label>
-        {editedOpportunity.systemConsultant ? (
+        <Select
+          value={selectedConsultantId || ""}
+          onValueChange={(value) => setSelectedConsultantId(value || null)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select a system consultant..." />
+          </SelectTrigger>
+          <SelectContent>
+            {systemConsultants === undefined ? (
+              <div className="p-2 text-sm text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading consultants...
+              </div>
+            ) : systemConsultants.length === 0 ? (
+              <div className="p-2 text-sm text-muted-foreground">
+                No system consultants available
+              </div>
+            ) : (
+              systemConsultants.map((consultant) => (
+                <SelectItem key={consultant._id} value={consultant._id}>
+                  {consultant.fullName}
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+        {/* Show selected consultant details */}
+        {selectedConsultantId && (
           <div className="p-4 bg-muted/50 rounded-lg">
-            <p className="font-medium">
-              {editedOpportunity.systemConsultant.firstName} {editedOpportunity.systemConsultant.lastName}
-            </p>
-            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-              <p>
-                <span className="font-medium text-foreground">Email:</span>{" "}
-                {editedOpportunity.systemConsultant.email || "—"}
-              </p>
-              <p>
-                <span className="font-medium text-foreground">Phone:</span>{" "}
-                {editedOpportunity.systemConsultant.phone || "—"}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
-            No system consultant assigned
+            {(() => {
+              const consultant = systemConsultants?.find((c) => c._id === selectedConsultantId);
+              if (!consultant) return null;
+              return (
+                <>
+                  <p className="font-medium">
+                    {consultant.firstName} {consultant.lastName}
+                  </p>
+                  <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+                    <p>
+                      <span className="font-medium text-foreground">Email:</span>{" "}
+                      {consultant.email || "—"}
+                    </p>
+                    <p>
+                      <span className="font-medium text-foreground">Phone:</span>{" "}
+                      {consultant.phone || "—"}
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
       </div>

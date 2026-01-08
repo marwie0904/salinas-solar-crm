@@ -96,6 +96,25 @@ export const getByRole = query({
   },
 });
 
+/**
+ * List all active system consultants
+ */
+export const listSystemConsultants = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_role", (q) => q.eq("role", "system_consultant"))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    return users.map((user) => ({
+      ...user,
+      fullName: getFullName(user.firstName, user.lastName),
+    }));
+  },
+});
+
 // ============================================
 // MUTATIONS
 // ============================================

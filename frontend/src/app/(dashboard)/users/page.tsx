@@ -35,7 +35,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type UserRole = "admin" | "sales" | "technician" | "project_manager" | "developer";
+type UserRole = "admin" | "sales" | "technician" | "project_manager" | "developer" | "system_consultant";
 
 const roleLabels: Record<UserRole, string> = {
   admin: "Admin",
@@ -43,6 +43,7 @@ const roleLabels: Record<UserRole, string> = {
   technician: "Technician",
   project_manager: "Project Manager",
   developer: "Developer",
+  system_consultant: "System Consultant",
 };
 
 const roleColors: Record<UserRole, string> = {
@@ -51,6 +52,7 @@ const roleColors: Record<UserRole, string> = {
   technician: "bg-green-500",
   project_manager: "bg-orange-500",
   developer: "bg-cyan-500",
+  system_consultant: "bg-amber-500",
 };
 
 function getInitials(firstName: string, lastName: string): string {
