@@ -138,17 +138,24 @@ export const verifySession = query({
       return { valid: false, user: null, expired: true };
     }
 
-    // Get user
-    const user = await ctx.db.get(session.authUserId);
-    if (!user || !user.isActive) {
+    // Get auth user
+    const authUser = await ctx.db.get(session.authUserId);
+    if (!authUser || !authUser.isActive) {
       return { valid: false, user: null };
     }
+
+    // Look up the corresponding CRM user by email
+    const crmUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", authUser.email))
+      .first();
 
     return {
       valid: true,
       user: {
-        id: user._id,
-        email: user.email,
+        id: crmUser?._id ?? authUser._id, // Use CRM user ID if available
+        authUserId: authUser._id,
+        email: authUser.email,
       },
       expiresAt: session.expiresAt,
     };
