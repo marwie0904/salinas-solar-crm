@@ -13,8 +13,9 @@ export const pipelineStage = v.union(
   v.literal("did_not_book_call"),
   v.literal("for_ocular"),
   v.literal("follow_up"),
-  v.literal("contract_drafting"),
-  v.literal("contract_signing"),
+  v.literal("contract_sent"),
+  v.literal("invoice_sent"),
+  v.literal("for_installation"),
   v.literal("closed")
 );
 

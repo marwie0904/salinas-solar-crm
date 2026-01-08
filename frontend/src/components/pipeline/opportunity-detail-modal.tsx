@@ -95,8 +95,9 @@ const stageOptions: { value: PipelineStage; label: string }[] = [
   { value: "did_not_book_call", label: PIPELINE_STAGE_LABELS.did_not_book_call },
   { value: "for_ocular", label: PIPELINE_STAGE_LABELS.for_ocular },
   { value: "follow_up", label: PIPELINE_STAGE_LABELS.follow_up },
-  { value: "contract_drafting", label: PIPELINE_STAGE_LABELS.contract_drafting },
-  { value: "contract_signing", label: PIPELINE_STAGE_LABELS.contract_signing },
+  { value: "contract_sent", label: PIPELINE_STAGE_LABELS.contract_sent },
+  { value: "invoice_sent", label: PIPELINE_STAGE_LABELS.invoice_sent },
+  { value: "for_installation", label: PIPELINE_STAGE_LABELS.for_installation },
   { value: "closed", label: PIPELINE_STAGE_LABELS.closed },
 ];
 

@@ -15,8 +15,9 @@ export type PipelineStage =
   | "did_not_book_call"
   | "for_ocular"
   | "follow_up"
-  | "contract_drafting"
-  | "contract_signing"
+  | "contract_sent"
+  | "invoice_sent"
+  | "for_installation"
   | "closed";
 
 export type ContactSource =
@@ -82,8 +83,9 @@ export const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
   did_not_book_call: "Did Not Book Call",
   for_ocular: "For Ocular",
   follow_up: "Follow Up",
-  contract_drafting: "Contract Drafting",
-  contract_signing: "Contract Signing",
+  contract_sent: "Contract Sent",
+  invoice_sent: "Invoice Sent",
+  for_installation: "For Installation",
   closed: "Closed",
 };
 
@@ -95,9 +97,10 @@ export const PIPELINE_STAGE_DESCRIPTIONS: Record<PipelineStage, string> = {
   did_not_book_call: "Leads who were contacted but did not schedule a call and need follow-up.",
   for_ocular: "Leads scheduled for an on-site ocular inspection to assess installation requirements.",
   follow_up: "Leads requiring additional follow-up after initial contact or inspection.",
-  contract_drafting: "The proposal and contract documents are being prepared based on the assessment and agreed terms.",
-  contract_signing: "The contract has been sent to the client and is awaiting their review and signature.",
-  closed: "The deal has been finalized and the contract has been signed. Ready for installation.",
+  contract_sent: "The contract has been sent to the client and is awaiting their review and signature.",
+  invoice_sent: "The invoice has been sent to the client for payment.",
+  for_installation: "Payment received and the project is ready to be scheduled for installation.",
+  closed: "The installation has been completed and the deal is closed.",
 };
 
 export const CONTACT_SOURCE_LABELS: Record<ContactSource, string> = {

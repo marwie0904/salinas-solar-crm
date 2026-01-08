@@ -88,8 +88,9 @@ const stageColors: Record<PipelineStage, string> = {
   did_not_book_call: "bg-amber-500",
   for_ocular: "bg-purple-500",
   follow_up: "bg-yellow-500",
-  contract_drafting: "bg-orange-500",
-  contract_signing: "bg-indigo-500",
+  contract_sent: "bg-orange-500",
+  invoice_sent: "bg-indigo-500",
+  for_installation: "bg-teal-500",
   closed: "bg-green-500",
 };
 

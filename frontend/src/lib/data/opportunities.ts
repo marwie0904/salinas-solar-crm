@@ -249,7 +249,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "4",
     name: "Mendoza Warehouse Project",
-    stage: "contract_drafting",
+    stage: "contract_sent",
     estimatedValue: 850000,
     contact: {
       _id: "c4",
@@ -310,7 +310,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "5",
     name: "Villanueva Residence",
-    stage: "contract_signing",
+    stage: "invoice_sent",
     estimatedValue: 220000,
     contact: {
       _id: "c5",

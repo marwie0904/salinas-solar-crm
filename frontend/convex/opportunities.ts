@@ -22,8 +22,9 @@ type PipelineStage =
   | "did_not_book_call"
   | "for_ocular"
   | "follow_up"
-  | "contract_drafting"
-  | "contract_signing"
+  | "contract_sent"
+  | "invoice_sent"
+  | "for_installation"
   | "closed";
 
 // ============================================
@@ -307,8 +308,9 @@ export const getPipelineSummary = query({
       "did_not_book_call",
       "for_ocular",
       "follow_up",
-      "contract_drafting",
-      "contract_signing",
+      "contract_sent",
+      "invoice_sent",
+      "for_installation",
       "closed",
     ];
 
