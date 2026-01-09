@@ -492,7 +492,9 @@ export default function MessagesPage() {
                       className={cn(
                         "max-w-[85%] md:max-w-[70%] rounded-lg px-3 md:px-4 py-2",
                         message.isOutgoing
-                          ? "bg-[#ff5603] text-white"
+                          ? message.channel === "sms"
+                            ? "bg-green-500 text-white" // SMS outgoing: green
+                            : "bg-[#ff5603] text-white" // FB/IG outgoing: orange
                           : "bg-white border"
                       )}
                     >

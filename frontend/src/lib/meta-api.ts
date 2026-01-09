@@ -54,6 +54,8 @@ export interface MetaMessagingEvent {
     mid: string;
     text?: string;
     attachments?: MetaAttachment[];
+    is_echo?: boolean; // True if this is an echo of a message sent by the page
+    app_id?: number; // App ID if sent via API
   };
   postback?: {
     title: string;
@@ -415,7 +417,8 @@ export function parseWebhookPayload(payload: MetaWebhookEvent): Array<{
   messageId?: string;
   text?: string;
   attachments?: MetaAttachment[];
-  eventType: "message" | "postback" | "delivery" | "read";
+  eventType: "message" | "postback" | "delivery" | "read" | "echo";
+  isEcho?: boolean;
 }> {
   const events: Array<{
     channel: "facebook" | "instagram";
@@ -425,7 +428,8 @@ export function parseWebhookPayload(payload: MetaWebhookEvent): Array<{
     messageId?: string;
     text?: string;
     attachments?: MetaAttachment[];
-    eventType: "message" | "postback" | "delivery" | "read";
+    eventType: "message" | "postback" | "delivery" | "read" | "echo";
+    isEcho?: boolean;
   }> = [];
 
   const channel = payload.object === "instagram" ? "instagram" : "facebook";
@@ -435,6 +439,7 @@ export function parseWebhookPayload(payload: MetaWebhookEvent): Array<{
 
     for (const messagingEvent of entry.messaging) {
       if (messagingEvent.message) {
+        const isEcho = messagingEvent.message.is_echo === true;
         events.push({
           channel,
           senderId: messagingEvent.sender.id,
@@ -443,7 +448,8 @@ export function parseWebhookPayload(payload: MetaWebhookEvent): Array<{
           messageId: messagingEvent.message.mid,
           text: messagingEvent.message.text,
           attachments: messagingEvent.message.attachments,
-          eventType: "message",
+          eventType: isEcho ? "echo" : "message",
+          isEcho,
         });
       } else if (messagingEvent.postback) {
         events.push({

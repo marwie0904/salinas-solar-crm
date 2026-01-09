@@ -135,27 +135,73 @@ export async function POST(request: NextRequest) {
         eventType: event.eventType,
         channel: event.channel,
         senderId: event.senderId,
+        recipientId: event.recipientId,
         hasText: !!event.text,
+        isEcho: event.isEcho,
       });
 
-      // Only process incoming messages (not delivery/read receipts)
-      if (event.eventType !== "message" && event.eventType !== "postback") {
-        console.log("[Meta Webhook] Skipping non-message event:", event.eventType);
-        continue;
-      }
-
-      // Skip messages from ourselves (outgoing messages)
-      const pageId = process.env.FACEBOOK_PAGE_ID;
-      const instagramId = process.env.INSTAGRAM_ACCOUNT_ID;
-
-      if (event.senderId === pageId || event.senderId === instagramId) {
-        console.log("[Meta Webhook] Skipping outgoing message");
+      // Skip delivery/read receipts
+      if (event.eventType === "delivery" || event.eventType === "read") {
+        console.log("[Meta Webhook] Skipping receipt event:", event.eventType);
         continue;
       }
 
       // Skip empty messages
       if (!event.text && !event.attachments?.length) {
         console.log("[Meta Webhook] Skipping empty message");
+        continue;
+      }
+
+      const pageId = process.env.FACEBOOK_PAGE_ID;
+      const instagramId = process.env.INSTAGRAM_ACCOUNT_ID;
+
+      // Handle echo messages (messages sent from FB/IG app directly)
+      if (event.eventType === "echo" || event.isEcho) {
+        console.log("[Meta Webhook] Processing echo message (sent from external app)", {
+          channel: event.channel,
+          recipientId: event.recipientId,
+        });
+
+        // Build message content for echo
+        let echoContent = event.text || "";
+        if (event.attachments?.length) {
+          const attachmentTexts = event.attachments.map((att) => {
+            if (att.type === "image") return "[Image]";
+            if (att.type === "video") return "[Video]";
+            if (att.type === "audio") return "[Audio]";
+            if (att.type === "file") return "[File]";
+            if (att.type === "location") return "[Location]";
+            return "[Attachment]";
+          });
+          echoContent = echoContent
+            ? echoContent + "\n" + attachmentTexts.join(" ")
+            : attachmentTexts.join(" ");
+        }
+
+        try {
+          await getConvexClient().mutation(api.messages.storeEchoFromMeta, {
+            channel: event.channel,
+            platformUserId: event.recipientId, // The recipient of the echo is the contact
+            content: echoContent,
+            externalMessageId: event.messageId,
+            timestamp: event.timestamp,
+          });
+          console.log("[Meta Webhook] Echo message stored successfully");
+        } catch (error) {
+          console.error("[Meta Webhook] Failed to store echo message:", error);
+        }
+        continue;
+      }
+
+      // Only process incoming messages and postbacks
+      if (event.eventType !== "message" && event.eventType !== "postback") {
+        console.log("[Meta Webhook] Skipping non-message event:", event.eventType);
+        continue;
+      }
+
+      // Skip messages from ourselves (redundant check, but kept for safety)
+      if (event.senderId === pageId || event.senderId === instagramId) {
+        console.log("[Meta Webhook] Skipping message from page");
         continue;
       }
 

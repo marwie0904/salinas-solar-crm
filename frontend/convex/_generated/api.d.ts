@@ -22,6 +22,8 @@ import type * as invoiceLineItems from "../invoiceLineItems.js";
 import type * as invoices from "../invoices.js";
 import type * as lib_activityLogger from "../lib/activityLogger.js";
 import type * as lib_helpers from "../lib/helpers.js";
+import type * as lib_invoicePdfGenerator from "../lib/invoicePdfGenerator.js";
+import type * as lib_stageOrder from "../lib/stageOrder.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as messages from "../messages.js";
 import type * as meta from "../meta.js";
@@ -55,6 +57,8 @@ declare const fullApi: ApiFromModules<{
   invoices: typeof invoices;
   "lib/activityLogger": typeof lib_activityLogger;
   "lib/helpers": typeof lib_helpers;
+  "lib/invoicePdfGenerator": typeof lib_invoicePdfGenerator;
+  "lib/stageOrder": typeof lib_stageOrder;
   "lib/validators": typeof lib_validators;
   messages: typeof messages;
   meta: typeof meta;

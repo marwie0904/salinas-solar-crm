@@ -603,6 +603,90 @@ export const receiveFromMeta = mutation({
 });
 
 /**
+ * Store an echo message from Meta platforms (messages sent via FB/IG app, not CRM)
+ * This captures outgoing messages sent directly from Facebook Messenger or Instagram app
+ * Called by the webhook handler when an echo event is received
+ */
+export const storeEchoFromMeta = mutation({
+  args: {
+    channel: v.union(v.literal("facebook"), v.literal("instagram")),
+    platformUserId: v.string(), // The recipient's PSID or IG-scoped ID
+    content: v.string(),
+    externalMessageId: v.optional(v.string()),
+    timestamp: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Find the contact by platform ID (the recipient of the echo message)
+    let contact = null;
+
+    if (args.channel === "facebook") {
+      contact = await ctx.db
+        .query("contacts")
+        .withIndex("by_facebook_psid", (q) =>
+          q.eq("facebookPsid", args.platformUserId)
+        )
+        .first();
+    } else {
+      contact = await ctx.db
+        .query("contacts")
+        .withIndex("by_instagram_id", (q) =>
+          q.eq("instagramScopedId", args.platformUserId)
+        )
+        .first();
+    }
+
+    // If no contact found, we can't store the message
+    if (!contact) {
+      console.log(
+        `[storeEchoFromMeta] No contact found for ${args.channel} platformUserId: ${args.platformUserId}`
+      );
+      return null;
+    }
+
+    // Check if this message already exists (prevent duplicates from CRM-sent messages)
+    if (args.externalMessageId) {
+      const existingMessage = await ctx.db
+        .query("messages")
+        .filter((q) =>
+          q.eq(q.field("externalMessageId"), args.externalMessageId)
+        )
+        .first();
+
+      if (existingMessage) {
+        console.log(
+          `[storeEchoFromMeta] Message already exists with externalMessageId: ${args.externalMessageId}`
+        );
+        return { contactId: contact._id, messageId: existingMessage._id, duplicate: true };
+      }
+    }
+
+    // Store the message as outgoing (sent from the page/business)
+    const messageId = await ctx.db.insert("messages", {
+      content: args.content,
+      contactId: contact._id,
+      channel: args.channel,
+      isOutgoing: true,
+      senderName: "Page", // Sent from the Facebook/Instagram page directly
+      externalMessageId: args.externalMessageId,
+      isRead: true, // Outgoing messages are always read
+      createdAt: args.timestamp,
+    });
+
+    await logActivity(ctx, "message", messageId, "message_sent", {
+      channel: args.channel,
+      contactId: contact._id,
+      source: "external_app", // Indicates sent from FB/IG app, not CRM
+    });
+
+    return {
+      contactId: contact._id,
+      messageId,
+      duplicate: false,
+    };
+  },
+});
+
+/**
  * Get messaging window status for a contact
  * Used by UI to show when the window is expiring
  */
