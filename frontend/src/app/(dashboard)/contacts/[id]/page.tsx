@@ -50,6 +50,7 @@ import { TaskEditModal } from "@/components/tasks/task-edit-modal";
 import { Task } from "@/components/tasks/task-table";
 import { TaskStatus, INVOICE_STATUS_LABELS, PAYMENT_TYPE_LABELS, PaymentType } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { MessageContent } from "@/components/messages/message-content";
 import { InvoiceCreateModal } from "@/components/invoices";
 import { generateInvoicePDF } from "@/components/invoices/invoice-pdf-generator";
 
@@ -425,7 +426,13 @@ export default function ContactDetailPage({
                     : "bg-white border"
                 )}
               >
-                <p className="text-sm">{message.content}</p>
+                <MessageContent
+                  content={message.content}
+                  isOutgoing={message.isOutgoing}
+                  contactId={contact._id}
+                  contactEmail={contact.email}
+                  contactPhone={contact.phone}
+                />
                 <div
                   className={cn(
                     "text-xs mt-1 flex items-center gap-2",

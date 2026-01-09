@@ -60,6 +60,7 @@ import { TaskStatus } from "@/lib/types";
 import { TaskEditModal } from "@/components/tasks/task-edit-modal";
 import { Task } from "@/components/tasks/task-table";
 import { cn } from "@/lib/utils";
+import { MessageContent } from "@/components/messages/message-content";
 import { LocationCaptureModal, LocationDisplay } from "./location-capture-modal";
 import { AppointmentModal, Appointment } from "@/components/appointments/appointment-modal";
 import { DocumentUpload } from "@/components/documents/document-upload";
@@ -857,7 +858,13 @@ export function OpportunityDetailModal({
                         : "bg-white border"
                     )}
                   >
-                    <p className="text-sm">{message.content}</p>
+                    <MessageContent
+                      content={message.content}
+                      isOutgoing={message.isOutgoing}
+                      contactId={editedOpportunity.contact!._id}
+                      contactEmail={editedOpportunity.contact?.email}
+                      contactPhone={editedOpportunity.contact?.phone}
+                    />
                     <div
                       className={cn(
                         "text-[10px] mt-1 flex items-center gap-2",

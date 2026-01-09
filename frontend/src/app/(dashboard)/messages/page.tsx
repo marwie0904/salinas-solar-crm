@@ -24,6 +24,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MessageContent } from "@/components/messages/message-content";
 
 type Channel = "facebook" | "instagram" | "sms";
 
@@ -495,7 +496,13 @@ export default function MessagesPage() {
                           : "bg-white border"
                       )}
                     >
-                      <p className="text-sm">{message.content}</p>
+                      <MessageContent
+                        content={message.content}
+                        isOutgoing={message.isOutgoing}
+                        contactId={selectedContactId!}
+                        contactEmail={selectedContact?.email}
+                        contactPhone={selectedContact?.phone}
+                      />
                       <div
                         className={cn(
                           "text-[10px] mt-1 flex items-center gap-2",
