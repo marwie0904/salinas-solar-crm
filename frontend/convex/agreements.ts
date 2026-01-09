@@ -4,6 +4,8 @@ import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { getFullName } from "./lib/helpers";
+import { logStageChange } from "./lib/activityLogger";
+import { shouldTransitionTo } from "./lib/stageOrder";
 
 // Generate a random signing token
 function generateSigningToken(): string {
@@ -110,6 +112,23 @@ export const markSent = mutation({
         phoneNumber: contact.phone,
         firstName: contact.firstName,
       });
+    }
+
+    // Auto-transition opportunity to "contract_sent" stage
+    const opportunity = await ctx.db.get(agreement.opportunityId);
+    if (opportunity && shouldTransitionTo(opportunity.stage, "contract_sent")) {
+      const previousStage = opportunity.stage;
+      await ctx.db.patch(agreement.opportunityId, {
+        stage: "contract_sent",
+        updatedAt: now,
+      });
+      await logStageChange(
+        ctx,
+        agreement.opportunityId,
+        previousStage,
+        "contract_sent",
+        undefined // System-triggered
+      );
     }
   },
 });
@@ -245,6 +264,85 @@ export const updateSignedAgreement = internalMutation({
           read: false,
           createdAt: now,
         });
+      }
+
+      // Auto-create and send invoice
+      // Generate invoice number (format: INV-YYYYMM-XXXX)
+      const date = new Date();
+      const yearMonth = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const invoices = await ctx.db
+        .query("invoices")
+        .withIndex("by_created_at")
+        .order("desc")
+        .take(1);
+      const lastNumber = invoices.length > 0
+        ? parseInt(invoices[0].invoiceNumber.split("-").pop() || "0", 10)
+        : 0;
+      const invoiceNumber = `INV-${yearMonth}-${String(lastNumber + 1).padStart(4, "0")}`;
+
+      // Set due date to 30 days from now
+      const dueDate = now + 30 * 24 * 60 * 60 * 1000;
+
+      // Create invoice with single line item
+      const invoiceId = await ctx.db.insert("invoices", {
+        invoiceNumber,
+        opportunityId: agreement.opportunityId,
+        subtotal: agreement.totalAmount,
+        total: agreement.totalAmount,
+        amountPaid: 0,
+        status: "pending",
+        paymentType: "one_time",
+        notes: `Auto-generated from signed agreement`,
+        dueDate,
+        dateSent: now, // Mark as sent immediately
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Create single line item
+      await ctx.db.insert("invoiceLineItems", {
+        invoiceId,
+        description: "Solar Installation - Per Agreement",
+        quantity: 1,
+        unitPrice: agreement.totalAmount,
+        lineTotal: agreement.totalAmount,
+        sortOrder: 0,
+        createdAt: now,
+      });
+
+      // Send invoice SMS notification
+      const contact = await ctx.db.get(agreement.contactId);
+      if (contact?.phone && contact?.email) {
+        await ctx.scheduler.runAfter(0, internal.autoSms.internalSendInvoiceSentSms, {
+          phoneNumber: contact.phone,
+          firstName: contact.firstName,
+          email: contact.email,
+        });
+
+        // Schedule 3-day reminder if not paid
+        const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+        await ctx.scheduler.runAfter(threeDaysMs, internal.autoSms.internalCheckAndSendInvoiceReminder, {
+          invoiceId,
+          phoneNumber: contact.phone,
+          firstName: contact.firstName,
+        });
+      }
+
+      // Auto-transition opportunity to "invoice_sent" stage
+      if (opportunity && shouldTransitionTo(opportunity.stage, "invoice_sent")) {
+        const previousStage = opportunity.stage;
+        await ctx.db.patch(agreement.opportunityId, {
+          stage: "invoice_sent",
+          updatedAt: now,
+        });
+        await logStageChange(
+          ctx,
+          agreement.opportunityId,
+          previousStage,
+          "invoice_sent",
+          undefined // System-triggered
+        );
       }
     }
 

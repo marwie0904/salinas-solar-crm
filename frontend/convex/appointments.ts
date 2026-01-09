@@ -9,7 +9,9 @@ import {
   logDeletion,
   logRestoration,
   logStatusChange,
+  logStageChange,
 } from "./lib/activityLogger";
+import { shouldTransitionTo } from "./lib/stageOrder";
 
 // ============================================
 // QUERIES
@@ -445,6 +447,34 @@ export const create = mutation({
         location: args.location || contact.address || "To be confirmed",
         systemConsultantFullName: getFullName(assignedUser.firstName, assignedUser.lastName),
       });
+    }
+
+    // Auto-transition opportunity stage based on appointment type
+    if (args.opportunityId) {
+      const opportunity = await ctx.db.get(args.opportunityId);
+      if (opportunity) {
+        // Determine target stage based on appointment type
+        const targetStage =
+          args.appointmentType === "field_inspection"
+            ? "for_ocular"
+            : "booked_call";
+
+        // Only transition if moving forward in the pipeline
+        if (shouldTransitionTo(opportunity.stage, targetStage)) {
+          const previousStage = opportunity.stage;
+          await ctx.db.patch(args.opportunityId, {
+            stage: targetStage,
+            updatedAt: timestamp,
+          });
+          await logStageChange(
+            ctx,
+            args.opportunityId,
+            previousStage,
+            targetStage,
+            args.createdBy
+          );
+        }
+      }
     }
 
     return appointmentId;

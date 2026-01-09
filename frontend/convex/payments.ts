@@ -2,7 +2,8 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { paymentMethod } from "./schema";
 import { now, determineInvoiceStatus, getFullName, formatPHP } from "./lib/helpers";
-import { logCreation, logPaymentReceived } from "./lib/activityLogger";
+import { logCreation, logPaymentReceived, logStageChange } from "./lib/activityLogger";
+import { shouldTransitionTo } from "./lib/stageOrder";
 
 // ============================================
 // QUERIES
@@ -211,6 +212,25 @@ export const create = mutation({
       args.createdBy
     );
 
+    // Auto-transition opportunity to "closed" when invoice is fully paid
+    if (newStatus === "paid_full") {
+      const opportunity = await ctx.db.get(invoice.opportunityId);
+      if (opportunity && shouldTransitionTo(opportunity.stage, "closed")) {
+        const previousStage = opportunity.stage;
+        await ctx.db.patch(invoice.opportunityId, {
+          stage: "closed",
+          updatedAt: timestamp,
+        });
+        await logStageChange(
+          ctx,
+          invoice.opportunityId,
+          previousStage,
+          "closed",
+          args.createdBy
+        );
+      }
+    }
+
     return paymentId;
   },
 });
@@ -341,6 +361,25 @@ export const batchCreate = mutation({
         paidAt: newStatus === "paid_full" ? timestamp : invoice.paidAt,
         updatedAt: timestamp,
       });
+
+      // Auto-transition opportunity to "closed" when invoice is fully paid
+      if (newStatus === "paid_full") {
+        const opportunity = await ctx.db.get(invoice.opportunityId);
+        if (opportunity && shouldTransitionTo(opportunity.stage, "closed")) {
+          const previousStage = opportunity.stage;
+          await ctx.db.patch(invoice.opportunityId, {
+            stage: "closed",
+            updatedAt: timestamp,
+          });
+          await logStageChange(
+            ctx,
+            invoice.opportunityId,
+            previousStage,
+            "closed",
+            args.createdBy
+          );
+        }
+      }
     }
 
     return paymentIds;
