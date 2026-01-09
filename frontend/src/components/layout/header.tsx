@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useRouter } from "next/navigation";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { Input } from "@/components/ui/input";
@@ -18,10 +19,34 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { DialPad } from "@/components/calling/dial-pad";
-import { Search, Phone, Bell, Menu, LogOut, User, UserPlus, Calendar, AlertCircle, Clock, FileCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Search,
+  Bell,
+  Menu,
+  LogOut,
+  User,
+  UserPlus,
+  Calendar,
+  AlertCircle,
+  Clock,
+  FileCheck,
+  ChevronLeft,
+  ChevronRight,
+  Briefcase,
+  FileText,
+  File,
+  Loader2,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
+import {
+  PIPELINE_STAGE_LABELS,
+  APPOINTMENT_STATUS_LABELS,
+  INVOICE_STATUS_LABELS,
+} from "@/lib/types";
+import type { SearchResult, SearchResultType } from "../../../convex/search";
 
 type NotificationType =
   | "lead_assigned"
@@ -63,15 +88,43 @@ function getNotificationIcon(type: NotificationType) {
   }
 }
 
+const TYPE_ICONS: Record<SearchResultType, React.ReactNode> = {
+  contact: <User className="h-4 w-4" />,
+  opportunity: <Briefcase className="h-4 w-4" />,
+  appointment: <Calendar className="h-4 w-4" />,
+  invoice: <FileText className="h-4 w-4" />,
+  document: <File className="h-4 w-4" />,
+};
+
+const TYPE_COLORS: Record<SearchResultType, string> = {
+  contact: "bg-blue-100 text-blue-700",
+  opportunity: "bg-orange-100 text-orange-700",
+  appointment: "bg-purple-100 text-purple-700",
+  invoice: "bg-green-100 text-green-700",
+  document: "bg-gray-100 text-gray-700",
+};
+
 interface HeaderProps {
   sidebarCollapsed: boolean;
   onMenuClick?: () => void;
+  onToggleSidebar?: () => void;
   isMobile?: boolean;
 }
 
-export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps) {
+export function Header({
+  sidebarCollapsed,
+  onMenuClick,
+  onToggleSidebar,
+}: HeaderProps) {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
 
   // Fetch notifications from Convex
@@ -85,8 +138,54 @@ export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps)
   const unreadCount = notifications?.filter((n) => !n.read).length ?? 0;
   const hasUnread = unreadCount > 0;
 
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Query search results
+  const searchResults = useQuery(
+    api.search.unified,
+    debouncedQuery.length >= 2 ? { query: debouncedQuery, limit: 10 } : "skip"
+  );
+
+  const isLoading = debouncedQuery.length >= 2 && searchResults === undefined;
+  const showResults = searchFocused && searchQuery.length >= 2;
+
+  // Reset selected index when results change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchResults]);
+
+  // Global keyboard shortcut for search (Cmd/Ctrl + K)
+  const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      inputRef.current?.focus();
+    }
+  }, []);
+
   useEffect(() => {
     setMounted(true);
+    document.addEventListener("keydown", handleGlobalKeyDown);
+    return () => document.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [handleGlobalKeyDown]);
+
+  // Click outside to close
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(e.target as Node)
+      ) {
+        setSearchFocused(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleNotificationsOpen = async (open: boolean) => {
@@ -96,28 +195,121 @@ export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps)
     }
   };
 
-  const handleCall = (phoneNumber: string) => {
-    console.log("Calling:", phoneNumber);
-    // TODO: Implement actual calling functionality
-  };
-
   const handleLogout = async () => {
     await logout();
     window.location.href = "/login";
+  };
+
+  // Navigate to result
+  const navigateToResult = useCallback(
+    (result: SearchResult) => {
+      setSearchFocused(false);
+      setSearchQuery("");
+      switch (result.type) {
+        case "contact":
+          router.push(`/contacts/${result.id}`);
+          break;
+        case "opportunity":
+          router.push(`/pipeline?opportunity=${result.id}`);
+          break;
+        case "appointment":
+          router.push(`/appointments?id=${result.id}`);
+          break;
+        case "invoice":
+          router.push(`/invoices?id=${result.id}`);
+          break;
+        case "document":
+          router.push(`/documents?id=${result.id}`);
+          break;
+      }
+    },
+    [router]
+  );
+
+  // Keyboard navigation in search
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!searchResults || searchResults.length === 0) {
+        if (e.key === "Escape") {
+          setSearchFocused(false);
+          inputRef.current?.blur();
+        }
+        return;
+      }
+
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setSelectedIndex((prev) =>
+            prev < searchResults.length - 1 ? prev + 1 : prev
+          );
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev));
+          break;
+        case "Enter":
+          e.preventDefault();
+          if (searchResults[selectedIndex]) {
+            navigateToResult(searchResults[selectedIndex]);
+          }
+          break;
+        case "Escape":
+          e.preventDefault();
+          setSearchFocused(false);
+          inputRef.current?.blur();
+          break;
+      }
+    },
+    [searchResults, selectedIndex, navigateToResult]
+  );
+
+  const getStatusBadge = (result: SearchResult) => {
+    if (result.type === "opportunity" && result.metadata?.stage) {
+      const stage = result.metadata.stage as keyof typeof PIPELINE_STAGE_LABELS;
+      return (
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+          {PIPELINE_STAGE_LABELS[stage] || stage}
+        </Badge>
+      );
+    }
+    if (result.type === "appointment" && result.metadata?.status) {
+      const status =
+        result.metadata.status as keyof typeof APPOINTMENT_STATUS_LABELS;
+      return (
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+          {APPOINTMENT_STATUS_LABELS[status] || status}
+        </Badge>
+      );
+    }
+    if (result.type === "invoice" && result.metadata?.status) {
+      const status =
+        result.metadata.status as keyof typeof INVOICE_STATUS_LABELS;
+      return (
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+          {INVOICE_STATUS_LABELS[status] || status}
+        </Badge>
+      );
+    }
+    return null;
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setDebouncedQuery("");
+    inputRef.current?.focus();
   };
 
   return (
     <header
       className={cn(
         "fixed top-0 right-0 z-30 h-16 bg-white border-b border-border flex items-center justify-between px-4 md:px-6 transition-all duration-300 safe-area-inset-top",
-        // Desktop: adjust for sidebar
         "lg:left-64",
         sidebarCollapsed && "lg:left-[72px]",
-        // Mobile/Tablet: full width
         "left-0"
       )}
     >
-      {/* Left - Menu button (mobile) + Search */}
+      {/* Left - Menu button (mobile) + Collapse toggle (desktop) + Search */}
       <div className="flex items-center gap-3 flex-1 max-w-md">
         {/* Hamburger menu for mobile/tablet */}
         <Button
@@ -129,20 +321,108 @@ export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps)
           <Menu className="h-5 w-5" />
         </Button>
 
+        {/* Sidebar collapse toggle for desktop */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleSidebar}
+          className="hidden lg:flex h-10 w-10 text-muted-foreground hover:text-foreground flex-shrink-0"
+        >
+          {sidebarCollapsed ? (
+            <ChevronRight className="h-5 w-5" />
+          ) : (
+            <ChevronLeft className="h-5 w-5" />
+          )}
+        </Button>
+
         {/* Search - hidden on small phones, visible on tablet+ */}
-        <div className="relative w-full hidden sm:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search..."
-            className="pl-10 bg-muted/50 border-0 focus-visible:ring-[#ff5603] h-10"
-          />
+        <div ref={searchContainerRef} className="relative w-full hidden sm:block">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              ref={inputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search..."
+              className="pl-10 pr-10 bg-muted/50 border-0 focus-visible:ring-[#ff5603] h-10"
+            />
+            {searchQuery ? (
+              <button
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : (
+              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-background rounded border text-[10px] font-mono text-muted-foreground">
+                ⌘K
+              </kbd>
+            )}
+          </div>
+
+          {/* Search Results Dropdown */}
+          {showResults && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg border shadow-lg overflow-hidden z-50">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : searchResults && searchResults.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <Search className="h-6 w-6 mb-2 opacity-50" />
+                  <p className="text-sm">No results for &quot;{searchQuery}&quot;</p>
+                </div>
+              ) : searchResults && searchResults.length > 0 ? (
+                <ScrollArea className="max-h-[320px]">
+                  <div className="py-1">
+                    {searchResults.map((result, index) => (
+                      <button
+                        key={`${result.type}-${result.id}`}
+                        onClick={() => navigateToResult(result)}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2 text-left transition-colors",
+                          selectedIndex === index
+                            ? "bg-muted"
+                            : "hover:bg-muted/50"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "flex items-center justify-center h-7 w-7 rounded-full shrink-0",
+                            TYPE_COLORS[result.type]
+                          )}
+                        >
+                          {TYPE_ICONS[result.type]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">
+                              {result.title}
+                            </span>
+                            {getStatusBadge(result)}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {result.subtitle}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {/* Search icon button for small phones */}
         <Button
           variant="ghost"
           size="icon"
+          onClick={() => inputRef.current?.focus()}
           className="sm:hidden h-10 w-10 text-muted-foreground hover:text-[#ff5603] touch-target"
         >
           <Search className="h-5 w-5" />
@@ -151,31 +431,10 @@ export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps)
 
       {/* Right - Icons */}
       <div className="flex items-center gap-1 md:gap-2">
-        {mounted ? (
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 text-muted-foreground hover:text-[#ff5603] touch-target tap-transparent"
-              >
-                <Phone className="h-5 w-5" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-auto p-4">
-              <DialPad onCall={handleCall} />
-            </PopoverContent>
-          </Popover>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 text-muted-foreground hover:text-[#ff5603] touch-target"
-          >
-            <Phone className="h-5 w-5" />
-          </Button>
-        )}
-        <Popover open={notificationsOpen} onOpenChange={handleNotificationsOpen}>
+        <Popover
+          open={notificationsOpen}
+          onOpenChange={handleNotificationsOpen}
+        >
           <PopoverTrigger asChild>
             <Button
               variant="ghost"
@@ -218,10 +477,12 @@ export function Header({ sidebarCollapsed, onMenuClick, isMobile }: HeaderProps)
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
-                          <p className={cn(
-                            "text-sm truncate",
-                            !notification.read && "font-medium"
-                          )}>
+                          <p
+                            className={cn(
+                              "text-sm truncate",
+                              !notification.read && "font-medium"
+                            )}
+                          >
                             {notification.title}
                           </p>
                           {!notification.read && (

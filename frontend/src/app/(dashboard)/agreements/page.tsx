@@ -16,6 +16,7 @@ interface OpenSolarPrefillData {
   batteryCapacity?: number;
   projectLocation?: string;
   totalContractAmount?: number;
+  upfrontPaymentAmount?: number;
   materials?: AgreementMaterial[];
 }
 
@@ -62,6 +63,7 @@ function AgreementsContent() {
             batteryCapacity: result.data.batteryCapacity,
             projectLocation: result.data.projectLocation,
             totalContractAmount: result.data.totalContractAmount,
+            upfrontPaymentAmount: result.data.upfrontPaymentAmount,
             materials: result.data.materials,
           });
         } else {

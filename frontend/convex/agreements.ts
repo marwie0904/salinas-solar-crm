@@ -267,94 +267,40 @@ export const updateSignedAgreement = internalMutation({
         });
       }
 
-      // Auto-create and send invoice
-      // Generate invoice number (format: INV-YYYYMM-XXXX)
-      const date = new Date();
-      const yearMonth = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const invoices = await ctx.db
-        .query("invoices")
-        .withIndex("by_created_at")
-        .order("desc")
-        .take(1);
-      const lastNumber = invoices.length > 0
-        ? parseInt(invoices[0].invoiceNumber.split("-").pop() || "0", 10)
-        : 0;
-      const invoiceNumber = `INV-${yearMonth}-${String(lastNumber + 1).padStart(4, "0")}`;
-
-      // Set due date to 30 days from now
-      const dueDate = now + 30 * 24 * 60 * 60 * 1000;
-
-      // Create invoice with single line item
-      const invoiceId = await ctx.db.insert("invoices", {
-        invoiceNumber,
-        opportunityId: agreement.opportunityId,
-        subtotal: agreement.totalAmount,
-        total: agreement.totalAmount,
-        amountPaid: 0,
-        status: "pending",
-        paymentType: "one_time",
-        notes: `Auto-generated from signed agreement`,
-        dueDate,
-        dateSent: now, // Mark as sent immediately
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // Create single line item with project location
-      await ctx.db.insert("invoiceLineItems", {
-        invoiceId,
-        description: `${agreement.projectLocation} - Solar Installation`,
-        quantity: 1,
-        unitPrice: agreement.totalAmount,
-        lineTotal: agreement.totalAmount,
-        sortOrder: 0,
-        createdAt: now,
-      });
-
-      // Get contact for notifications
-      const contact = await ctx.db.get(agreement.contactId);
-
-      // Generate invoice PDF, save document, and send email
-      if (contact?.email) {
-        await ctx.scheduler.runAfter(0, internal.agreements.sendInvoiceFromAgreement, {
-          invoiceId,
-          contactEmail: contact.email,
-          contactFirstName: contact.firstName,
+      // Notify all project managers about the signed agreement
+      if (opportunity) {
+        await ctx.scheduler.runAfter(0, internal.teamNotifications.notifyProjectManagersAgreementSigned, {
+          clientName: agreement.clientName,
+          opportunityName: opportunity.name,
+          opportunityId: agreement.opportunityId,
         });
       }
 
-      // Send invoice SMS notification
-      if (contact?.phone && contact?.email) {
-        await ctx.scheduler.runAfter(0, internal.autoSms.internalSendInvoiceSentSms, {
-          phoneNumber: contact.phone,
-          firstName: contact.firstName,
-          email: contact.email,
-        });
-
-        // Schedule 3-day reminder if not paid
-        const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-        await ctx.scheduler.runAfter(threeDaysMs, internal.autoSms.internalCheckAndSendInvoiceReminder, {
-          invoiceId,
-          phoneNumber: contact.phone,
-          firstName: contact.firstName,
-        });
-      }
-
-      // Auto-transition opportunity to "invoice_sent" stage
-      if (opportunity && shouldTransitionTo(opportunity.stage, "invoice_sent")) {
+      // Auto-transition opportunity to "for_installation" stage
+      if (opportunity && shouldTransitionTo(opportunity.stage, "for_installation")) {
         const previousStage = opportunity.stage;
         await ctx.db.patch(agreement.opportunityId, {
-          stage: "invoice_sent",
+          stage: "for_installation",
           updatedAt: now,
         });
         await logStageChange(
           ctx,
           agreement.opportunityId,
           previousStage,
-          "invoice_sent",
+          "for_installation",
           undefined // System-triggered
         );
+
+        // Notify operations team about the installation stage
+        const contact = await ctx.db.get(agreement.contactId);
+        const location = opportunity.location || contact?.address || "Not specified";
+
+        await ctx.scheduler.runAfter(0, internal.teamNotifications.notifyOperationsTeamInstallation, {
+          clientName: agreement.clientName,
+          opportunityName: opportunity.name,
+          opportunityId: agreement.opportunityId,
+          location,
+        });
       }
     }
 
@@ -485,49 +431,65 @@ export const sign = action({
             }
             console.log("[Sign Agreement] Signature embedded successfully");
 
-            // Calculate signature dimensions (max 100x35 to fit on signature line)
+            // Calculate signature dimensions (LARGER size for better visibility)
             const sigDims = signatureImage.scale(1);
-            const maxWidth = 100;
-            const maxHeight = 35;
+            const maxWidth = 180; // Increased from 150
+            const maxHeight = 60; // Increased from 50
             const scale = Math.min(maxWidth / sigDims.width, maxHeight / sigDims.height, 1);
             const sigWidth = sigDims.width * scale;
             const sigHeight = sigDims.height * scale;
             console.log("[Sign Agreement] Signature dimensions:", sigWidth, "x", sigHeight);
 
-            // Position for "FOR THE CLIENT:" section
+            // Position for "FOR THE CLIENT:" section (right column in two-column layout)
             // The PDF generator uses jsPDF with mm from top, pdf-lib uses points from bottom
-            // A4 page: 297mm height = 841.89 points
+            // A4 page: 297mm height = 841.89 points, width = 210mm = 595.28 points
             // 1mm = 2.835 points
             //
-            // The signature section position depends on whether it's on a new page or at the
-            // bottom of an existing page. We use page count as a heuristic:
-            // - With 3+ pages: signature section likely on dedicated last page (starts at top)
-            // - With 1-2 pages: signature section likely at bottom of last page
+            // Two-column layout from pdf-generator.ts:
+            // - marginLeft = 25mm, contentWidth = 160mm, colWidth = 70mm
+            // - Right column (Client): starts at marginLeft + colWidth + 20 = 115mm = 326 points
             //
-            // NEW PAGE scenario (signature section starts at marginTop=20mm):
-            // - "By:" line at ~y=105mm from top = 544 points from bottom
-            // - "Date:" line at ~y=118mm from top = 507 points from bottom
-            //
-            // SAME PAGE scenario (signature section near bottom, starts ~y=200mm from top):
-            // - "By:" line at ~y=252mm from top = 128 points from bottom
-            // - "Date:" line at ~y=265mm from top = 91 points from bottom
+            // Right column layout (mm from signatureStartY):
+            // - +0: "FOR THE CLIENT:"
+            // - +5: Client name in caps
+            // - +25: Signature line (20mm space for signature above)
+            // - +30: Client name text below line
+            // - +35: "Client / Property Owner"
+            // - +45: "Date: ____________________"
 
-            const signatureX = 85; // After "By: " text, on the signature line
-            const dateX = 97; // After "Date: " text
+            // Right column X position - moved more to the right
+            const rightColX = 340; // Moved from 326 to 340 (5mm more to the right)
+            const signatureX = rightColX + 5; // Moved left from +15 to +5
+            const dateX = rightColX + 33; // After "Date: " text (~12mm / 33 points)
 
             let signatureY: number;
             let dateY: number;
 
             if (pages.length >= 3) {
-              // Signature section on dedicated last page, starting from top
+              // Signature section on dedicated last page
               console.log("[Sign Agreement] Using NEW PAGE positioning (3+ pages)");
-              signatureY = 544;
-              dateY = 507;
+              const sigLineFromTop = 85; // mm - signature line position
+              const dateTextFromTop = 99; // mm - date line position
+
+              // Place signature so its bottom sits just above the line
+              const sigLineY = pageHeight - (sigLineFromTop * 2.835);
+              signatureY = sigLineY + 8; // Signature bottom above line
+
+              // Date text baseline position
+              dateY = pageHeight - (dateTextFromTop * 2.835);
             } else {
-              // Signature section at bottom of last page
+              // Signature section at bottom of last page (content-dependent position)
               console.log("[Sign Agreement] Using SAME PAGE positioning (1-2 pages)");
-              signatureY = 128;
-              dateY = 91;
+              // Signature line typically around 220-225mm from top
+              // Date line around 240-245mm from top
+
+              const sigLineFromTop = 223; // mm
+              const dateTextFromTop = 243; // mm
+
+              const sigLineY = pageHeight - (sigLineFromTop * 2.835);
+              signatureY = sigLineY + 8;
+
+              dateY = pageHeight - (dateTextFromTop * 2.835);
             }
 
             console.log("[Sign Agreement] Placing signature at x:", signatureX, "y:", signatureY);

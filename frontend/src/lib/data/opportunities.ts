@@ -310,7 +310,7 @@ export const placeholderOpportunities: MockOpportunity[] = [
   {
     _id: "5",
     name: "Villanueva Residence",
-    stage: "invoice_sent",
+    stage: "for_installation",
     estimatedValue: 220000,
     contact: {
       _id: "c5",

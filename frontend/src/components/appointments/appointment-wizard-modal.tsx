@@ -7,6 +7,8 @@ import { Id } from "../../../convex/_generated/dataModel";
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -398,7 +400,7 @@ export function AppointmentWizardModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[450px] bg-background border shadow-lg p-0 gap-0" showCloseButton={false}>
         {/* Header */}
-        <div className="p-6 pb-4 border-b">
+        <DialogHeader className="p-6 pb-4 border-b">
           <div className="flex items-center gap-4">
             {currentStep !== "details" && (
               <Button
@@ -411,13 +413,13 @@ export function AppointmentWizardModal({
               </Button>
             )}
             <div className="flex-1">
-              <h2 className="text-lg font-semibold">
+              <DialogTitle className="text-lg font-semibold">
                 {wizardData.contactName || "New Appointment"}
-              </h2>
+              </DialogTitle>
               <p className="text-sm text-muted-foreground">{getSubtitle()}</p>
             </div>
           </div>
-        </div>
+        </DialogHeader>
 
         {/* Content */}
         <div className="p-6">

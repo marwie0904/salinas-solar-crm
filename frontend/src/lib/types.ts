@@ -16,7 +16,6 @@ export type PipelineStage =
   | "for_ocular"
   | "follow_up"
   | "contract_sent"
-  | "invoice_sent"
   | "for_installation"
   | "closed";
 
@@ -55,7 +54,11 @@ export type PaymentMethod =
   | "credit_card"
   | "gcash"
   | "maya"
-  | "other";
+  | "other"
+  | "post_dated_check";
+
+// Cash sub-types for agreement payment
+export type CashSubType = "bank_transfer" | "online" | "physical";
 
 export type PaymentType =
   | "one_time"
@@ -84,7 +87,6 @@ export const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
   for_ocular: "For Ocular",
   follow_up: "Follow Up",
   contract_sent: "Contract Sent",
-  invoice_sent: "Invoice Sent",
   for_installation: "For Installation",
   closed: "Closed",
 };
@@ -98,8 +100,7 @@ export const PIPELINE_STAGE_DESCRIPTIONS: Record<PipelineStage, string> = {
   for_ocular: "Leads scheduled for an on-site ocular inspection to assess installation requirements.",
   follow_up: "Leads requiring additional follow-up after initial contact or inspection.",
   contract_sent: "The contract has been sent to the client and is awaiting their review and signature.",
-  invoice_sent: "The invoice has been sent to the client for payment.",
-  for_installation: "Payment received and the project is ready to be scheduled for installation.",
+  for_installation: "Contract signed and the project is ready to be scheduled for installation.",
   closed: "The installation has been completed and the deal is closed.",
 };
 
@@ -159,6 +160,13 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   gcash: "GCash",
   maya: "Maya",
   other: "Other",
+  post_dated_check: "Post Dated Check",
+};
+
+export const CASH_SUB_TYPE_LABELS: Record<CashSubType, string> = {
+  bank_transfer: "Bank Transfer",
+  online: "Online",
+  physical: "Physical",
 };
 
 export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
@@ -487,6 +495,8 @@ export interface AgreementPayment {
   amount: number;
   dueDate: string;
   paymentMethods: PaymentMethod[];
+  cashSubTypes?: CashSubType[];
+  isDownpayment?: boolean;
 }
 
 export interface AgreementPhase {

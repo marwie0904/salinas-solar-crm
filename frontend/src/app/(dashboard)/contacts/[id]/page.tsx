@@ -90,7 +90,6 @@ const stageColors: Record<PipelineStage, string> = {
   for_ocular: "bg-purple-500",
   follow_up: "bg-yellow-500",
   contract_sent: "bg-orange-500",
-  invoice_sent: "bg-indigo-500",
   for_installation: "bg-teal-500",
   closed: "bg-green-500",
 };
@@ -1028,10 +1027,6 @@ export default function ContactDetailPage({
 
             {/* Actions */}
             <div className="space-y-3 pt-4 border-t">
-              <Button className="w-full bg-[#ff5603] hover:bg-[#ff5603]/90">
-                <Phone className="h-4 w-4 mr-2" />
-                Call
-              </Button>
               <Button variant="outline" className="w-full">
                 <Mail className="h-4 w-4 mr-2" />
                 Send Email

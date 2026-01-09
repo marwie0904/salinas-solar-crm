@@ -49,7 +49,6 @@ const stages: { stage: PipelineStage; color: string }[] = [
   { stage: "for_ocular", color: "bg-purple-500" },
   { stage: "follow_up", color: "bg-yellow-500" },
   { stage: "contract_sent", color: "bg-orange-500" },
-  { stage: "invoice_sent", color: "bg-indigo-500" },
   { stage: "for_installation", color: "bg-teal-500" },
   { stage: "closed", color: "bg-green-500" },
 ];

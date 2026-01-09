@@ -13,7 +13,6 @@ const STAGE_ORDER = [
   "for_ocular",
   "follow_up",
   "contract_sent",
-  "invoice_sent",
   "for_installation",
   "closed",
 ] as const;

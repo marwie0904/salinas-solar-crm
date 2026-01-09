@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -33,6 +33,8 @@ import {
   SYSTEM_TYPE_LABELS,
   PaymentMethod,
   PAYMENT_METHOD_LABELS,
+  CashSubType,
+  CASH_SUB_TYPE_LABELS,
   formatPHP,
 } from "@/lib/types";
 import { generateAgreementPDF, GeneratedPDF } from "./pdf-generator";
@@ -125,6 +127,8 @@ const defaultPayment: AgreementPayment = {
   amount: 0,
   dueDate: "",
   paymentMethods: [],
+  cashSubTypes: [],
+  isDownpayment: false,
 };
 
 const defaultPhase: AgreementPhase = {
@@ -141,19 +145,8 @@ const defaultFormData: AgreementFormData = {
   batteryCapacity: 0,
   projectLocation: "",
   totalAmount: 0,
-  materials: [
-    { name: "Solar Panels", quantity: 8, model: "AE 620W", specifications: "" },
-    { name: "Inverter", quantity: 1, model: "Deye Hybrid 6.0kW", specifications: "" },
-    { name: "Solar Battery", quantity: 1, model: "DJDC 15.36kWh LiFePO4 Battery", specifications: "" },
-    { name: "Mounting Structures", quantity: 1, model: "", specifications: "" },
-    { name: "Complete AC/DC Cables and Connectors", quantity: 1, model: "", specifications: "" },
-    { name: "Combiner Box and Safety Switches", quantity: 1, model: "", specifications: "" },
-    { name: "Monitoring System", quantity: 1, model: "", specifications: "" },
-  ],
-  payments: [
-    { description: "50% down payment upon delivery of materials", amount: 0, dueDate: "", paymentMethods: ["cash", "bank_transfer"] },
-    { description: "50% full payment on completion", amount: 0, dueDate: "", paymentMethods: ["cash", "bank_transfer"] },
-  ],
+  materials: [],
+  payments: [],
   phases: [
     {
       date: "",
@@ -181,13 +174,18 @@ const defaultFormData: AgreementFormData = {
   includeMaintenanceService: true,
 };
 
-const PAYMENT_METHOD_OPTIONS: PaymentMethod[] = [
+// Main payment method options for agreement
+const AGREEMENT_PAYMENT_METHOD_OPTIONS: PaymentMethod[] = [
   "cash",
-  "bank_transfer",
-  "check",
   "credit_card",
-  "gcash",
-  "maya",
+  "post_dated_check",
+];
+
+// Cash sub-type options
+const CASH_SUB_TYPE_OPTIONS: CashSubType[] = [
+  "bank_transfer",
+  "online",
+  "physical",
 ];
 
 interface FormErrors {
@@ -207,6 +205,7 @@ interface OpenSolarPrefillData {
   batteryCapacity?: number;
   projectLocation?: string;
   totalContractAmount?: number;
+  upfrontPaymentAmount?: number;
   materials?: AgreementMaterial[];
 }
 
@@ -281,6 +280,43 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
   const [savedToDocuments, setSavedToDocuments] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+
+  // Auto payment schedule state
+  const [numberOfMonths, setNumberOfMonths] = useState<number>(0);
+  const [upfrontPaymentAmount, setUpfrontPaymentAmount] = useState<number>(
+    prefillData?.openSolarData?.upfrontPaymentAmount || 0
+  );
+  const [paymentDayOfMonth, setPaymentDayOfMonth] = useState<number>(15);
+  const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<PaymentMethod>("cash");
+  const [defaultCashSubType, setDefaultCashSubType] = useState<CashSubType>("bank_transfer");
+
+  // Update form data when OpenSolar data loads (async)
+  useEffect(() => {
+    const openSolar = prefillData?.openSolarData;
+    if (openSolar && !prefillData?.isLoadingOpenSolar) {
+      setFormData((prev) => ({
+        ...prev,
+        projectLocation: openSolar.projectLocation || prev.projectLocation,
+        totalAmount: openSolar.totalContractAmount || prev.totalAmount,
+        systemType: openSolar.systemType || prev.systemType,
+        systemSize: openSolar.systemSize || prev.systemSize,
+        batteryCapacity: openSolar.batteryCapacity || prev.batteryCapacity,
+        materials: openSolar.materials && openSolar.materials.length > 0
+          ? [
+              ...openSolar.materials,
+              { name: "Mounting Structures", quantity: 1, model: "", specifications: "" },
+              { name: "Complete AC/DC Cables and Connectors", quantity: 1, model: "", specifications: "" },
+              { name: "Combiner Box and Safety Switches", quantity: 1, model: "", specifications: "" },
+              { name: "Monitoring System", quantity: 1, model: "", specifications: "" },
+            ]
+          : prev.materials,
+      }));
+      // Update upfront payment amount from OpenSolar
+      if (openSolar.upfrontPaymentAmount && openSolar.upfrontPaymentAmount > 0) {
+        setUpfrontPaymentAmount(openSolar.upfrontPaymentAmount);
+      }
+    }
+  }, [prefillData?.openSolarData, prefillData?.isLoadingOpenSolar]);
 
   // Fetch opportunities with contact info
   const opportunities = useQuery(api.opportunities.list, {});
@@ -537,7 +573,7 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
     setFormData({ ...formData, materials: newMaterials });
   };
 
-  const updatePayment = (index: number, field: keyof AgreementPayment, value: string | number | PaymentMethod[]) => {
+  const updatePayment = (index: number, field: keyof AgreementPayment, value: string | number | boolean | PaymentMethod[] | CashSubType[]) => {
     const newPayments = [...formData.payments];
     newPayments[index] = { ...newPayments[index], [field]: value };
     setFormData({ ...formData, payments: newPayments });
@@ -605,7 +641,94 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
     const newMethods = currentMethods.includes(method)
       ? currentMethods.filter((m) => m !== method)
       : [...currentMethods, method];
-    updatePayment(paymentIndex, "paymentMethods", newMethods);
+
+    // If removing 'cash', also clear cash sub-types
+    if (method === 'cash' && currentMethods.includes(method)) {
+      const newPayments = [...formData.payments];
+      newPayments[paymentIndex] = {
+        ...newPayments[paymentIndex],
+        paymentMethods: newMethods,
+        cashSubTypes: []
+      };
+      setFormData({ ...formData, payments: newPayments });
+    } else {
+      updatePayment(paymentIndex, "paymentMethods", newMethods);
+    }
+  };
+
+  const toggleCashSubType = (paymentIndex: number, subType: CashSubType) => {
+    const payment = formData.payments[paymentIndex];
+    const currentSubTypes = payment.cashSubTypes || [];
+    const newSubTypes = currentSubTypes.includes(subType)
+      ? currentSubTypes.filter((s) => s !== subType)
+      : [...currentSubTypes, subType];
+    updatePayment(paymentIndex, "cashSubTypes", newSubTypes);
+  };
+
+  // Generate automatic payment schedule
+  const generatePaymentSchedule = () => {
+    if (formData.totalAmount <= 0) return;
+
+    const payments: AgreementPayment[] = [];
+    const today = new Date();
+
+    // Build payment method arrays from single selections
+    const paymentMethods: PaymentMethod[] = [defaultPaymentMethod];
+    const cashSubTypes: CashSubType[] = defaultPaymentMethod === "cash" ? [defaultCashSubType] : [];
+
+    // Handle 0 months = pay everything upfront
+    if (numberOfMonths === 0) {
+      payments.push({
+        description: "Full Payment",
+        amount: formData.totalAmount,
+        dueDate: today.toISOString().split("T")[0],
+        paymentMethods,
+        cashSubTypes,
+        isDownpayment: false,
+      });
+      setFormData({ ...formData, payments });
+      return;
+    }
+
+    // Calculate remaining amount after upfront payment
+    const remainingAmount = formData.totalAmount - upfrontPaymentAmount;
+    const monthlyAmount = Math.floor(remainingAmount / numberOfMonths);
+
+    // Add upfront payment if amount > 0
+    if (upfrontPaymentAmount > 0) {
+      payments.push({
+        description: "Upfront Payment",
+        amount: upfrontPaymentAmount,
+        dueDate: today.toISOString().split("T")[0],
+        paymentMethods,
+        cashSubTypes,
+        isDownpayment: true,
+      });
+    }
+
+    // Add monthly payments
+    for (let i = 0; i < numberOfMonths; i++) {
+      const paymentDate = new Date(today);
+      // Set to next month(s) and specific day
+      paymentDate.setMonth(paymentDate.getMonth() + i + (upfrontPaymentAmount > 0 ? 1 : 0));
+      paymentDate.setDate(Math.min(paymentDayOfMonth, 28)); // Cap at 28 for safety
+
+      // Handle last payment to account for rounding
+      const isLastPayment = i === numberOfMonths - 1;
+      const paidSoFar = upfrontPaymentAmount + (monthlyAmount * i);
+      const amount = isLastPayment ? formData.totalAmount - paidSoFar : monthlyAmount;
+
+      payments.push({
+        description: `Month ${i + 1}`,
+        amount: amount,
+        dueDate: paymentDate.toISOString().split("T")[0],
+        paymentMethods,
+        cashSubTypes,
+        isDownpayment: false,
+      });
+    }
+
+    setFormData({ ...formData, payments });
   };
 
   // Error input styling
@@ -904,10 +1027,134 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Auto-generation Section */}
+          <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
+            <p className="text-sm font-medium text-muted-foreground">Auto-generate Payment Schedule</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-1">
+                  Upfront Payment (PHP)
+                  {prefillData?.openSolarData?.upfrontPaymentAmount && prefillData.openSolarData.upfrontPaymentAmount > 0 && (
+                    <OpenSolarIndicator />
+                  )}
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="e.g., 100000"
+                  value={upfrontPaymentAmount || ""}
+                  onChange={(e) => setUpfrontPaymentAmount(parseFloat(e.target.value) || 0)}
+                />
+                {upfrontPaymentAmount > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatPHP(upfrontPaymentAmount)}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Number of Months</label>
+                <Select
+                  value={numberOfMonths.toString()}
+                  onValueChange={(value) => setNumberOfMonths(parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select months" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Full payment upfront</SelectItem>
+                    {Array.from({ length: 24 }, (_, i) => i + 1).map((month) => (
+                      <SelectItem key={month} value={month.toString()}>
+                        {month} {month === 1 ? "month" : "months"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {numberOfMonths > 0 && formData.totalAmount > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatPHP((formData.totalAmount - upfrontPaymentAmount) / numberOfMonths)}/month
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Day of Month</label>
+                <Select
+                  value={paymentDayOfMonth.toString()}
+                  onValueChange={(value) => setPaymentDayOfMonth(parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select day" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                      <SelectItem key={day} value={day.toString()}>
+                        {day}{day === 1 ? "st" : day === 2 ? "nd" : day === 3 ? "rd" : "th"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {/* Payment Method Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Payment Method</label>
+                <Select
+                  value={defaultPaymentMethod}
+                  onValueChange={(value: PaymentMethod) => setDefaultPaymentMethod(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AGREEMENT_PAYMENT_METHOD_OPTIONS.map((method) => (
+                      <SelectItem key={method} value={method}>
+                        {PAYMENT_METHOD_LABELS[method]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Cash Sub-option */}
+              {defaultPaymentMethod === "cash" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Cash Type</label>
+                  <Select
+                    value={defaultCashSubType}
+                    onValueChange={(value: CashSubType) => setDefaultCashSubType(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CASH_SUB_TYPE_OPTIONS.map((subType) => (
+                        <SelectItem key={subType} value={subType}>
+                          {CASH_SUB_TYPE_LABELS[subType]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">&nbsp;</label>
+                <Button
+                  onClick={generatePaymentSchedule}
+                  disabled={formData.totalAmount <= 0}
+                  className="w-full bg-[#ff5603] hover:bg-[#e64d00] text-white"
+                >
+                  Generate Schedule
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment List */}
           {formData.payments.map((payment, index) => (
             <div key={index} className="p-4 border rounded-lg space-y-3">
               <div className="flex justify-between items-center">
-                <span className="font-medium">Payment {index + 1}</span>
+                <span className="font-medium">
+                  {payment.isDownpayment ? "Upfront Payment" : payment.description || `Payment ${index + 1}`}
+                </span>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -920,7 +1167,7 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Description</label>
                   <Input
-                    placeholder="e.g., 50% down payment"
+                    placeholder="e.g., Upfront Payment, Month 1"
                     value={payment.description}
                     onChange={(e) => updatePayment(index, "description", e.target.value)}
                   />
@@ -933,6 +1180,9 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
                     value={payment.amount || ""}
                     onChange={(e) => updatePayment(index, "amount", parseFloat(e.target.value) || 0)}
                   />
+                  {payment.amount > 0 && (
+                    <p className="text-xs text-muted-foreground">{formatPHP(payment.amount)}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Due Date</label>
@@ -945,8 +1195,8 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Payment Methods</label>
-                <div className="flex flex-wrap gap-3">
-                  {PAYMENT_METHOD_OPTIONS.map((method) => (
+                <div className="flex flex-wrap gap-4">
+                  {AGREEMENT_PAYMENT_METHOD_OPTIONS.map((method) => (
                     <div key={method} className="flex items-center space-x-2">
                       <Checkbox
                         id={`payment-${index}-${method}`}
@@ -962,6 +1212,29 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
                     </div>
                   ))}
                 </div>
+                {/* Cash Sub-options */}
+                {payment.paymentMethods.includes("cash") && (
+                  <div className="ml-6 mt-2 p-3 bg-muted/50 rounded-md">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Cash Payment Options:</p>
+                    <div className="flex flex-wrap gap-3">
+                      {CASH_SUB_TYPE_OPTIONS.map((subType) => (
+                        <div key={subType} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`payment-${index}-cash-${subType}`}
+                            checked={(payment.cashSubTypes || []).includes(subType)}
+                            onCheckedChange={() => toggleCashSubType(index, subType)}
+                          />
+                          <label
+                            htmlFor={`payment-${index}-cash-${subType}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {CASH_SUB_TYPE_LABELS[subType]}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ))}

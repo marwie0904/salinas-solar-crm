@@ -349,6 +349,7 @@ export interface OpenSolarAgreementData {
   // Pricing
   totalContractAmount: number;
   priceExcludingTax: number;
+  upfrontPaymentAmount: number; // From payment_amount in OpenSolar
   // Materials
   materials: {
     name: string;
@@ -367,7 +368,7 @@ export const getProjectForAgreement = action({
   },
   handler: async (_, args): Promise<{ success: boolean; data?: OpenSolarAgreementData; error?: string }> => {
     try {
-      // Fetch project details
+      // Fetch project details (systems are included in the project response)
       const projectResponse = await fetch(
         `${OPENSOLAR_API_URL}/orgs/${OPENSOLAR_ORG_ID}/projects/${args.openSolarProjectId}/`,
         {
@@ -388,26 +389,8 @@ export const getProjectForAgreement = action({
 
       const project = await projectResponse.json();
 
-      // Fetch systems for the project
-      const systemsResponse = await fetch(
-        `${OPENSOLAR_API_URL}/orgs/${OPENSOLAR_ORG_ID}/projects/${args.openSolarProjectId}/systems/`,
-        {
-          headers: {
-            "Authorization": `Bearer ${getToken()}`,
-          },
-        }
-      );
-
-      if (!systemsResponse.ok) {
-        const errorText = await systemsResponse.text();
-        console.error("OpenSolar systems fetch error:", errorText);
-        return {
-          success: false,
-          error: `Failed to fetch systems: ${systemsResponse.status}`,
-        };
-      }
-
-      const systems: OpenSolarSystemData[] = await systemsResponse.json();
+      // Systems are included in the project response as a nested array
+      const systems: OpenSolarSystemData[] = project.systems || [];
 
       // Get the current/primary system (usually the first one or marked as current)
       const primarySystem = systems.find((s: any) => s.is_current) || systems[0];
@@ -498,6 +481,8 @@ export const getProjectForAgreement = action({
           annualProduction: primarySystem.output_annual_kwh || 0,
           totalContractAmount: primarySystem.price_including_tax || 0,
           priceExcludingTax: primarySystem.price_excluding_tax || 0,
+          // Get upfront payment from available_customer_actions
+          upfrontPaymentAmount: project.available_customer_actions?.[0]?.actions_available?.[0]?.payment_amount || 0,
           materials,
         },
       };

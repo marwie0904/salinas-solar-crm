@@ -24,14 +24,11 @@ import {
   MessageSquare,
   User,
   LogOut,
-  ChevronLeft,
-  ChevronRight,
   X,
 } from "lucide-react";
 
 interface SidebarProps {
   collapsed: boolean;
-  onToggle: () => void;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
   isMobile?: boolean;
@@ -49,7 +46,7 @@ const navItems = [
   { href: "/users", label: "Company Users", icon: UsersRound },
 ];
 
-export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, isMobile }: SidebarProps) {
+export function Sidebar({ collapsed, mobileOpen, onMobileClose, isMobile }: SidebarProps) {
   const pathname = usePathname();
 
   // On mobile, always show expanded sidebar in drawer
@@ -80,25 +77,6 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, isMobi
         {/* Logo Section */}
         <div className="p-4 flex items-center justify-between">
           <Logo collapsed={isCollapsed} />
-
-          {/* Desktop collapse toggle */}
-          {!isMobile && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggle}
-              className={cn(
-                "h-8 w-8 text-muted-foreground hover:text-foreground hidden lg:flex",
-                isCollapsed && "absolute -right-3 top-6 bg-white border shadow-sm rounded-full"
-              )}
-            >
-              {isCollapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronLeft className="h-4 w-4" />
-              )}
-            </Button>
-          )}
 
           {/* Mobile close button */}
           {isMobile && (

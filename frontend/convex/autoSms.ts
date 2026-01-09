@@ -25,7 +25,12 @@ export type SmsTemplateType =
   | "appointment_reminder"
   | "agreement_sent"
   | "invoice_sent"
-  | "agreement_invoice_reminder";
+  | "agreement_invoice_reminder"
+  | "receipt_sent"
+  | "consultant_assignment"
+  | "consultant_appointment"
+  | "agreement_signed_pm"
+  | "installation_stage";
 
 interface AppointmentSetParams {
   firstName: string;
@@ -46,6 +51,11 @@ interface AgreementSentParams {
 }
 
 interface InvoiceSentParams {
+  firstName: string;
+  email: string;
+}
+
+interface ReceiptSentParams {
   firstName: string;
   email: string;
 }
@@ -111,6 +121,114 @@ export function generateAgreementInvoiceReminderSms(params: AgreementInvoiceRemi
   return `Hi ${params.firstName},
 
 We would like to follow up regarding the agreement/invoice we have sent over.
+
+(automated sms, do not reply)`;
+}
+
+/**
+ * Generate SMS content for receipt sent (project closed)
+ */
+export function generateReceiptSentSms(params: ReceiptSentParams): string {
+  return `Hi ${params.firstName},
+
+A copy of the receipt has been sent to your email at: ${params.email}.
+
+Thank you for trusting Salinas Solar Services!
+
+(automated sms, do not reply)`;
+}
+
+// ============================================
+// INTERNAL TEAM SMS TEMPLATES
+// ============================================
+
+interface ConsultantAssignmentParams {
+  consultantFirstName: string;
+  opportunityName: string;
+  contactName: string;
+  location: string;
+}
+
+interface ConsultantAppointmentParams {
+  consultantFirstName: string;
+  contactName: string;
+  date: string;
+  time: string;
+  location: string;
+  appointmentType: string;
+}
+
+interface AgreementSignedPmParams {
+  pmFirstName: string;
+  clientName: string;
+  opportunityName: string;
+}
+
+interface InstallationStageParams {
+  firstName: string;
+  clientName: string;
+  opportunityName: string;
+  location: string;
+}
+
+/**
+ * Generate SMS for system consultant when assigned to new opportunity
+ */
+export function generateConsultantAssignmentSms(params: ConsultantAssignmentParams): string {
+  return `Hi ${params.consultantFirstName},
+
+You have been assigned to a new opportunity: ${params.opportunityName}.
+
+Client: ${params.contactName}
+Location: ${params.location}
+
+Please check the CRM for details.
+
+(automated sms, do not reply)`;
+}
+
+/**
+ * Generate SMS for system consultant when appointment is booked
+ */
+export function generateConsultantAppointmentSms(params: ConsultantAppointmentParams): string {
+  return `Hi ${params.consultantFirstName},
+
+New ${params.appointmentType} scheduled:
+Client: ${params.contactName}
+Date: ${params.date}
+Time: ${params.time}
+Location: ${params.location}
+
+Please check the CRM for details.
+
+(automated sms, do not reply)`;
+}
+
+/**
+ * Generate SMS for project manager when agreement is signed
+ */
+export function generateAgreementSignedPmSms(params: AgreementSignedPmParams): string {
+  return `Hi ${params.pmFirstName},
+
+Agreement signed by ${params.clientName} for ${params.opportunityName}.
+
+Please check the CRM to review and proceed with project planning.
+
+(automated sms, do not reply)`;
+}
+
+/**
+ * Generate SMS for operations team when opportunity moves to installation stage
+ */
+export function generateInstallationStageSms(params: InstallationStageParams): string {
+  return `Hi ${params.firstName},
+
+Project ready for installation: ${params.opportunityName}
+
+Client: ${params.clientName}
+Location: ${params.location}
+
+Please check the CRM for project details and schedule installation.
 
 (automated sms, do not reply)`;
 }
@@ -323,6 +441,25 @@ export const sendAgreementInvoiceReminderSms = action({
   },
 });
 
+/**
+ * Send receipt sent SMS (project closed)
+ */
+export const sendReceiptSentSms = action({
+  args: {
+    phoneNumber: v.string(),
+    firstName: v.string(),
+    email: v.string(),
+  },
+  handler: async (_, args) => {
+    const message = generateReceiptSentSms({
+      firstName: args.firstName,
+      email: args.email,
+    });
+
+    return await sendSms(args.phoneNumber, message);
+  },
+});
+
 // ============================================
 // INTERNAL ACTIONS (for scheduling from mutations)
 // ============================================
@@ -432,6 +569,133 @@ export const internalSendAgreementInvoiceReminderSms = internalAction({
 
     const result = await sendSms(args.phoneNumber, message);
     console.log("[Auto SMS] Agreement/Invoice reminder SMS result:", result);
+    return result;
+  },
+});
+
+/**
+ * Internal action for receipt sent SMS (schedulable from mutations)
+ */
+export const internalSendReceiptSentSms = internalAction({
+  args: {
+    phoneNumber: v.string(),
+    firstName: v.string(),
+    email: v.string(),
+  },
+  handler: async (_, args) => {
+    const message = generateReceiptSentSms({
+      firstName: args.firstName,
+      email: args.email,
+    });
+
+    const result = await sendSms(args.phoneNumber, message);
+    console.log("[Auto SMS] Receipt sent SMS result:", result);
+    return result;
+  },
+});
+
+// ============================================
+// INTERNAL TEAM NOTIFICATION ACTIONS
+// ============================================
+
+/**
+ * Internal action for consultant assignment SMS
+ */
+export const internalSendConsultantAssignmentSms = internalAction({
+  args: {
+    phoneNumber: v.string(),
+    consultantFirstName: v.string(),
+    opportunityName: v.string(),
+    contactName: v.string(),
+    location: v.string(),
+  },
+  handler: async (_, args) => {
+    const message = generateConsultantAssignmentSms({
+      consultantFirstName: args.consultantFirstName,
+      opportunityName: args.opportunityName,
+      contactName: args.contactName,
+      location: args.location,
+    });
+
+    const result = await sendSms(args.phoneNumber, message);
+    console.log("[Auto SMS] Consultant assignment SMS result:", result);
+    return result;
+  },
+});
+
+/**
+ * Internal action for consultant appointment notification SMS
+ */
+export const internalSendConsultantAppointmentSms = internalAction({
+  args: {
+    phoneNumber: v.string(),
+    consultantFirstName: v.string(),
+    contactName: v.string(),
+    date: v.string(),
+    time: v.string(),
+    location: v.string(),
+    appointmentType: v.string(),
+  },
+  handler: async (_, args) => {
+    const message = generateConsultantAppointmentSms({
+      consultantFirstName: args.consultantFirstName,
+      contactName: args.contactName,
+      date: args.date,
+      time: args.time,
+      location: args.location,
+      appointmentType: args.appointmentType,
+    });
+
+    const result = await sendSms(args.phoneNumber, message);
+    console.log("[Auto SMS] Consultant appointment SMS result:", result);
+    return result;
+  },
+});
+
+/**
+ * Internal action for project manager agreement signed notification SMS
+ */
+export const internalSendAgreementSignedPmSms = internalAction({
+  args: {
+    phoneNumber: v.string(),
+    pmFirstName: v.string(),
+    clientName: v.string(),
+    opportunityName: v.string(),
+  },
+  handler: async (_, args) => {
+    const message = generateAgreementSignedPmSms({
+      pmFirstName: args.pmFirstName,
+      clientName: args.clientName,
+      opportunityName: args.opportunityName,
+    });
+
+    const result = await sendSms(args.phoneNumber, message);
+    console.log("[Auto SMS] PM agreement signed SMS result:", result);
+    return result;
+  },
+});
+
+/**
+ * Internal action for operations team installation stage notification SMS
+ */
+export const internalSendInstallationStageSms = internalAction({
+  args: {
+    phoneNumber: v.string(),
+    firstName: v.string(),
+    clientName: v.string(),
+    opportunityName: v.string(),
+    location: v.string(),
+  },
+  handler: async (_, args) => {
+    const message = generateInstallationStageSms({
+      firstName: args.firstName,
+      clientName: args.clientName,
+      opportunityName: args.opportunityName,
+      location: args.location,
+    });
+
+    const result = await sendSms(args.phoneNumber, message);
+    console.log("[Auto SMS] Installation stage SMS result:", result);
     return result;
   },
 });

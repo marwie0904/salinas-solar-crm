@@ -59,15 +59,14 @@ export function SignaturePad({
     canvas.height = canvasSize.height * dpr;
     ctx.scale(dpr, dpr);
 
-    // Set drawing styles
+    // Set drawing styles - thick line for better visibility
     ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 5; // Increased from 3 for thicker strokes
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    // Fill with white background
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
+    // Clear to transparent (no white background)
+    ctx.clearRect(0, 0, canvasSize.width, canvasSize.height);
   }, [canvasSize]);
 
   const getCoordinates = (
@@ -146,8 +145,8 @@ export function SignaturePad({
     const ctx = canvas?.getContext("2d");
     if (!ctx || !canvas) return;
 
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
+    // Clear to transparent
+    ctx.clearRect(0, 0, canvasSize.width, canvasSize.height);
     setHasSignature(false);
     onSignatureChange(null);
   };
@@ -210,7 +209,8 @@ export function SignaturePad({
           <div className="space-y-3">
             <div
               className={cn(
-                "border-2 border-dashed rounded-lg bg-white overflow-hidden",
+                "border-2 border-dashed rounded-lg overflow-hidden",
+                "bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDIwIEwgMjAgMjAgMjAgMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZTVlN2ViIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IndoaXRlIi8+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')]",
                 isDrawing ? "border-[#ff5603]" : "border-gray-300"
               )}
             >

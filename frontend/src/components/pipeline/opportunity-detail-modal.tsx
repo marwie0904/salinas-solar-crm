@@ -63,6 +63,7 @@ import { cn } from "@/lib/utils";
 import { MessageContent } from "@/components/messages/message-content";
 import { LocationCaptureModal, LocationDisplay } from "./location-capture-modal";
 import { AppointmentModal, Appointment } from "@/components/appointments/appointment-modal";
+import { AppointmentWizardModal } from "@/components/appointments/appointment-wizard-modal";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { DocumentList } from "@/components/documents/document-list";
 import { InvoiceCreateModal } from "@/components/invoices";
@@ -97,7 +98,6 @@ const stageOptions: { value: PipelineStage; label: string }[] = [
   { value: "for_ocular", label: PIPELINE_STAGE_LABELS.for_ocular },
   { value: "follow_up", label: PIPELINE_STAGE_LABELS.follow_up },
   { value: "contract_sent", label: PIPELINE_STAGE_LABELS.contract_sent },
-  { value: "invoice_sent", label: PIPELINE_STAGE_LABELS.invoice_sent },
   { value: "for_installation", label: PIPELINE_STAGE_LABELS.for_installation },
   { value: "closed", label: PIPELINE_STAGE_LABELS.closed },
 ];
@@ -162,8 +162,9 @@ export function OpportunityDetailModal({
   const [isCreatingOpenSolar, setIsCreatingOpenSolar] = useState(false);
   const [openSolarError, setOpenSolarError] = useState<string | null>(null);
 
-  // Appointment edit state
+  // Appointment state
   const [isEditAppointmentModalOpen, setIsEditAppointmentModalOpen] = useState(false);
+  const [isCreateAppointmentModalOpen, setIsCreateAppointmentModalOpen] = useState(false);
 
   // Invoice state
   const [isCreateInvoiceModalOpen, setIsCreateInvoiceModalOpen] = useState(false);
@@ -688,8 +689,17 @@ export function OpportunityDetailModal({
             </div>
           </div>
         ) : (
-          <div className="p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
-            No appointment scheduled
+          <div className="p-4 bg-muted/50 rounded-lg flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">No appointment scheduled</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setIsCreateAppointmentModalOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </Button>
           </div>
         )}
       </div>
@@ -1552,6 +1562,14 @@ export function OpportunityDetailModal({
           appointment={editedOpportunity.scheduledAppointment as Appointment}
         />
       )}
+
+      {/* Appointment Create Modal */}
+      <AppointmentWizardModal
+        open={isCreateAppointmentModalOpen}
+        onOpenChange={setIsCreateAppointmentModalOpen}
+        defaultOpportunityId={editedOpportunity._id}
+        defaultContactId={editedOpportunity.contact?._id}
+      />
 
       {/* Invoice Create Modal */}
       <InvoiceCreateModal

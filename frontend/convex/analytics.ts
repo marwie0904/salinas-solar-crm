@@ -34,7 +34,6 @@ export const getPipelineValue = query({
       "for_ocular",
       "follow_up",
       "contract_sent",
-      "invoice_sent",
       "for_installation",
       "closed",
     ];

@@ -427,25 +427,80 @@ export const create = mutation({
       createdAt: timestamp,
     });
 
-    // Send appointment set SMS notification
-    if (contact?.phone && assignedUser) {
-      // Format date for SMS
-      const [year, month, day] = args.date.split("-").map(Number);
-      const dateObj = new Date(year, month - 1, day);
-      const formattedDate = dateObj.toLocaleDateString("en-US", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+    // Get formatted date for notifications
+    const [yearParsed, monthParsed, dayParsed] = args.date.split("-").map(Number);
+    const dateObj = new Date(yearParsed, monthParsed - 1, dayParsed);
+    const formattedDate = dateObj.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
 
+    const appointmentLocation = args.location || contact?.address || "To be confirmed";
+    const assignedUserFullName = assignedUser
+      ? getFullName(assignedUser.firstName, assignedUser.lastName)
+      : "Our representative";
+
+    // ===== CLIENT NOTIFICATIONS =====
+
+    // Send SMS to client
+    if (contact?.phone && assignedUser) {
       await ctx.scheduler.runAfter(0, internal.autoSms.internalSendAppointmentSetSms, {
         phoneNumber: contact.phone,
         firstName: contact.firstName,
         date: formattedDate,
         time: args.time,
-        location: args.location || contact.address || "To be confirmed",
-        systemConsultantFullName: getFullName(assignedUser.firstName, assignedUser.lastName),
+        location: appointmentLocation,
+        systemConsultantFullName: assignedUserFullName,
+      });
+    }
+
+    // Send email to client
+    if (contact?.email && assignedUser) {
+      await ctx.scheduler.runAfter(0, internal.teamNotifications.sendClientAppointmentEmail, {
+        to: contact.email,
+        firstName: contact.firstName,
+        assignedUserName: assignedUserFullName,
+        date: args.date,
+        time: args.time,
+      });
+    }
+
+    // ===== ATTENDEE (CONSULTANT) NOTIFICATIONS =====
+
+    // Send SMS to consultant/attendee
+    if (assignedUser?.phone && contact) {
+      const appointmentTypeLabel = args.appointmentType === "discovery_call"
+        ? "Discovery Call"
+        : "Field Inspection";
+
+      await ctx.scheduler.runAfter(0, internal.autoSms.internalSendConsultantAppointmentSms, {
+        phoneNumber: assignedUser.phone,
+        consultantFirstName: assignedUser.firstName,
+        contactName: contactName,
+        date: formattedDate,
+        time: args.time,
+        location: appointmentLocation,
+        appointmentType: appointmentTypeLabel,
+      });
+    }
+
+    // Send email to consultant/attendee
+    if (assignedUser?.email && contact) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://crm.salinassolar.com";
+      const appointmentUrl = `${baseUrl}/calendar`;
+
+      await ctx.scheduler.runAfter(0, internal.teamNotifications.sendConsultantAppointmentNotification, {
+        consultantEmail: assignedUser.email,
+        consultantPhone: assignedUser.phone,
+        consultantFirstName: assignedUser.firstName,
+        contactName: contactName,
+        appointmentType: args.appointmentType,
+        date: args.date,
+        time: args.time,
+        location: appointmentLocation,
+        appointmentUrl,
       });
     }
 

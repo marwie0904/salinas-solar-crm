@@ -55,7 +55,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Sidebar - hidden on mobile, shown as drawer when open */}
       <Sidebar
         collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
         isMobile={isMobile}
@@ -64,6 +63,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <Header
         sidebarCollapsed={sidebarCollapsed}
         onMenuClick={() => setMobileMenuOpen(true)}
+        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
         isMobile={isMobile}
       />
 

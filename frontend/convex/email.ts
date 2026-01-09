@@ -203,6 +203,53 @@ function generateAppointmentEmailHtml(
   `.trim();
 }
 
+function generateReceiptEmailHtml(
+  firstName: string
+): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Receipt from Salinas Solar</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #228B22 0%, #1e7b1e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">Salinas Solar</h1>
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">Hi ${firstName},</p>
+
+    <p style="font-size: 16px; margin-bottom: 24px;">Thank you for your business! Your solar installation project has been completed successfully.</p>
+
+    <p style="font-size: 16px; margin-bottom: 24px;">Please find the attached receipt for your records. This serves as confirmation of your completed transaction with Salinas Solar.</p>
+
+    <div style="background: #f0fff0; border: 1px solid #228B22; border-radius: 8px; padding: 20px; margin: 24px 0; text-align: center;">
+      <p style="margin: 0; font-size: 18px; font-weight: 600; color: #228B22;">TRANSACTION COMPLETE</p>
+      <p style="margin: 8px 0 0 0; font-size: 14px; color: #666;">Your receipt is attached to this email</p>
+    </div>
+
+    <p style="font-size: 14px; color: #666; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
+      If you have any questions about your installation or need support, please don't hesitate to contact us.
+    </p>
+
+    <p style="font-size: 14px; color: #666;">
+      Thank you for trusting Salinas Solar Services!<br><br>
+      Best regards,<br>
+      <strong>Salinas Solar Team</strong>
+    </p>
+  </div>
+
+  <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+    <p>Salinas Solar Philippines</p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
 // ============================================
 // ACTIONS
 // ============================================
@@ -496,6 +543,483 @@ export const sendConsultantAssignmentEmail = action({
       }
 
       console.log("[Resend API] Consultant assignment email sent successfully:", data.id);
+
+      return {
+        success: true,
+        emailId: data.id,
+      };
+    } catch (error) {
+      console.error("[Resend API] Network error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Network error",
+      };
+    }
+  },
+});
+
+/**
+ * Send a receipt email with PDF attachment
+ */
+export const sendReceiptEmail = action({
+  args: {
+    to: v.string(),
+    firstName: v.string(),
+    pdfBase64: v.string(),
+    pdfFilename: v.string(),
+  },
+  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+
+    if (!apiKey) {
+      return { success: false, error: "RESEND_API_KEY not configured" };
+    }
+
+    if (!args.to) {
+      return { success: false, error: "No email address provided" };
+    }
+
+    const html = generateReceiptEmailHtml(args.firstName);
+
+    const body = {
+      from: fromEmail,
+      to: [args.to],
+      subject: "Receipt from Salinas Solar - Project Complete",
+      html,
+      attachments: [
+        {
+          filename: args.pdfFilename,
+          content: args.pdfBase64,
+        },
+      ],
+    };
+
+    try {
+      const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Resend API] Send failed:", data);
+        return {
+          success: false,
+          error: data.message || "Failed to send email",
+        };
+      }
+
+      console.log("[Resend API] Receipt email sent successfully:", data.id);
+
+      return {
+        success: true,
+        emailId: data.id,
+      };
+    } catch (error) {
+      console.error("[Resend API] Network error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Network error",
+      };
+    }
+  },
+});
+
+// ============================================
+// INTERNAL TEAM EMAIL TEMPLATES
+// ============================================
+
+function generateConsultantAppointmentEmailHtml(
+  consultantFirstName: string,
+  contactName: string,
+  appointmentType: string,
+  date: string,
+  time: string,
+  location: string,
+  appointmentUrl: string
+): string {
+  const typeLabel = appointmentType === "discovery_call" ? "Discovery Call" : "Field Inspection";
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Appointment Scheduled - Salinas Solar</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #ff5603 0%, #e64d00 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">Salinas Solar</h1>
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">Hi ${consultantFirstName},</p>
+
+    <p style="font-size: 16px; margin-bottom: 24px;">A new <strong>${typeLabel}</strong> has been scheduled for you:</p>
+
+    <div style="background: #f8f8f8; padding: 20px; border-radius: 8px; margin: 24px 0;">
+      <p style="margin: 0 0 8px 0;"><strong>Client:</strong> ${contactName}</p>
+      <p style="margin: 0 0 8px 0;"><strong>Date:</strong> ${date}</p>
+      <p style="margin: 0 0 8px 0;"><strong>Time:</strong> ${time}</p>
+      <p style="margin: 0;"><strong>Location:</strong> ${location}</p>
+    </div>
+
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${appointmentUrl}" style="display: inline-block; background: #ff5603; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">View Appointment</a>
+    </div>
+
+    <p style="font-size: 14px; color: #666; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
+      Please review the appointment details and prepare accordingly.
+    </p>
+
+    <p style="font-size: 14px; color: #666;">
+      Best regards,<br>
+      <strong>Salinas Solar Team</strong>
+    </p>
+  </div>
+
+  <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+    <p>Salinas Solar Philippines</p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+function generateAgreementSignedPmEmailHtml(
+  pmFirstName: string,
+  clientName: string,
+  opportunityName: string,
+  opportunityUrl: string
+): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agreement Signed - Salinas Solar</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #228B22 0%, #1e7b1e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">Salinas Solar</h1>
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">Hi ${pmFirstName},</p>
+
+    <p style="font-size: 16px; margin-bottom: 24px;">Great news! An agreement has been signed:</p>
+
+    <div style="background: #f0fff0; border: 1px solid #228B22; border-radius: 8px; padding: 20px; margin: 24px 0; text-align: center;">
+      <p style="margin: 0; font-size: 18px; font-weight: 600; color: #228B22;">AGREEMENT SIGNED</p>
+      <p style="margin: 8px 0 0 0; font-size: 16px; color: #333;"><strong>${clientName}</strong></p>
+      <p style="margin: 4px 0 0 0; font-size: 14px; color: #666;">${opportunityName}</p>
+    </div>
+
+    <p style="font-size: 16px; margin-bottom: 24px;">Please review the project details and begin planning for installation.</p>
+
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${opportunityUrl}" style="display: inline-block; background: #228B22; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">View Project</a>
+    </div>
+
+    <p style="font-size: 14px; color: #666; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
+      Best regards,<br>
+      <strong>Salinas Solar Team</strong>
+    </p>
+  </div>
+
+  <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+    <p>Salinas Solar Philippines</p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+function generateInstallationStageEmailHtml(
+  firstName: string,
+  clientName: string,
+  opportunityName: string,
+  location: string,
+  opportunityUrl: string
+): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Ready for Installation - Salinas Solar</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #ff5603 0%, #e64d00 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">Salinas Solar</h1>
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">Hi ${firstName},</p>
+
+    <p style="font-size: 16px; margin-bottom: 24px;">A project is ready for installation:</p>
+
+    <div style="background: #fff8f0; border: 1px solid #ff5603; border-radius: 8px; padding: 20px; margin: 24px 0;">
+      <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600; color: #ff5603;">FOR INSTALLATION</p>
+      <p style="margin: 8px 0 0 0;"><strong>Project:</strong> ${opportunityName}</p>
+      <p style="margin: 8px 0 0 0;"><strong>Client:</strong> ${clientName}</p>
+      <p style="margin: 8px 0 0 0;"><strong>Location:</strong> ${location}</p>
+    </div>
+
+    <p style="font-size: 16px; margin-bottom: 24px;">Please review the project details and coordinate the installation schedule.</p>
+
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${opportunityUrl}" style="display: inline-block; background: #ff5603; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">View Project</a>
+    </div>
+
+    <p style="font-size: 14px; color: #666; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
+      Best regards,<br>
+      <strong>Salinas Solar Team</strong>
+    </p>
+  </div>
+
+  <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+    <p>Salinas Solar Philippines</p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+// ============================================
+// INTERNAL TEAM EMAIL ACTIONS
+// ============================================
+
+/**
+ * Send appointment notification email to consultant
+ */
+export const sendConsultantAppointmentEmail = action({
+  args: {
+    to: v.string(),
+    consultantFirstName: v.string(),
+    contactName: v.string(),
+    appointmentType: v.string(),
+    date: v.string(),
+    time: v.string(),
+    location: v.string(),
+    appointmentUrl: v.string(),
+  },
+  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+
+    if (!apiKey) {
+      return { success: false, error: "RESEND_API_KEY not configured" };
+    }
+
+    if (!args.to) {
+      return { success: false, error: "No email address provided" };
+    }
+
+    // Format the date nicely
+    const dateObj = new Date(args.date);
+    const formattedDate = dateObj.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const typeLabel = args.appointmentType === "discovery_call" ? "Discovery Call" : "Field Inspection";
+    const html = generateConsultantAppointmentEmailHtml(
+      args.consultantFirstName,
+      args.contactName,
+      args.appointmentType,
+      formattedDate,
+      args.time,
+      args.location,
+      args.appointmentUrl
+    );
+
+    const body = {
+      from: fromEmail,
+      to: [args.to],
+      subject: `New ${typeLabel} Scheduled - ${args.contactName}`,
+      html,
+    };
+
+    try {
+      const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Resend API] Send failed:", data);
+        return {
+          success: false,
+          error: data.message || "Failed to send email",
+        };
+      }
+
+      console.log("[Resend API] Consultant appointment email sent successfully:", data.id);
+
+      return {
+        success: true,
+        emailId: data.id,
+      };
+    } catch (error) {
+      console.error("[Resend API] Network error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Network error",
+      };
+    }
+  },
+});
+
+/**
+ * Send agreement signed notification email to project manager
+ */
+export const sendAgreementSignedPmEmail = action({
+  args: {
+    to: v.string(),
+    pmFirstName: v.string(),
+    clientName: v.string(),
+    opportunityName: v.string(),
+    opportunityUrl: v.string(),
+  },
+  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+
+    if (!apiKey) {
+      return { success: false, error: "RESEND_API_KEY not configured" };
+    }
+
+    if (!args.to) {
+      return { success: false, error: "No email address provided" };
+    }
+
+    const html = generateAgreementSignedPmEmailHtml(
+      args.pmFirstName,
+      args.clientName,
+      args.opportunityName,
+      args.opportunityUrl
+    );
+
+    const body = {
+      from: fromEmail,
+      to: [args.to],
+      subject: `Agreement Signed: ${args.opportunityName} - Salinas Solar`,
+      html,
+    };
+
+    try {
+      const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Resend API] Send failed:", data);
+        return {
+          success: false,
+          error: data.message || "Failed to send email",
+        };
+      }
+
+      console.log("[Resend API] Agreement signed PM email sent successfully:", data.id);
+
+      return {
+        success: true,
+        emailId: data.id,
+      };
+    } catch (error) {
+      console.error("[Resend API] Network error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Network error",
+      };
+    }
+  },
+});
+
+/**
+ * Send installation stage notification email to operations team
+ */
+export const sendInstallationStageEmail = action({
+  args: {
+    to: v.string(),
+    firstName: v.string(),
+    clientName: v.string(),
+    opportunityName: v.string(),
+    location: v.string(),
+    opportunityUrl: v.string(),
+  },
+  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+
+    if (!apiKey) {
+      return { success: false, error: "RESEND_API_KEY not configured" };
+    }
+
+    if (!args.to) {
+      return { success: false, error: "No email address provided" };
+    }
+
+    const html = generateInstallationStageEmailHtml(
+      args.firstName,
+      args.clientName,
+      args.opportunityName,
+      args.location,
+      args.opportunityUrl
+    );
+
+    const body = {
+      from: fromEmail,
+      to: [args.to],
+      subject: `Project Ready for Installation: ${args.opportunityName} - Salinas Solar`,
+      html,
+    };
+
+    try {
+      const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Resend API] Send failed:", data);
+        return {
+          success: false,
+          error: data.message || "Failed to send email",
+        };
+      }
+
+      console.log("[Resend API] Installation stage email sent successfully:", data.id);
 
       return {
         success: true,

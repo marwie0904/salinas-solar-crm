@@ -56,7 +56,6 @@ const stageColors: Record<PipelineStage, string> = {
   for_ocular: "bg-purple-500",
   follow_up: "bg-yellow-500",
   contract_sent: "bg-orange-500",
-  invoice_sent: "bg-indigo-500",
   for_installation: "bg-teal-500",
   closed: "bg-green-500",
 };

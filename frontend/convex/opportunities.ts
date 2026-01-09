@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { pipelineStage } from "./schema";
 import { getFullName, now } from "./lib/helpers";
 import {
@@ -23,7 +24,6 @@ type PipelineStage =
   | "for_ocular"
   | "follow_up"
   | "contract_sent"
-  | "invoice_sent"
   | "for_installation"
   | "closed";
 
@@ -309,7 +309,6 @@ export const getPipelineSummary = query({
       "for_ocular",
       "follow_up",
       "contract_sent",
-      "invoice_sent",
       "for_installation",
       "closed",
     ];
@@ -505,6 +504,13 @@ export const updateStage = mutation({
       args.updatedBy
     );
 
+    // Auto-send receipt when stage changes to "closed"
+    if (args.stage === "closed" && existing.stage !== "closed") {
+      await ctx.scheduler.runAfter(0, internal.receipts.sendReceiptOnClose, {
+        opportunityId: args.id,
+      });
+    }
+
     return args.id;
   },
 });
@@ -579,23 +585,49 @@ export const assign = mutation({
       updatedAt: now(),
     });
 
-    // Create notification for the assigned user
+    // Get contact and assigned user details
     const contact = await ctx.db.get(opportunity.contactId);
+    const assignedUser = await ctx.db.get(args.assignedTo);
     const contactName = contact
       ? getFullName(contact.firstName, contact.lastName)
       : "Unknown";
-    const location = opportunity.location || contact?.address || "";
+    const location = opportunity.location || contact?.address || "Not specified";
 
+    // Create in-app notification for the assigned user
     await ctx.db.insert("notifications", {
       userId: args.assignedTo,
       type: "lead_assigned",
       title: "New Lead Assigned",
-      message: `${contactName}${location ? ` from ${location}` : ""} has been assigned to you`,
+      message: `${contactName}${location && location !== "Not specified" ? ` from ${location}` : ""} has been assigned to you`,
       opportunityId: args.id,
       contactId: opportunity.contactId,
       read: false,
       createdAt: now(),
     });
+
+    // Send SMS notification to the system consultant
+    if (assignedUser?.phone) {
+      await ctx.scheduler.runAfter(0, internal.autoSms.internalSendConsultantAssignmentSms, {
+        phoneNumber: assignedUser.phone,
+        consultantFirstName: assignedUser.firstName,
+        opportunityName: opportunity.name,
+        contactName,
+        location,
+      });
+    }
+
+    // Send email notification to the system consultant
+    if (assignedUser?.email) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://crm.salinassolar.com";
+      const opportunityUrl = `${baseUrl}/pipeline?opportunity=${args.id}`;
+
+      await ctx.scheduler.runAfter(0, internal.teamNotifications.sendConsultantAssignmentEmailInternal, {
+        to: assignedUser.email,
+        consultantFirstName: assignedUser.firstName,
+        opportunityName: opportunity.name,
+        opportunityUrl,
+      });
+    }
 
     return args.id;
   },

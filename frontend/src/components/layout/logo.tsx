@@ -1,35 +1,35 @@
 "use client";
 
+import Image from "next/image";
+
 interface LogoProps {
   collapsed?: boolean;
 }
 
 export function Logo({ collapsed = false }: LogoProps) {
-  return (
-    <div className="flex items-center gap-3">
-      {/* Square logo divided diagonally - top orange, bottom white */}
-      <div className="relative w-10 h-10 border-2 border-[#ff5603] flex-shrink-0">
-        <svg
-          viewBox="0 0 40 40"
-          className="w-full h-full"
-          preserveAspectRatio="xMidYMid meet"
-        >
-          {/* Top-left triangle - Orange */}
-          <polygon points="0,0 40,0 0,40" fill="#ff5603" />
-          {/* Bottom-right triangle - White */}
-          <polygon points="40,0 40,40 0,40" fill="#ffffff" />
-        </svg>
+  if (collapsed) {
+    return (
+      <div className="w-10 h-10 relative overflow-hidden flex-shrink-0">
+        <Image
+          src="/improved-logo.jpg"
+          alt="Salinas Solar Services"
+          width={200}
+          height={200}
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-[200px] h-auto"
+          priority
+        />
       </div>
-      {!collapsed && (
-        <div className="flex flex-col leading-tight">
-          <span className="font-bold text-[#ff5603] text-sm tracking-wide">
-            SALINAS SOLAR
-          </span>
-          <span className="font-bold text-[#ff5603] text-sm tracking-wide">
-            SERVICES
-          </span>
-        </div>
-      )}
-    </div>
+    );
+  }
+
+  return (
+    <Image
+      src="/improved-logo.jpg"
+      alt="Salinas Solar Services"
+      width={400}
+      height={100}
+      className="h-14 w-auto"
+      priority
+    />
   );
 }

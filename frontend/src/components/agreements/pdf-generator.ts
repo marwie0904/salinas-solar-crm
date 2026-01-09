@@ -383,7 +383,7 @@ export function generateAgreementPDF(data: AgreementFormData): GeneratedPDF {
   );
 
   // ===== SIGNATURE SECTION =====
-  checkPageBreak(80);
+  checkPageBreak(90);
   addSpacer(8);
   doc.setDrawColor(0);
   doc.setLineWidth(0.5);
@@ -395,40 +395,63 @@ export function generateAgreementPDF(data: AgreementFormData): GeneratedPDF {
     11,
     true
   );
-  addSpacer(8);
+  addSpacer(10);
 
-  // Contractor signature
-  addParagraph("FOR THE CONTRACTOR:", 11, true);
-  addParagraph("SALINAS SOLAR ENTERPRISES CORPORATION", 11, true);
-  addSpacer(12);
+  // Two-column signature layout
+  const colWidth = (contentWidth - 20) / 2;
+  const leftCol = marginLeft;
+  const rightCol = marginLeft + colWidth + 20;
+  const signatureStartY = y;
 
-  doc.setFont("helvetica", "normal");
-  doc.text("By: _________________________", marginLeft, y);
+  // Left column - Contractor
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("FOR THE CONTRACTOR:", leftCol, y);
   y += 5;
-  doc.text("     Engr. Jay-R G. Salinas, ME, CEM", marginLeft, y);
-  y += 5;
-  doc.text("     Representative", marginLeft, y);
-  y += 8;
-  doc.text("Date: _________________________", marginLeft, y);
-  y += 12;
+  doc.text("SALINAS SOLAR ENTERPRISES CORPORATION", leftCol, y);
+  y += 20;
 
-  // Client signature
-  addParagraph("FOR THE CLIENT:", 11, true);
-  addSpacer(12);
-
+  // Signature line
   doc.setFont("helvetica", "normal");
-  doc.text("By: _________________________", marginLeft, y);
+  doc.setDrawColor(0);
+  doc.setLineWidth(0.3);
+  doc.line(leftCol, y, leftCol + colWidth - 10, y);
   y += 5;
-  doc.text(`     ${data.clientName}`, marginLeft, y);
-  y += 8;
-  doc.text("Date: _________________________", marginLeft, y);
-  y += 12;
+  doc.text("Engr. Jay-R G. Salinas, ME, CEM", leftCol, y);
+  y += 5;
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text("Authorized Representative", leftCol, y);
+  doc.setTextColor(0);
+  y += 10;
+  doc.setFontSize(11);
+  doc.text("Date: ____________________", leftCol, y);
 
-  // Witnesses
-  addParagraph("WITNESSES:", 11, true);
-  addSpacer(12);
+  // Right column - Client (start from same Y position)
+  let rightY = signatureStartY;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("FOR THE CLIENT:", rightCol, rightY);
+  rightY += 5;
+  doc.text(data.clientName.toUpperCase(), rightCol, rightY);
+  rightY += 20;
+
+  // Signature line
   doc.setFont("helvetica", "normal");
-  doc.text("___________________________          ___________________________", marginLeft, y);
+  doc.line(rightCol, rightY, rightCol + colWidth - 10, rightY);
+  rightY += 5;
+  doc.text(data.clientName, rightCol, rightY);
+  rightY += 5;
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text("Client / Property Owner", rightCol, rightY);
+  doc.setTextColor(0);
+  rightY += 10;
+  doc.setFontSize(11);
+  doc.text("Date: ____________________", rightCol, rightY);
+
+  // Move Y to after both columns
+  y = Math.max(y, rightY) + 10;
 
   // Generate filename
   const sanitizedName = data.clientName.replace(/[^a-zA-Z0-9]/g, "_");

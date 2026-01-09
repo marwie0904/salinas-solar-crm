@@ -14,7 +14,6 @@ export const pipelineStage = v.union(
   v.literal("for_ocular"),
   v.literal("follow_up"),
   v.literal("contract_sent"),
-  v.literal("invoice_sent"),
   v.literal("for_installation"),
   v.literal("closed")
 );
@@ -86,7 +85,8 @@ export const paymentMethod = v.union(
   v.literal("credit_card"),
   v.literal("gcash"),
   v.literal("maya"),
-  v.literal("other")
+  v.literal("other"),
+  v.literal("post_dated_check")
 );
 
 export const paymentType = v.union(

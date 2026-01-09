@@ -23,6 +23,7 @@ import type * as invoices from "../invoices.js";
 import type * as lib_activityLogger from "../lib/activityLogger.js";
 import type * as lib_helpers from "../lib/helpers.js";
 import type * as lib_invoicePdfGenerator from "../lib/invoicePdfGenerator.js";
+import type * as lib_receiptPdfGenerator from "../lib/receiptPdfGenerator.js";
 import type * as lib_stageOrder from "../lib/stageOrder.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as messages from "../messages.js";
@@ -32,8 +33,11 @@ import type * as openSolar from "../openSolar.js";
 import type * as opportunities from "../opportunities.js";
 import type * as payments from "../payments.js";
 import type * as products from "../products.js";
+import type * as receipts from "../receipts.js";
+import type * as search from "../search.js";
 import type * as semaphore from "../semaphore.js";
 import type * as tasks from "../tasks.js";
+import type * as teamNotifications from "../teamNotifications.js";
 import type * as users from "../users.js";
 
 import type {
@@ -58,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   "lib/activityLogger": typeof lib_activityLogger;
   "lib/helpers": typeof lib_helpers;
   "lib/invoicePdfGenerator": typeof lib_invoicePdfGenerator;
+  "lib/receiptPdfGenerator": typeof lib_receiptPdfGenerator;
   "lib/stageOrder": typeof lib_stageOrder;
   "lib/validators": typeof lib_validators;
   messages: typeof messages;
@@ -67,8 +72,11 @@ declare const fullApi: ApiFromModules<{
   opportunities: typeof opportunities;
   payments: typeof payments;
   products: typeof products;
+  receipts: typeof receipts;
+  search: typeof search;
   semaphore: typeof semaphore;
   tasks: typeof tasks;
+  teamNotifications: typeof teamNotifications;
   users: typeof users;
 }>;
 
