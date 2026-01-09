@@ -1,11 +1,12 @@
 import { v } from "convex/values";
-import { mutation, query, action, internalMutation, internalQuery } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { mutation, query, action, internalMutation, internalQuery, internalAction } from "./_generated/server";
+import { internal, api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { getFullName } from "./lib/helpers";
 import { logStageChange } from "./lib/activityLogger";
 import { shouldTransitionTo } from "./lib/stageOrder";
+import { generateInvoicePdf, formatDateForPdf } from "./lib/invoicePdfGenerator";
 
 // Generate a random signing token
 function generateSigningToken(): string {
@@ -300,10 +301,10 @@ export const updateSignedAgreement = internalMutation({
         updatedAt: now,
       });
 
-      // Create single line item
+      // Create single line item with project location
       await ctx.db.insert("invoiceLineItems", {
         invoiceId,
-        description: "Solar Installation - Per Agreement",
+        description: `${agreement.projectLocation} - Solar Installation`,
         quantity: 1,
         unitPrice: agreement.totalAmount,
         lineTotal: agreement.totalAmount,
@@ -311,8 +312,19 @@ export const updateSignedAgreement = internalMutation({
         createdAt: now,
       });
 
-      // Send invoice SMS notification
+      // Get contact for notifications
       const contact = await ctx.db.get(agreement.contactId);
+
+      // Generate invoice PDF, save document, and send email
+      if (contact?.email) {
+        await ctx.scheduler.runAfter(0, internal.agreements.sendInvoiceFromAgreement, {
+          invoiceId,
+          contactEmail: contact.email,
+          contactFirstName: contact.firstName,
+        });
+      }
+
+      // Send invoice SMS notification
       if (contact?.phone && contact?.email) {
         await ctx.scheduler.runAfter(0, internal.autoSms.internalSendInvoiceSentSms, {
           phoneNumber: contact.phone,
@@ -682,5 +694,192 @@ export const list = query({
     );
 
     return enriched;
+  },
+});
+
+/**
+ * Internal query to get invoice data for PDF generation
+ */
+export const getInvoiceDataForPdf = internalQuery({
+  args: {
+    invoiceId: v.id("invoices"),
+  },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.invoiceId);
+    if (!invoice) return null;
+
+    const opportunity = await ctx.db.get(invoice.opportunityId);
+    if (!opportunity) return null;
+
+    const contact = await ctx.db.get(opportunity.contactId);
+
+    // Get line items
+    const lineItems = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .collect();
+
+    return {
+      invoice,
+      opportunity,
+      contact,
+      lineItems,
+    };
+  },
+});
+
+/**
+ * Internal mutation to create invoice document record
+ */
+export const createInvoiceDocument = internalMutation({
+  args: {
+    name: v.string(),
+    mimeType: v.string(),
+    storageId: v.string(),
+    fileSize: v.optional(v.number()),
+    opportunityId: v.id("opportunities"),
+    invoiceId: v.id("invoices"),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const url = await ctx.storage.getUrl(args.storageId);
+
+    const documentId = await ctx.db.insert("documents", {
+      name: args.name,
+      mimeType: args.mimeType,
+      storageId: args.storageId,
+      url: url ?? undefined,
+      fileSize: args.fileSize,
+      opportunityId: args.opportunityId,
+      invoiceId: args.invoiceId,
+      isDeleted: false,
+      createdAt: now,
+    });
+
+    return documentId;
+  },
+});
+
+/**
+ * Internal action to generate invoice PDF, save it, and send email
+ * Called after an agreement is signed and invoice is created
+ */
+export const sendInvoiceFromAgreement = internalAction({
+  args: {
+    invoiceId: v.id("invoices"),
+    contactEmail: v.string(),
+    contactFirstName: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; emailSent?: boolean; error?: string }> => {
+    console.log("[Send Invoice] Starting invoice send for:", args.invoiceId);
+
+    // Get invoice data
+    const data = await ctx.runQuery(internal.agreements.getInvoiceDataForPdf, {
+      invoiceId: args.invoiceId,
+    });
+
+    if (!data) {
+      console.error("[Send Invoice] Invoice data not found");
+      return { success: false, error: "Invoice data not found" };
+    }
+
+    const { invoice, opportunity, contact, lineItems } = data;
+
+    try {
+      // Generate PDF
+      console.log("[Send Invoice] Generating PDF...");
+      const pdfBytes = await generateInvoicePdf({
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: formatDateForPdf(invoice.createdAt),
+        dueDate: formatDateForPdf(invoice.dueDate),
+        billedTo: {
+          name: contact ? getFullName(contact.firstName, contact.lastName) : "Customer",
+          address: contact?.address || "No address provided",
+        },
+        opportunityName: opportunity.name,
+        lineItems: lineItems.map((item: { description: string; quantity: number; unitPrice: number; lineTotal: number }) => ({
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: item.lineTotal,
+        })),
+        subtotal: invoice.subtotal,
+        total: invoice.total,
+        notes: invoice.notes,
+      });
+
+      console.log("[Send Invoice] PDF generated, size:", pdfBytes.byteLength);
+
+      // Upload to storage
+      console.log("[Send Invoice] Uploading PDF...");
+      const uploadUrl = await ctx.storage.generateUploadUrl();
+      const pdfBlob = new Blob([pdfBytes as BlobPart], { type: "application/pdf" });
+
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/pdf" },
+        body: pdfBlob,
+      });
+
+      if (!uploadResponse.ok) {
+        console.error("[Send Invoice] Upload failed:", uploadResponse.status);
+        return { success: false, error: "Failed to upload PDF" };
+      }
+
+      const { storageId } = await uploadResponse.json();
+      console.log("[Send Invoice] PDF uploaded, storageId:", storageId);
+
+      // Create document record
+      const customerName = contact ? getFullName(contact.firstName, contact.lastName).replace(/[^a-zA-Z0-9]/g, "_") : "Customer";
+      const filename = `Invoice_${invoice.invoiceNumber}_${customerName}.pdf`;
+
+      await ctx.runMutation(internal.agreements.createInvoiceDocument, {
+        name: filename,
+        mimeType: "application/pdf",
+        storageId,
+        fileSize: pdfBytes.byteLength,
+        opportunityId: invoice.opportunityId,
+        invoiceId: args.invoiceId,
+      });
+
+      console.log("[Send Invoice] Document record created");
+
+      // Send email with PDF attachment
+      if (args.contactEmail) {
+        console.log("[Send Invoice] Sending email to:", args.contactEmail);
+
+        // Convert PDF to base64 for email attachment
+        const pdfBase64 = btoa(
+          Array.from(pdfBytes)
+            .map((byte) => String.fromCharCode(byte))
+            .join("")
+        );
+
+        // Get the base URL from environment or use default
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.CONVEX_SITE_URL || "https://salinassolar.com";
+        const invoiceUrl = `${baseUrl}/invoices`;
+
+        const emailResult: { success: boolean; emailId?: string; error?: string } = await ctx.runAction(api.email.sendInvoiceEmail, {
+          to: args.contactEmail,
+          firstName: args.contactFirstName,
+          invoiceUrl,
+          pdfBase64,
+          pdfFilename: filename,
+        });
+
+        if (emailResult.success) {
+          console.log("[Send Invoice] Email sent successfully");
+        } else {
+          console.error("[Send Invoice] Email failed:", emailResult.error);
+        }
+
+        return { success: true, emailSent: emailResult.success };
+      }
+
+      return { success: true, emailSent: false };
+    } catch (error) {
+      console.error("[Send Invoice] Error:", error);
+      return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    }
   },
 });
