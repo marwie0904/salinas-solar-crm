@@ -212,6 +212,9 @@ export default defineSchema({
     expectedCloseDate: v.optional(v.number()),
     lostReason: v.optional(v.string()),
     assignedTo: v.optional(v.id("users")),
+    // Follow-up SMS tracking (for rotation)
+    lastFollowUpSmsIndex: v.optional(v.number()), // 0-3 for 4 templates
+    lastFollowUpSmsAt: v.optional(v.number()), // Last SMS sent timestamp
     isDeleted: v.boolean(),
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),

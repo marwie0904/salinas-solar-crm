@@ -10,7 +10,7 @@
  */
 
 import { v } from "convex/values";
-import { action, internalAction, internalQuery } from "./_generated/server";
+import { action, internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
@@ -30,7 +30,9 @@ export type SmsTemplateType =
   | "consultant_assignment"
   | "consultant_appointment"
   | "agreement_signed_pm"
-  | "installation_stage";
+  | "installation_stage"
+  | "did_not_book_call_followup"
+  | "follow_up_stage";
 
 interface AppointmentSetParams {
   firstName: string;
@@ -231,6 +233,152 @@ Location: ${params.location}
 Please check the CRM for project details and schedule installation.
 
 (automated sms, do not reply)`;
+}
+
+// ============================================
+// FOLLOW-UP SMS TEMPLATES (ROTATING)
+// ============================================
+
+interface DidNotBookCallParams {
+  firstName: string;
+}
+
+interface FollowUpStageParams {
+  firstName: string;
+  consultantName: string;
+  consultantPhone: string;
+}
+
+/**
+ * 4 rotating SMS templates for "Did Not Book Call" stage
+ * These are sent twice a week until the client books an ocular visit
+ */
+const DID_NOT_BOOK_CALL_TEMPLATES: Array<(params: DidNotBookCallParams) => string> = [
+  // Template 1 (Original)
+  (params) => `Hi ${params.firstName},
+
+We have noticed that you have not booked a call yet for your future Solar Panel Installation.
+
+If you want to save bills on electricity feel free to reach out!
+
+Please Call us at:
+09215565857
+6am-8pm, everyday
+
+(automated sms, do not reply)`,
+
+  // Template 2
+  (params) => `Hi ${params.firstName},
+
+Still thinking about Solar Panels? We're here to help you start saving on your electricity bills!
+
+Our team is ready to assist you with a free consultation.
+
+Please Call us at:
+09215565857
+6am-8pm, everyday
+
+(automated sms, do not reply)`,
+
+  // Template 3
+  (params) => `Hi ${params.firstName},
+
+Don't miss out on massive electricity savings! Solar energy is the future, and we'd love to help you get started.
+
+Book your free site visit today!
+
+Please Call us at:
+09215565857
+6am-8pm, everyday
+
+(automated sms, do not reply)`,
+
+  // Template 4
+  (params) => `Hi ${params.firstName},
+
+Your solar journey awaits! Imagine slashing your electricity bills significantly every month.
+
+Let us show you how - schedule a free ocular inspection now!
+
+Please Call us at:
+09215565857
+6am-8pm, everyday
+
+(automated sms, do not reply)`,
+];
+
+/**
+ * 4 rotating SMS templates for "Follow Up" stage
+ * These are sent twice a week until the proposal is confirmed
+ */
+const FOLLOW_UP_STAGE_TEMPLATES: Array<(params: FollowUpStageParams) => string> = [
+  // Template 1 (Original)
+  (params) => `Hi ${params.firstName},
+
+What do you think of the proposal we sent over to you?
+
+You are one step closer to Massive Electricity Bill Savings!
+
+Please Call our Consultant at:
+${params.consultantName}
+${params.consultantPhone}
+
+(automated sms, do not reply)`,
+
+  // Template 2
+  (params) => `Hi ${params.firstName},
+
+We hope you had a chance to review our solar proposal. Have any questions? We're here to help!
+
+Ready to take the next step towards energy savings?
+
+Please Call our Consultant at:
+${params.consultantName}
+${params.consultantPhone}
+
+(automated sms, do not reply)`,
+
+  // Template 3
+  (params) => `Hi ${params.firstName},
+
+Just checking in on our solar proposal! We'd love to discuss how we can customize the solution for your needs.
+
+Your savings await!
+
+Please Call our Consultant at:
+${params.consultantName}
+${params.consultantPhone}
+
+(automated sms, do not reply)`,
+
+  // Template 4
+  (params) => `Hi ${params.firstName},
+
+Solar savings are just one call away! Let us answer any questions about the proposal we sent.
+
+Our team is ready to help you finalize your installation.
+
+Please Call our Consultant at:
+${params.consultantName}
+${params.consultantPhone}
+
+(automated sms, do not reply)`,
+];
+
+/**
+ * Generate SMS for "Did Not Book Call" stage with rotation
+ */
+export function generateDidNotBookCallSms(params: DidNotBookCallParams, templateIndex: number): string {
+  const index = templateIndex % DID_NOT_BOOK_CALL_TEMPLATES.length;
+  return DID_NOT_BOOK_CALL_TEMPLATES[index](params);
+}
+
+/**
+ * Generate SMS for "Follow Up" stage with rotation
+ */
+export function generateFollowUpStageSms(params: FollowUpStageParams, templateIndex: number): string {
+  const index = templateIndex % FOLLOW_UP_STAGE_TEMPLATES.length;
+  return FOLLOW_UP_STAGE_TEMPLATES[index](params);
 }
 
 // ============================================
@@ -943,5 +1091,301 @@ export const sendDailyAppointmentReminders = internalAction({
 
     console.log("[Auto SMS] Daily appointment reminders completed:", results);
     return { totalSent: results.filter((r) => r.success).length, results };
+  },
+});
+
+// ============================================
+// FOLLOW-UP SMS QUERIES AND ACTIONS
+// ============================================
+
+/**
+ * Get opportunities in "did_not_book_call" stage that need follow-up SMS
+ */
+export const getDidNotBookCallOpportunities = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const opportunities = await ctx.db
+      .query("opportunities")
+      .withIndex("by_deleted_stage", (q) =>
+        q.eq("isDeleted", false).eq("stage", "did_not_book_call")
+      )
+      .collect();
+
+    // Get contact info for each opportunity
+    const opportunitiesWithContacts = await Promise.all(
+      opportunities.map(async (opp) => {
+        const contact = await ctx.db.get(opp.contactId);
+        return {
+          opportunityId: opp._id,
+          contactPhone: contact?.phone,
+          contactFirstName: contact?.firstName,
+          lastSmsIndex: opp.lastFollowUpSmsIndex ?? -1,
+          lastSmsAt: opp.lastFollowUpSmsAt,
+        };
+      })
+    );
+
+    // Filter to only those with valid phone numbers
+    return opportunitiesWithContacts.filter(
+      (opp) => opp.contactPhone && opp.contactFirstName
+    );
+  },
+});
+
+/**
+ * Get opportunities in "follow_up" stage that need follow-up SMS
+ */
+export const getFollowUpStageOpportunities = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const opportunities = await ctx.db
+      .query("opportunities")
+      .withIndex("by_deleted_stage", (q) =>
+        q.eq("isDeleted", false).eq("stage", "follow_up")
+      )
+      .collect();
+
+    // Get contact and consultant info for each opportunity
+    const opportunitiesWithDetails = await Promise.all(
+      opportunities.map(async (opp) => {
+        const contact = await ctx.db.get(opp.contactId);
+        let consultantName = "Salinas Solar";
+        let consultantPhone = "09215565857";
+
+        if (opp.assignedTo) {
+          const consultant = await ctx.db.get(opp.assignedTo);
+          if (consultant) {
+            consultantName = `${consultant.firstName} ${consultant.lastName}`;
+            consultantPhone = consultant.phone || "09215565857";
+          }
+        }
+
+        return {
+          opportunityId: opp._id,
+          contactPhone: contact?.phone,
+          contactFirstName: contact?.firstName,
+          consultantName,
+          consultantPhone,
+          lastSmsIndex: opp.lastFollowUpSmsIndex ?? -1,
+          lastSmsAt: opp.lastFollowUpSmsAt,
+        };
+      })
+    );
+
+    // Filter to only those with valid phone numbers
+    return opportunitiesWithDetails.filter(
+      (opp) => opp.contactPhone && opp.contactFirstName
+    );
+  },
+});
+
+/**
+ * Internal mutation to update opportunity's SMS tracking fields
+ */
+export const updateOpportunitySmsTracking = internalMutation({
+  args: {
+    opportunityId: v.id("opportunities"),
+    smsIndex: v.number(),
+    sentAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.opportunityId, {
+      lastFollowUpSmsIndex: args.smsIndex,
+      lastFollowUpSmsAt: args.sentAt,
+      updatedAt: args.sentAt,
+    });
+  },
+});
+
+/**
+ * Send follow-up SMS to "Did Not Book Call" opportunities
+ * Called by cron job twice a week
+ */
+export const sendDidNotBookCallFollowUps = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const opportunities = await ctx.runQuery(internal.autoSms.getDidNotBookCallOpportunities, {});
+
+    console.log(`[Auto SMS] Found ${opportunities.length} opportunities in 'did_not_book_call' stage`);
+
+    const results: Array<{
+      opportunityId: string;
+      success: boolean;
+      templateIndex: number;
+      error?: string;
+    }> = [];
+
+    for (const opp of opportunities) {
+      if (opp.contactPhone && opp.contactFirstName) {
+        // Rotate to next template
+        const nextIndex = (opp.lastSmsIndex + 1) % 4;
+
+        const message = generateDidNotBookCallSms(
+          { firstName: opp.contactFirstName },
+          nextIndex
+        );
+
+        const result = await sendSms(opp.contactPhone, message);
+
+        if (result.success) {
+          // Update opportunity with new SMS index and timestamp
+          await ctx.runMutation(internal.autoSms.updateOpportunitySmsTracking, {
+            opportunityId: opp.opportunityId,
+            smsIndex: nextIndex,
+            sentAt: Date.now(),
+          });
+        }
+
+        results.push({
+          opportunityId: opp.opportunityId,
+          success: result.success,
+          templateIndex: nextIndex,
+          error: result.error,
+        });
+
+        // Small delay between messages to avoid rate limiting
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
+    console.log("[Auto SMS] Did Not Book Call follow-ups completed:", results);
+    return { totalSent: results.filter((r) => r.success).length, results };
+  },
+});
+
+/**
+ * Send follow-up SMS to "Follow Up" stage opportunities
+ * Called by cron job twice a week
+ */
+export const sendFollowUpStageFollowUps = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const opportunities = await ctx.runQuery(internal.autoSms.getFollowUpStageOpportunities, {});
+
+    console.log(`[Auto SMS] Found ${opportunities.length} opportunities in 'follow_up' stage`);
+
+    const results: Array<{
+      opportunityId: string;
+      success: boolean;
+      templateIndex: number;
+      error?: string;
+    }> = [];
+
+    for (const opp of opportunities) {
+      if (opp.contactPhone && opp.contactFirstName) {
+        // Rotate to next template
+        const nextIndex = (opp.lastSmsIndex + 1) % 4;
+
+        const message = generateFollowUpStageSms(
+          {
+            firstName: opp.contactFirstName,
+            consultantName: opp.consultantName,
+            consultantPhone: opp.consultantPhone,
+          },
+          nextIndex
+        );
+
+        const result = await sendSms(opp.contactPhone, message);
+
+        if (result.success) {
+          // Update opportunity with new SMS index and timestamp
+          await ctx.runMutation(internal.autoSms.updateOpportunitySmsTracking, {
+            opportunityId: opp.opportunityId,
+            smsIndex: nextIndex,
+            sentAt: Date.now(),
+          });
+        }
+
+        results.push({
+          opportunityId: opp.opportunityId,
+          success: result.success,
+          templateIndex: nextIndex,
+          error: result.error,
+        });
+
+        // Small delay between messages to avoid rate limiting
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
+    console.log("[Auto SMS] Follow Up stage follow-ups completed:", results);
+    return { totalSent: results.filter((r) => r.success).length, results };
+  },
+});
+
+/**
+ * Combined cron job action that sends follow-up SMS for both stages
+ * This is called twice a week (e.g., Monday and Thursday at 9 AM)
+ */
+export const sendScheduledFollowUpSms = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{
+    didNotBookCall: { totalSent: number };
+    followUpStage: { totalSent: number };
+  }> => {
+    console.log("[Auto SMS] Starting scheduled follow-up SMS...");
+
+    // ====================================
+    // Process "Did Not Book Call" opportunities
+    // ====================================
+    const didNotBookOpps = await ctx.runQuery(internal.autoSms.getDidNotBookCallOpportunities, {});
+    console.log(`[Auto SMS] Found ${didNotBookOpps.length} opportunities in 'did_not_book_call' stage`);
+
+    let didNotBookSent = 0;
+    for (const opp of didNotBookOpps) {
+      if (opp.contactPhone && opp.contactFirstName) {
+        const nextIndex = (opp.lastSmsIndex + 1) % 4;
+        const message = generateDidNotBookCallSms({ firstName: opp.contactFirstName }, nextIndex);
+        const result = await sendSms(opp.contactPhone, message);
+
+        if (result.success) {
+          await ctx.runMutation(internal.autoSms.updateOpportunitySmsTracking, {
+            opportunityId: opp.opportunityId,
+            smsIndex: nextIndex,
+            sentAt: Date.now(),
+          });
+          didNotBookSent++;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
+    // ====================================
+    // Process "Follow Up" stage opportunities
+    // ====================================
+    const followUpOpps = await ctx.runQuery(internal.autoSms.getFollowUpStageOpportunities, {});
+    console.log(`[Auto SMS] Found ${followUpOpps.length} opportunities in 'follow_up' stage`);
+
+    let followUpSent = 0;
+    for (const opp of followUpOpps) {
+      if (opp.contactPhone && opp.contactFirstName) {
+        const nextIndex = (opp.lastSmsIndex + 1) % 4;
+        const message = generateFollowUpStageSms(
+          {
+            firstName: opp.contactFirstName,
+            consultantName: opp.consultantName,
+            consultantPhone: opp.consultantPhone,
+          },
+          nextIndex
+        );
+        const result = await sendSms(opp.contactPhone, message);
+
+        if (result.success) {
+          await ctx.runMutation(internal.autoSms.updateOpportunitySmsTracking, {
+            opportunityId: opp.opportunityId,
+            smsIndex: nextIndex,
+            sentAt: Date.now(),
+          });
+          followUpSent++;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
+    console.log("[Auto SMS] Scheduled follow-up SMS completed");
+    return {
+      didNotBookCall: { totalSent: didNotBookSent },
+      followUpStage: { totalSent: followUpSent },
+    };
   },
 });
