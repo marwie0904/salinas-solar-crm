@@ -17,6 +17,13 @@ import { Id } from "./_generated/dataModel";
 const SEMAPHORE_API_BASE = "https://api.semaphore.co/api/v4";
 
 // ============================================
+// TEST MODE CONFIGURATION
+// Set to true to forward ALL SMS to test recipient
+// ============================================
+const TEST_MODE = false;
+const TEST_PHONE = "09765229475";
+
+// ============================================
 // SMS TEMPLATES
 // ============================================
 
@@ -428,19 +435,23 @@ async function sendSms(
     return { success: false, error: "SEMAPHORE_API_KEY not configured" };
   }
 
-  const formattedPhone = formatPhoneNumber(phoneNumber);
+  // TEST MODE: Forward to test phone
+  const actualPhone = TEST_MODE ? TEST_PHONE : phoneNumber;
+  const actualMessage = TEST_MODE ? `[TEST - Original: ${phoneNumber}]\n\n${message}` : message;
+
+  const formattedPhone = formatPhoneNumber(actualPhone);
 
   if (!isValidPhilippinePhone(formattedPhone)) {
     return {
       success: false,
-      error: `Invalid Philippine phone number: ${phoneNumber}`,
+      error: `Invalid Philippine phone number: ${actualPhone}`,
     };
   }
 
   const body = new URLSearchParams({
     apikey: apiKey,
     number: formattedPhone,
-    message: message,
+    message: actualMessage,
     sendername: senderName,
   });
 

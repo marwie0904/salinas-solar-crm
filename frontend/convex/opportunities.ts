@@ -210,6 +210,8 @@ export const listForPipeline = query({
           openSolarProjectId: opp.openSolarProjectId,
           openSolarProjectUrl: opp.openSolarProjectUrl,
           notes: opp.notes,
+          pmNotifiedForClose: opp.pmNotifiedForClose,
+          pmNotifiedForCloseAt: opp.pmNotifiedForCloseAt,
           createdAt: opp.createdAt,
           updatedAt: opp.updatedAt,
           contact: contact
@@ -470,6 +472,7 @@ export const update = mutation({
 
 /**
  * Update opportunity stage
+ * Note: Only project_manager role can move to "closed" stage
  */
 export const updateStage = mutation({
   args: {
@@ -482,6 +485,18 @@ export const updateStage = mutation({
     const existing = await ctx.db.get(args.id);
     if (!existing) {
       throw new Error("Opportunity not found");
+    }
+
+    // Restrict "closed" stage to project_manager role only
+    if (args.stage === "closed" && existing.stage !== "closed") {
+      if (!args.updatedBy) {
+        throw new Error("Only project managers can move opportunities to closed stage");
+      }
+
+      const user = await ctx.db.get(args.updatedBy);
+      if (!user || user.role !== "project_manager") {
+        throw new Error("Only project managers can move opportunities to closed stage");
+      }
     }
 
     const updates: Record<string, unknown> = {
@@ -510,6 +525,42 @@ export const updateStage = mutation({
         opportunityId: args.id,
       });
     }
+
+    return args.id;
+  },
+});
+
+/**
+ * Notify project managers that opportunity is ready for closure
+ * Called when clicking "Closed : Notify PM" button
+ */
+export const notifyPmForClosure = mutation({
+  args: {
+    id: v.id("opportunities"),
+  },
+  handler: async (ctx, args) => {
+    const opportunity = await ctx.db.get(args.id);
+    if (!opportunity) {
+      throw new Error("Opportunity not found");
+    }
+
+    // Only allow notification from for_installation stage
+    if (opportunity.stage !== "for_installation") {
+      throw new Error("Can only notify PM for closure from for_installation stage");
+    }
+
+    // Mark as notified
+    await ctx.db.patch(args.id, {
+      pmNotifiedForClose: true,
+      pmNotifiedForCloseAt: now(),
+      updatedAt: now(),
+    });
+
+    // Send notifications to all project managers
+    await ctx.scheduler.runAfter(0, internal.teamNotifications.notifyProjectManagersForClosure, {
+      opportunityName: opportunity.name,
+      opportunityId: args.id,
+    });
 
     return args.id;
   },

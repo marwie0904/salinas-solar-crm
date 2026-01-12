@@ -179,6 +179,10 @@ export function OpportunityDetailModal({
   const updateOpportunity = useMutation(api.opportunities.update);
   const updateStage = useMutation(api.opportunities.updateStage);
   const removeOpportunity = useMutation(api.opportunities.remove);
+  const notifyPmForClosure = useMutation(api.opportunities.notifyPmForClosure);
+
+  // PM notification state
+  const [isNotifyingPm, setIsNotifyingPm] = useState(false);
 
   // OpenSolar action
   const createOpenSolarProject = useAction(api.openSolar.createProject);
@@ -1421,6 +1425,52 @@ export function OpportunityDetailModal({
                     <span className="hidden sm:inline">{editedOpportunity.locationLat ? "Update Location" : "Capture Location"}</span>
                     <span className="sm:hidden">Location</span>
                   </Button>
+                  {/* Closed : Notify PM button - only show when in for_installation stage */}
+                  {editedOpportunity.stage === "for_installation" && (
+                    <Button
+                      variant={editedOpportunity.pmNotifiedForClose ? "secondary" : "default"}
+                      size="sm"
+                      className={cn(
+                        "h-10 sm:h-8 gap-2 flex-1 sm:flex-initial text-xs sm:text-sm",
+                        editedOpportunity.pmNotifiedForClose
+                          ? "bg-gray-400 hover:bg-gray-400 cursor-not-allowed text-white"
+                          : "bg-green-600 hover:bg-green-700 text-white"
+                      )}
+                      disabled={editedOpportunity.pmNotifiedForClose || isNotifyingPm}
+                      onClick={async () => {
+                        if (editedOpportunity.pmNotifiedForClose) return;
+
+                        setIsNotifyingPm(true);
+                        try {
+                          await notifyPmForClosure({
+                            id: editedOpportunity._id,
+                          });
+                          // Update local state to reflect the change
+                          setEditedOpportunity({
+                            ...editedOpportunity,
+                            pmNotifiedForClose: true,
+                            pmNotifiedForCloseAt: Date.now(),
+                          });
+                        } catch (error) {
+                          console.error("Failed to notify PM:", error);
+                        } finally {
+                          setIsNotifyingPm(false);
+                        }
+                      }}
+                    >
+                      {isNotifyingPm ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4" />
+                      )}
+                      <span className="hidden sm:inline">
+                        {editedOpportunity.pmNotifiedForClose ? "PM Notified" : "Closed : Notify PM"}
+                      </span>
+                      <span className="sm:hidden">
+                        {editedOpportunity.pmNotifiedForClose ? "Notified" : "Notify PM"}
+                      </span>
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

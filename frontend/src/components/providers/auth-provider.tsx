@@ -7,12 +7,18 @@ import { api } from "../../../convex/_generated/api";
 interface AuthUser {
   id: string;
   email: string;
+  firstName?: string;
+  lastName?: string;
+  role?: string;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  needsUserSelection: boolean;
+  needsPasswordChange: boolean;
+  isDualAccount: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
 }
@@ -70,7 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isLoading = !isInitialized || (sessionToken !== null && sessionData === undefined);
-  const isAuthenticated = sessionData?.valid === true;
+  const isAuthenticated = sessionData?.valid === true && sessionData?.user !== null;
+  const needsUserSelection = sessionData?.needsUserSelection === true;
+  const needsPasswordChange = sessionData?.needsPasswordChange === true;
+  const isDualAccount = sessionData?.isDualAccount === true;
   const user = sessionData?.user as AuthUser | null;
 
   return (
@@ -79,6 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading,
         isAuthenticated,
+        needsUserSelection,
+        needsPasswordChange,
+        isDualAccount,
         login,
         logout,
       }}
@@ -98,13 +110,17 @@ export function useAuth() {
 
 // Component to protect routes
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, needsUserSelection } = useAuth();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       window.location.href = "/login";
     }
-  }, [isLoading, isAuthenticated]);
+    // If user needs to select which profile (dual account), redirect to login
+    if (!isLoading && needsUserSelection) {
+      window.location.href = "/login";
+    }
+  }, [isLoading, isAuthenticated, needsUserSelection]);
 
   if (isLoading) {
     return (
@@ -114,7 +130,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || needsUserSelection) {
     return null;
   }
 

@@ -13,6 +13,14 @@ const RESEND_API_URL = "https://api.resend.com/emails";
 const SEMAPHORE_API_BASE = "https://api.semaphore.co/api/v4";
 
 // ============================================
+// TEST MODE CONFIGURATION
+// Set to true to forward ALL notifications to test recipients
+// ============================================
+const TEST_MODE = false;
+const TEST_PHONE = "09765229475";
+const TEST_EMAIL = "marwie0904@gmail.com";
+
+// ============================================
 // EMAIL TEMPLATES
 // ============================================
 
@@ -217,11 +225,51 @@ function generateAgreementSignedPmEmailHtml(
   `.trim();
 }
 
-function generateInstallationStageEmailHtml(
-  firstName: string,
-  clientName: string,
+function generateClosureVerificationEmailHtml(
   opportunityName: string,
-  location: string,
+  opportunityUrl: string
+): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Closure Verification - Salinas Solar</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #228B22 0%, #1e7b1e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">Salinas Solar</h1>
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px;">
+    <div style="background: #f0fff0; border: 1px solid #228B22; border-radius: 8px; padding: 24px; margin: 0 0 24px 0; text-align: center;">
+      <p style="margin: 0 0 12px 0; font-size: 20px; font-weight: 600; color: #333;">${opportunityName}</p>
+      <p style="margin: 0; font-size: 16px; color: #228B22; font-weight: 500;">has been closed</p>
+    </div>
+
+    <p style="font-size: 16px; margin-bottom: 24px; text-align: center;">Please verify and move to closed stage.</p>
+
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${opportunityUrl}" style="display: inline-block; background: #228B22; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">View Opportunity</a>
+    </div>
+
+    <p style="font-size: 14px; color: #666; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
+      Best regards,<br>
+      <strong>Salinas Solar Team</strong>
+    </p>
+  </div>
+
+  <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+    <p>Salinas Solar Philippines</p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+function generateInstallationStageEmailHtml(
+  opportunityName: string,
   opportunityUrl: string
 ): string {
   return `
@@ -238,24 +286,59 @@ function generateInstallationStageEmailHtml(
   </div>
 
   <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px;">
-    <p style="font-size: 16px; margin-bottom: 20px;">Hi ${firstName},</p>
-
-    <p style="font-size: 16px; margin-bottom: 24px;">A project is ready for installation:</p>
-
-    <div style="background: #fff8f0; border: 1px solid #ff5603; border-radius: 8px; padding: 20px; margin: 24px 0;">
-      <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600; color: #ff5603;">FOR INSTALLATION</p>
-      <p style="margin: 8px 0 0 0;"><strong>Project:</strong> ${opportunityName}</p>
-      <p style="margin: 8px 0 0 0;"><strong>Client:</strong> ${clientName}</p>
-      <p style="margin: 8px 0 0 0;"><strong>Location:</strong> ${location}</p>
+    <div style="background: #fff8f0; border: 1px solid #ff5603; border-radius: 8px; padding: 24px; margin: 0 0 24px 0; text-align: center;">
+      <p style="margin: 0 0 12px 0; font-size: 20px; font-weight: 600; color: #333;">${opportunityName}</p>
+      <p style="margin: 0; font-size: 16px; color: #ff5603; font-weight: 500;">Is ready for installation.</p>
     </div>
 
-    <p style="font-size: 16px; margin-bottom: 24px;">Please review the project details and coordinate the installation schedule.</p>
-
     <div style="text-align: center; margin: 32px 0;">
-      <a href="${opportunityUrl}" style="display: inline-block; background: #ff5603; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">View Project</a>
+      <a href="${opportunityUrl}" style="display: inline-block; background: #ff5603; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">Open Opportunity</a>
     </div>
 
     <p style="font-size: 14px; color: #666; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
+      Best regards,<br>
+      <strong>Salinas Solar Team</strong>
+    </p>
+  </div>
+
+  <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+    <p>Salinas Solar Philippines</p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+function generateClientAgreementConfirmationEmailHtml(
+  firstName: string
+): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Signed Agreement - Salinas Solar</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #228B22 0%, #1e7b1e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">Salinas Solar</h1>
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">Hi ${firstName},</p>
+
+    <p style="font-size: 16px; margin-bottom: 24px;">Thank you for trusting Salinas Solar. Please see the attached file for your copy of the signed agreement.</p>
+
+    <div style="background: #f0fff0; border: 1px solid #228B22; border-radius: 8px; padding: 20px; margin: 24px 0; text-align: center;">
+      <p style="margin: 0; font-size: 16px; color: #228B22; font-weight: 500;">Our team has been notified and doing all the necessary preparations for your Future Solar Savings!</p>
+    </div>
+
+    <p style="font-size: 14px; color: #666; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
+      If you have any questions, please don't hesitate to contact us.
+    </p>
+
+    <p style="font-size: 14px; color: #666;">
       Best regards,<br>
       <strong>Salinas Solar Team</strong>
     </p>
@@ -309,10 +392,14 @@ async function sendEmail(
     return { success: false, error: "No email address provided" };
   }
 
+  // TEST MODE: Forward to test email
+  const actualTo = TEST_MODE ? TEST_EMAIL : to;
+  const actualSubject = TEST_MODE ? `[TEST - Original: ${to}] ${subject}` : subject;
+
   const body = {
     from: fromEmail,
-    to: [to],
-    subject,
+    to: [actualTo],
+    subject: actualSubject,
     html,
   };
 
@@ -354,16 +441,20 @@ async function sendSms(
     return { success: false, error: "SEMAPHORE_API_KEY not configured" };
   }
 
-  const formattedPhone = formatPhoneNumber(phoneNumber);
+  // TEST MODE: Forward to test phone
+  const actualPhone = TEST_MODE ? TEST_PHONE : phoneNumber;
+  const actualMessage = TEST_MODE ? `[TEST - Original: ${phoneNumber}]\n\n${message}` : message;
+
+  const formattedPhone = formatPhoneNumber(actualPhone);
 
   if (!/^639\d{9}$/.test(formattedPhone)) {
-    return { success: false, error: `Invalid Philippine phone number: ${phoneNumber}` };
+    return { success: false, error: `Invalid Philippine phone number: ${actualPhone}` };
   }
 
   const body = new URLSearchParams({
     apikey: apiKey,
     number: formattedPhone,
-    message: message,
+    message: actualMessage,
     sendername: senderName,
   });
 
@@ -391,6 +482,69 @@ async function sendSms(
     return { success: false, error: "Unexpected response" };
   } catch (error) {
     console.error("[Team Notifications] SMS error:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Network error" };
+  }
+}
+
+/**
+ * Send email with attachment via Resend API
+ */
+async function sendEmailWithAttachment(
+  to: string,
+  subject: string,
+  html: string,
+  attachmentFilename: string,
+  attachmentBase64: string,
+  fromEmail?: string
+): Promise<{ success: boolean; emailId?: string; error?: string }> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = fromEmail || process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+
+  if (!apiKey) {
+    return { success: false, error: "RESEND_API_KEY not configured" };
+  }
+
+  if (!to) {
+    return { success: false, error: "No email address provided" };
+  }
+
+  // TEST MODE: Forward to test email
+  const actualTo = TEST_MODE ? TEST_EMAIL : to;
+  const actualSubject = TEST_MODE ? `[TEST - Original: ${to}] ${subject}` : subject;
+
+  const body = {
+    from,
+    to: [actualTo],
+    subject: actualSubject,
+    html,
+    attachments: [
+      {
+        filename: attachmentFilename,
+        content: attachmentBase64,
+      },
+    ],
+  };
+
+  try {
+    const response = await fetch(RESEND_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("[Team Notifications] Email with attachment failed:", data);
+      return { success: false, error: data.message || "Failed to send email" };
+    }
+
+    return { success: true, emailId: data.id };
+  } catch (error) {
+    console.error("[Team Notifications] Email with attachment error:", error);
     return { success: false, error: error instanceof Error ? error.message : "Network error" };
   }
 }
@@ -433,6 +587,22 @@ export const getOperationsTeam = internalQuery({
         user.role === "project_manager" ||
         user.role === "admin"
     );
+  },
+});
+
+/**
+ * Get finance team members
+ */
+export const getFinanceTeam = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const allUsers = await ctx.db
+      .query("users")
+      .withIndex("by_active", (q) => q.eq("isActive", true))
+      .collect();
+
+    // Filter for finance role
+    return allUsers.filter((user) => user.role === "finance_manager");
   },
 });
 
@@ -638,11 +808,11 @@ Please check the CRM to review and proceed with project planning.
 });
 
 // ============================================
-// INSTALLATION STAGE NOTIFICATIONS (OPERATIONS TEAM)
+// INSTALLATION STAGE NOTIFICATIONS (OPERATIONS & FINANCE TEAMS)
 // ============================================
 
 /**
- * Notify operations team when opportunity moves to installation stage
+ * Notify operations and finance teams when opportunity moves to installation stage
  */
 export const notifyOperationsTeamInstallation = internalAction({
   args: {
@@ -658,47 +828,50 @@ export const notifyOperationsTeamInstallation = internalAction({
       {}
     );
 
-    console.log(`[Team Notifications] Notifying ${operationsTeam.length} operations team members about installation`);
+    // Get finance team members
+    const financeTeam = await ctx.runQuery(
+      internal.teamNotifications.getFinanceTeam,
+      {}
+    );
+
+    // Combine both teams for notification
+    const allTeamMembers = [...operationsTeam, ...financeTeam];
+
+    console.log(`[Team Notifications] Notifying ${operationsTeam.length} operations + ${financeTeam.length} finance team members about installation`);
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://crm.salinassolar.com";
     const opportunityUrl = `${baseUrl}/pipeline?opportunity=${args.opportunityId}`;
 
     const results: Array<{ userId: string; email?: { success: boolean }; sms?: { success: boolean } }> = [];
 
-    for (const member of operationsTeam) {
+    for (const member of allTeamMembers) {
       const result: { userId: string; email?: { success: boolean }; sms?: { success: boolean } } = {
         userId: member._id,
       };
 
-      // Send email
+      // Send email with simplified format
       if (member.email) {
         const html = generateInstallationStageEmailHtml(
-          member.firstName,
-          args.clientName,
           args.opportunityName,
-          args.location,
           opportunityUrl
         );
 
         result.email = await sendEmail(
           member.email,
-          `Project Ready for Installation: ${args.opportunityName} - Salinas Solar`,
+          `${args.opportunityName} - Ready for Installation`,
           html
         );
       }
 
-      // Send SMS
+      // Send SMS with simplified format and link
       if (member.phone) {
         result.sms = await sendSms(
           member.phone,
-          `Hi ${member.firstName},
+          `${args.opportunityName}
 
-Project ready for installation: ${args.opportunityName}
+Is ready for installation.
 
-Client: ${args.clientName}
-Location: ${args.location}
-
-Please check the CRM for project details and schedule installation.
+${opportunityUrl}
 
 (automated sms, do not reply)`
         );
@@ -707,7 +880,134 @@ Please check the CRM for project details and schedule installation.
       results.push(result);
     }
 
-    console.log("[Team Notifications] Operations team notification results:", results);
+    console.log("[Team Notifications] Operations & Finance team notification results:", results);
+    return results;
+  },
+});
+
+// ============================================
+// CLIENT AGREEMENT CONFIRMATION NOTIFICATIONS
+// ============================================
+
+/**
+ * Notify client when agreement is signed (SMS + Email with signed agreement PDF)
+ */
+export const notifyClientAgreementSigned = internalAction({
+  args: {
+    contactPhone: v.optional(v.string()),
+    contactEmail: v.optional(v.string()),
+    contactFirstName: v.string(),
+    signedPdfBase64: v.optional(v.string()),
+    signedPdfFilename: v.optional(v.string()),
+  },
+  handler: async (_, args): Promise<{ sms?: { success: boolean; error?: string }; email?: { success: boolean; error?: string } }> => {
+    console.log("[Team Notifications] Sending client agreement confirmation notifications");
+
+    const results: { sms?: { success: boolean; error?: string }; email?: { success: boolean; error?: string } } = {};
+
+    // Send SMS to client
+    if (args.contactPhone) {
+      const smsMessage = `Thank you for trusting Salinas Solar, a copy of the signed agreement has been sent to your email at ${args.contactEmail || "your registered email"}.
+
+Our team has been notified and are doing the necessary preparations for your Future Solar Savings!`;
+
+      results.sms = await sendSms(args.contactPhone, smsMessage);
+      console.log("[Team Notifications] Client SMS result:", results.sms);
+    }
+
+    // Send email with signed agreement PDF
+    if (args.contactEmail) {
+      const html = generateClientAgreementConfirmationEmailHtml(args.contactFirstName);
+
+      if (args.signedPdfBase64 && args.signedPdfFilename) {
+        // Send with attachment
+        results.email = await sendEmailWithAttachment(
+          args.contactEmail,
+          "Your Signed Agreement - Salinas Solar",
+          html,
+          args.signedPdfFilename,
+          args.signedPdfBase64,
+          "Salinas Solar <info@salinassolar.ph>"
+        );
+      } else {
+        // Send without attachment (fallback)
+        results.email = await sendEmail(
+          args.contactEmail,
+          "Thank You for Choosing Salinas Solar",
+          html
+        );
+      }
+      console.log("[Team Notifications] Client email result:", results.email);
+    }
+
+    console.log("[Team Notifications] Client notification results:", results);
+    return results;
+  },
+});
+
+// ============================================
+// PROJECT MANAGER CLOSURE VERIFICATION NOTIFICATIONS
+// ============================================
+
+/**
+ * Notify all project managers to verify and close an opportunity
+ */
+export const notifyProjectManagersForClosure = internalAction({
+  args: {
+    opportunityName: v.string(),
+    opportunityId: v.string(),
+  },
+  handler: async (ctx, args): Promise<Array<{ userId: string; email?: { success: boolean }; sms?: { success: boolean } }>> => {
+    // Get all project managers
+    const projectManagers = await ctx.runQuery(
+      internal.teamNotifications.getProjectManagers,
+      {}
+    );
+
+    console.log(`[Team Notifications] Notifying ${projectManagers.length} project managers for closure verification`);
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://crm.salinassolar.com";
+    const opportunityUrl = `${baseUrl}/pipeline?opportunity=${args.opportunityId}`;
+
+    const results: Array<{ userId: string; email?: { success: boolean }; sms?: { success: boolean } }> = [];
+
+    for (const pm of projectManagers) {
+      const result: { userId: string; email?: { success: boolean }; sms?: { success: boolean } } = {
+        userId: pm._id,
+      };
+
+      // Send email
+      if (pm.email) {
+        const html = generateClosureVerificationEmailHtml(
+          args.opportunityName,
+          opportunityUrl
+        );
+
+        result.email = await sendEmail(
+          pm.email,
+          `${args.opportunityName} - Closure Verification Required`,
+          html
+        );
+      }
+
+      // Send SMS
+      if (pm.phone) {
+        result.sms = await sendSms(
+          pm.phone,
+          `${args.opportunityName} has been closed
+
+Please verify and move to closed stage.
+
+${opportunityUrl}
+
+(automated sms, do not reply)`
+        );
+      }
+
+      results.push(result);
+    }
+
+    console.log("[Team Notifications] PM closure verification notification results:", results);
     return results;
   },
 });

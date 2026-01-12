@@ -11,6 +11,13 @@ import { action } from "./_generated/server";
 const RESEND_API_URL = "https://api.resend.com/emails";
 
 // ============================================
+// TEST MODE CONFIGURATION
+// Set to true to forward ALL emails to test recipient
+// ============================================
+const TEST_MODE = false;
+const TEST_EMAIL = "marwie0904@gmail.com";
+
+// ============================================
 // EMAIL TEMPLATES
 // ============================================
 
@@ -251,8 +258,126 @@ function generateReceiptEmailHtml(
 }
 
 // ============================================
+// EMAIL VERIFICATION TEMPLATE
+// ============================================
+
+function generateVerificationEmailHtml(
+  verificationUrl: string
+): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Email - Salinas Solar</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #ff5603 0%, #e64d00 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">Salinas Solar</h1>
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">Hi there,</p>
+
+    <p style="font-size: 16px; margin-bottom: 24px;">Please verify your email address to continue using the Salinas Solar CRM. This verification is required every 30 days for security purposes.</p>
+
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${verificationUrl}" style="display: inline-block; background: #ff5603; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">Verify Email</a>
+    </div>
+
+    <p style="font-size: 14px; color: #666; margin-bottom: 16px;">
+      This verification link will expire in 24 hours. If you did not request this verification, you can safely ignore this email.
+    </p>
+
+    <p style="font-size: 14px; color: #666; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
+      Best regards,<br>
+      <strong>Salinas Solar Team</strong>
+    </p>
+  </div>
+
+  <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
+    <p>Salinas Solar Philippines</p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+// ============================================
 // ACTIONS
 // ============================================
+
+/**
+ * Send email verification email
+ */
+export const sendVerificationEmail = action({
+  args: {
+    to: v.string(),
+    verificationToken: v.string(),
+    baseUrl: v.string(),
+  },
+  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = "Salinas Solar <info@otomatelegal.com>";
+
+    if (!apiKey) {
+      return { success: false, error: "RESEND_API_KEY not configured" };
+    }
+
+    if (!args.to) {
+      return { success: false, error: "No email address provided" };
+    }
+
+    const verificationUrl = `${args.baseUrl}/verify-email?token=${args.verificationToken}`;
+    const html = generateVerificationEmailHtml(verificationUrl);
+
+    // TEST MODE: Forward to test email
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Verify Your Email - Salinas Solar CRM` : "Verify Your Email - Salinas Solar CRM";
+
+    const body = {
+      from: fromEmail,
+      to: [actualTo],
+      subject: actualSubject,
+      html,
+    };
+
+    try {
+      const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Resend API] Send failed:", data);
+        return {
+          success: false,
+          error: data.message || "Failed to send email",
+        };
+      }
+
+      console.log("[Resend API] Verification email sent successfully:", data.id);
+
+      return {
+        success: true,
+        emailId: data.id,
+      };
+    } catch (error) {
+      console.error("[Resend API] Network error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Network error",
+      };
+    }
+  },
+});
 
 /**
  * Send an invoice email with PDF attachment
@@ -267,7 +392,7 @@ export const sendInvoiceEmail = action({
   },
   handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
     const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+    const fromEmail = "Salinas Solar <info@salinassolar.ph>";
 
     if (!apiKey) {
       return { success: false, error: "RESEND_API_KEY not configured" };
@@ -279,6 +404,10 @@ export const sendInvoiceEmail = action({
 
     const html = generateInvoiceEmailHtml(args.firstName, args.invoiceUrl);
 
+    // TEST MODE: Forward to test email
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Invoice from Salinas Solar` : "Invoice from Salinas Solar";
+
     const body: {
       from: string;
       to: string[];
@@ -287,8 +416,8 @@ export const sendInvoiceEmail = action({
       attachments?: { filename: string; content: string }[];
     } = {
       from: fromEmail,
-      to: [args.to],
-      subject: "Invoice from Salinas Solar",
+      to: [actualTo],
+      subject: actualSubject,
       html,
     };
 
@@ -350,7 +479,7 @@ export const sendAgreementEmail = action({
   },
   handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
     const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+    const fromEmail = "Salinas Solar <info@salinassolar.ph>";
 
     if (!apiKey) {
       return { success: false, error: "RESEND_API_KEY not configured" };
@@ -362,10 +491,14 @@ export const sendAgreementEmail = action({
 
     const html = generateAgreementEmailHtml(args.firstName, args.location, args.signingUrl);
 
+    // TEST MODE: Forward to test email
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Sign Your Solar Installation Agreement - Salinas Solar` : "Sign Your Solar Installation Agreement - Salinas Solar";
+
     const body = {
       from: fromEmail,
-      to: [args.to],
-      subject: "Sign Your Solar Installation Agreement - Salinas Solar",
+      to: [actualTo],
+      subject: actualSubject,
       html,
     };
 
@@ -418,7 +551,7 @@ export const sendAppointmentEmail = action({
   },
   handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
     const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+    const fromEmail = "Salinas Solar <info@salinassolar.ph>";
 
     if (!apiKey) {
       return { success: false, error: "RESEND_API_KEY not configured" };
@@ -444,10 +577,14 @@ export const sendAppointmentEmail = action({
       args.time
     );
 
+    // TEST MODE: Forward to test email
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Appointment Confirmation - Salinas Solar` : "Appointment Confirmation - Salinas Solar";
+
     const body = {
       from: fromEmail,
-      to: [args.to],
-      subject: "Appointment Confirmation - Salinas Solar",
+      to: [actualTo],
+      subject: actualSubject,
       html,
     };
 
@@ -499,7 +636,7 @@ export const sendConsultantAssignmentEmail = action({
   },
   handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
     const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+    const fromEmail = "Salinas Solar <notification@salinassolar.ph>";
 
     if (!apiKey) {
       return { success: false, error: "RESEND_API_KEY not configured" };
@@ -515,10 +652,15 @@ export const sendConsultantAssignmentEmail = action({
       args.opportunityUrl
     );
 
+    // TEST MODE: Forward to test email
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const subject = `New Assignment: ${args.opportunityName} - Salinas Solar`;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] ${subject}` : subject;
+
     const body = {
       from: fromEmail,
-      to: [args.to],
-      subject: `New Assignment: ${args.opportunityName} - Salinas Solar`,
+      to: [actualTo],
+      subject: actualSubject,
       html,
     };
 
@@ -570,7 +712,7 @@ export const sendReceiptEmail = action({
   },
   handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
     const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+    const fromEmail = "Salinas Solar <sales@salinassolar.ph>";
 
     if (!apiKey) {
       return { success: false, error: "RESEND_API_KEY not configured" };
@@ -582,10 +724,14 @@ export const sendReceiptEmail = action({
 
     const html = generateReceiptEmailHtml(args.firstName);
 
+    // TEST MODE: Forward to test email
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Receipt from Salinas Solar - Project Complete` : "Receipt from Salinas Solar - Project Complete";
+
     const body = {
       from: fromEmail,
-      to: [args.to],
-      subject: "Receipt from Salinas Solar - Project Complete",
+      to: [actualTo],
+      subject: actualSubject,
       html,
       attachments: [
         {
@@ -814,7 +960,7 @@ export const sendConsultantAppointmentEmail = action({
   },
   handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
     const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+    const fromEmail = "Salinas Solar <notification@salinassolar.ph>";
 
     if (!apiKey) {
       return { success: false, error: "RESEND_API_KEY not configured" };
@@ -844,10 +990,15 @@ export const sendConsultantAppointmentEmail = action({
       args.appointmentUrl
     );
 
+    // TEST MODE: Forward to test email
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const subject = `New ${typeLabel} Scheduled - ${args.contactName}`;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] ${subject}` : subject;
+
     const body = {
       from: fromEmail,
-      to: [args.to],
-      subject: `New ${typeLabel} Scheduled - ${args.contactName}`,
+      to: [actualTo],
+      subject: actualSubject,
       html,
     };
 
@@ -900,7 +1051,7 @@ export const sendAgreementSignedPmEmail = action({
   },
   handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
     const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+    const fromEmail = "Salinas Solar <notification@salinassolar.ph>";
 
     if (!apiKey) {
       return { success: false, error: "RESEND_API_KEY not configured" };
@@ -917,10 +1068,15 @@ export const sendAgreementSignedPmEmail = action({
       args.opportunityUrl
     );
 
+    // TEST MODE: Forward to test email
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const subject = `Agreement Signed: ${args.opportunityName} - Salinas Solar`;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] ${subject}` : subject;
+
     const body = {
       from: fromEmail,
-      to: [args.to],
-      subject: `Agreement Signed: ${args.opportunityName} - Salinas Solar`,
+      to: [actualTo],
+      subject: actualSubject,
       html,
     };
 
@@ -974,7 +1130,7 @@ export const sendInstallationStageEmail = action({
   },
   handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
     const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "Salinas Solar <noreply@salinassolar.com>";
+    const fromEmail = "Salinas Solar <notification@salinassolar.ph>";
 
     if (!apiKey) {
       return { success: false, error: "RESEND_API_KEY not configured" };
@@ -992,10 +1148,15 @@ export const sendInstallationStageEmail = action({
       args.opportunityUrl
     );
 
+    // TEST MODE: Forward to test email
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const subject = `Project Ready for Installation: ${args.opportunityName} - Salinas Solar`;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] ${subject}` : subject;
+
     const body = {
       from: fromEmail,
-      to: [args.to],
-      subject: `Project Ready for Installation: ${args.opportunityName} - Salinas Solar`,
+      to: [actualTo],
+      subject: actualSubject,
       html,
     };
 

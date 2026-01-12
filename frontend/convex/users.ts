@@ -97,16 +97,27 @@ export const getByRole = query({
 });
 
 /**
- * List all active system consultants
+ * List all active system consultants and system associates
+ * Both roles can be assigned to opportunities
  */
 export const listSystemConsultants = query({
   args: {},
   handler: async (ctx) => {
-    const users = await ctx.db
+    // Get system consultants
+    const consultants = await ctx.db
       .query("users")
       .withIndex("by_role", (q) => q.eq("role", "system_consultant"))
       .filter((q) => q.eq(q.field("isActive"), true))
       .collect();
+
+    // Get system associates
+    const associates = await ctx.db
+      .query("users")
+      .withIndex("by_role", (q) => q.eq("role", "system_associate"))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    const users = [...consultants, ...associates];
 
     return users.map((user) => ({
       ...user,

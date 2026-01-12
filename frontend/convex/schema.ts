@@ -99,10 +99,13 @@ export const paymentType = v.union(
 export const userRole = v.union(
   v.literal("admin"),
   v.literal("sales"),
+  v.literal("head_sales"),
   v.literal("technician"),
   v.literal("project_manager"),
   v.literal("developer"),
-  v.literal("system_consultant")
+  v.literal("system_consultant"),
+  v.literal("system_associate"),
+  v.literal("finance_manager")
 );
 
 export const agreementStatus = v.union(
@@ -126,11 +129,21 @@ export default defineSchema({
     passwordHash: v.string(),
     isActive: v.boolean(),
     lastLoginAt: v.optional(v.number()),
+    // Email verification (every 30 days)
+    emailVerifiedAt: v.optional(v.number()),
+    emailVerificationToken: v.optional(v.string()),
+    emailVerificationExpiresAt: v.optional(v.number()),
+    // Password change tracking
+    hasChangedPassword: v.optional(v.boolean()),
+    // Dual account support (e.g., sales@ with Kim and Betina)
+    isDualAccount: v.optional(v.boolean()),
+    linkedUserEmails: v.optional(v.array(v.string())),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_email", ["email"])
-    .index("by_active", ["isActive"]),
+    .index("by_active", ["isActive"])
+    .index("by_verification_token", ["emailVerificationToken"]),
 
   // ----------------------------------------
   // SESSIONS TABLE
@@ -139,6 +152,8 @@ export default defineSchema({
     authUserId: v.id("authUsers"),
     sessionToken: v.string(),
     expiresAt: v.number(), // 7 days from creation
+    // For dual accounts - tracks which user profile is selected
+    selectedUserEmail: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_token", ["sessionToken"])
@@ -215,6 +230,9 @@ export default defineSchema({
     // Follow-up SMS tracking (for rotation)
     lastFollowUpSmsIndex: v.optional(v.number()), // 0-3 for 4 templates
     lastFollowUpSmsAt: v.optional(v.number()), // Last SMS sent timestamp
+    // PM notification for closure
+    pmNotifiedForClose: v.optional(v.boolean()), // True when PM has been notified to verify and close
+    pmNotifiedForCloseAt: v.optional(v.number()), // Timestamp when notification was sent
     isDeleted: v.boolean(),
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),

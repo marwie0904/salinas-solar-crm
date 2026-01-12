@@ -195,6 +195,18 @@ export const getDocumentInternal = internalQuery({
 });
 
 /**
+ * Get contact by ID (internal - for actions)
+ */
+export const getContactInternal = internalQuery({
+  args: {
+    id: v.id("contacts"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+/**
  * Mark agreement as viewed (when client opens the signing page)
  */
 export const markViewed = mutation({
@@ -595,6 +607,50 @@ export const sign = action({
     });
     console.log("[Sign Agreement] Agreement updated successfully");
     console.log("[Sign Agreement] Returning signedDocumentUrl:", signedDocumentUrl || "None");
+
+    // Send client notification with signed agreement PDF
+    console.log("[Sign Agreement] Sending client notification...");
+    const contact = await ctx.runQuery(internal.agreements.getContactInternal, {
+      id: agreement.contactId,
+    });
+
+    if (contact) {
+      // Get the signed PDF bytes if available
+      let signedPdfBase64: string | undefined;
+      let signedPdfFilename: string | undefined;
+
+      if (signedDocumentUrl && signedDocumentId) {
+        try {
+          // Fetch the signed PDF to convert to base64 for email attachment
+          const signedPdfResponse = await fetch(signedDocumentUrl);
+          if (signedPdfResponse.ok) {
+            const signedPdfArrayBuffer = await signedPdfResponse.arrayBuffer();
+            const signedPdfBytesArray = new Uint8Array(signedPdfArrayBuffer);
+            signedPdfBase64 = btoa(
+              Array.from(signedPdfBytesArray)
+                .map((byte) => String.fromCharCode(byte))
+                .join("")
+            );
+            signedPdfFilename = `${agreement.clientName.replace(/[^a-zA-Z0-9]/g, "_")}_Signed_Agreement.pdf`;
+            console.log("[Sign Agreement] Signed PDF converted to base64 for email attachment");
+          }
+        } catch (error) {
+          console.error("[Sign Agreement] Error fetching signed PDF for email:", error);
+        }
+      }
+
+      // Send client notification
+      await ctx.runAction(internal.teamNotifications.notifyClientAgreementSigned, {
+        contactPhone: contact.phone,
+        contactEmail: contact.email,
+        contactFirstName: contact.firstName,
+        signedPdfBase64,
+        signedPdfFilename,
+      });
+      console.log("[Sign Agreement] Client notification sent");
+    } else {
+      console.log("[Sign Agreement] No contact found, skipping client notification");
+    }
 
     return { ...result, signedDocumentUrl };
   },

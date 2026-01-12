@@ -24,6 +24,8 @@ export type PipelineOpportunity = {
   openSolarProjectId?: number;
   openSolarProjectUrl?: string;
   notes?: string;
+  pmNotifiedForClose?: boolean;
+  pmNotifiedForCloseAt?: number;
   createdAt: number;
   updatedAt: number;
   contact: {
