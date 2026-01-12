@@ -245,124 +245,120 @@ interface DidNotBookCallParams {
 
 interface FollowUpStageParams {
   firstName: string;
-  consultantName: string;
-  consultantPhone: string;
 }
 
 /**
- * 4 rotating SMS templates for "Did Not Book Call" stage
+ * 25 rotating SMS templates for "Did Not Book Call" stage
+ * For leads that provided contact details but haven't booked an ocular visit yet
  * These are sent twice a week until the client books an ocular visit
  */
 const DID_NOT_BOOK_CALL_TEMPLATES: Array<(params: DidNotBookCallParams) => string> = [
-  // Template 1 (Original)
-  (params) => `Hi ${params.firstName},
+  (params) => `Hi ${params.firstName}, quick question—alam mo ba kung magkano ang possible mong matipid sa solar every month? Message us on FB to find out. -SalinasSolar`,
 
-We have noticed that you have not booked a call yet for your future Solar Panel Installation.
+  () => `Most homeowners in Bataan say one thing: sana nagpa-solar sila earlier. Want to know why? Text 0956-371-3390. -SalinasSolar`,
 
-If you want to save bills on electricity feel free to reach out!
+  () => `May chance ka pang bawasan ang electric bill mo this year. FREE ocular lang po. Chat us on Facebook or call 0956-371-3390 to learn more. -SalinasSolar`,
 
-Please Call us at:
-09215565857
-6am-8pm, everyday
+  () => `Solar isn't about panels—it's about control sa kuryente. For more info, call 0956-371-3390. -SalinasSolar`,
 
-(automated sms, do not reply)`,
+  () => `What if mas mababa ang next electric bill mo kahit magdadag ng gamit at appliances? Message us sa FB. -SalinasSolar`,
 
-  // Template 2
-  (params) => `Hi ${params.firstName},
+  () => `FREE site visit = malaman mo kung sulit ba ang solar sa bahay mo. No pressure. Text us: 0956-371-3390. -SalinasSolar`,
 
-Still thinking about Solar Panels? We're here to help you start saving on your electricity bills!
+  () => `Mas mataas ang solar output sa init ng Bataan at Pampanga. Want proof? Message us on FB. -SalinasSolar`,
 
-Our team is ready to assist you with a free consultation.
+  () => `Hindi lahat ng bahay bagay sa solar. Kasya ba sa bubong? Need ba ng battery? For more info, call 0956-371-3390. -SalinasSolar`,
 
-Please Call us at:
-09215565857
-6am-8pm, everyday
+  () => `One visit, 30 mins, malinaw na sagot kung pwede ka sa solar. Chat us sa Facebook or call 0956-371-3390. -SalinasSolar`,
 
-(automated sms, do not reply)`,
+  () => `Solar = long-term savings. FREE assessment muna po tayo. Text 0956-371-3390. -SalinasSolar`,
 
-  // Template 3
-  (params) => `Hi ${params.firstName},
+  () => `May clients na kami all over Bataan. Same electric rates, same issue. Want to compare? Message us on FB. -SalinasSolar`,
 
-Don't miss out on massive electricity savings! Solar energy is the future, and we'd love to help you get started.
+  () => `Families in Bataan & Pampanga are saving up to 60% sa bill. How about you? Call 0956-371-3390. -SalinasSolar`,
 
-Book your free site visit today!
+  () => `Solar installs in Bataan are filling up this month. Reserve a FREE visit—chat us sa FB. -SalinasSolar`,
 
-Please Call us at:
-09215565857
-6am-8pm, everyday
+  () => `Baka yung kapitbahay mo naka-solar na. Curious ka? Text 0956-371-3390. -SalinasSolar`,
 
-(automated sms, do not reply)`,
+  () => `Professional solar team ang need nyo po—hindi fly-by-night. Message us on Facebook to book FREE ocular. -SalinasSolar`,
 
-  // Template 4
-  (params) => `Hi ${params.firstName},
+  () => `FREE ocular. Walang bayad. Walang obligasyon. Message us on FB. -SalinasSolar`,
 
-Your solar journey awaits! Imagine slashing your electricity bills significantly every month.
+  () => `Hindi ka required bumili after ocular. Promise. Call 0956-371-3390. -SalinasSolar`,
 
-Let us show you how - schedule a free ocular inspection now!
+  () => `If hindi ka qualified sa solar, we will tell you right away. Chat us sa Facebook. -SalinasSolar`,
 
-Please Call us at:
-09215565857
-6am-8pm, everyday
+  () => `We measure, explain, then leave—no pressure. Text 0956-371-3390. -SalinasSolar`,
 
-(automated sms, do not reply)`,
+  () => `Solar assessment lang muna. And it is FREE. Message us on FB. -SalinasSolar`,
+
+  () => `May available slot kami this week sa Bataan. Want to reserve a FREE slot? Text 0956-371-3390. -SalinasSolar`,
+
+  () => `Reply anytime on Facebook and we'll book your FREE visit. -SalinasSolar`,
+
+  () => `AM or PM visit ang mas okay sa'yo? Message us sa FB. -SalinasSolar`,
+
+  () => `Saturday visit available. If wala kang lakad, we can visit you po. Call 0956-371-3390. -SalinasSolar`,
+
+  () => `Sayang ang chance malaman ang savings mo. FREE lang—chat us on Facebook. -SalinasSolar`,
 ];
 
 /**
- * 4 rotating SMS templates for "Follow Up" stage
- * These are sent twice a week until the proposal is confirmed
+ * 25 rotating SMS templates for "Follow Up" stage (FOR OCULAR)
+ * For leads that already booked an ocular visit, visited, and received a proposal
+ * These are sent twice a week until confirmed
  */
 const FOLLOW_UP_STAGE_TEMPLATES: Array<(params: FollowUpStageParams) => string> = [
-  // Template 1 (Original)
-  (params) => `Hi ${params.firstName},
+  () => `Hi! Already reviewed the solar power system proposal but still have questions? Message us on FB or call our Area System Consultant at 0956-371-3390. -SalinasSolar`,
 
-What do you think of the proposal we sent over to you?
+  () => `That system already fits your power needs—designed based on your actual bill. To know the next stage for your solar project, call 0956-371-3390. -SalinasSolar`,
 
-You are one step closer to Massive Electricity Bill Savings!
+  () => `Every month na delayed = buwanang savings na sayang. Want to discuss? Chat us sa FB or call our Area System Consultants. -SalinasSolar`,
 
-Please Call our Consultant at:
-${params.consultantName}
-${params.consultantPhone}
+  () => `Your roof passed the solar power system assessment—at hindi lahat pumapasa. Let's maximize it po. Text 0956-371-3390. -SalinasSolar`,
 
-(automated sms, do not reply)`,
+  () => `Solar-ready na po ang bahay mo. Ikaw kailan ka magiging ready? :) Let's work things out. Message us on FB. -SalinasSolar`,
 
-  // Template 2
-  (params) => `Hi ${params.firstName},
+  () => `Solar ay hindi dagdag gastos—it replaces your electric bill. If you want further clarity? Please call our Area System Consultant at 0956-371-3390. -SalinasSolar`,
 
-We hope you had a chance to review our solar proposal. Have any questions? We're here to help!
+  () => `Instead of paying PENELCO/MERALCO/PELCO forever, you pay your own solar power system. Chat us po sa FB. -SalinasSolar`,
 
-Ready to take the next step towards energy savings?
+  () => `Interested in solar power system installment plans? Your monthly amortization will only be slightly higher than your bill. Let's review. Text 0956-371-3390. -SalinasSolar`,
 
-Please Call our Consultant at:
-${params.consultantName}
-${params.consultantPhone}
+  () => `Electric rates go up—solar stays fixed. Want to lock it in? Message us on FB. -SalinasSolar`,
 
-(automated sms, do not reply)`,
+  () => `Mas maaga ka po mag-start sa solar power system, mas malaki total savings. Call 0956-371-3390. -SalinasSolar`,
 
-  // Template 3
-  (params) => `Hi ${params.firstName},
+  () => `We handle permits, install, aftersales—all in one professional and legit solar power company. Message us on FB. -SalinasSolar`,
 
-Just checking in on our solar proposal! We'd love to discuss how we can customize the solution for your needs.
+  () => `Worried about aftersales? We have dedicated aftersales technicians to handle your system concerns. Hindi kami nawawala. Call 0956-371-3390. -SalinasSolar`,
 
-Your savings await!
+  () => `Most issues happen the first 7 days after iinstall ang solar—makakaasa ka ba sa installer mo? Chat us sa FB. -SalinasSolar`,
 
-Please Call our Consultant at:
-${params.consultantName}
-${params.consultantPhone}
+  () => `May FREE maintenance & support ka after install for 15 YEARS. Want details? Text 0956-371-3390. -SalinasSolar`,
 
-(automated sms, do not reply)`,
+  () => `Installation is just the start—service matters. Message us on Facebook. -SalinasSolar`,
 
-  // Template 4
-  (params) => `Hi ${params.firstName},
+  () => `Current proposal pricing is still valid. Next batch may increase by 8% due to trade factors. Lock-in your system now. Call 0956-371-3390. -SalinasSolar`,
 
-Solar savings are just one call away! Let us answer any questions about the proposal we sent.
+  () => `Install slots this month are almost full. Want to reserve? Chat us sa FB. -SalinasSolar`,
 
-Our team is ready to help you finalize your installation.
+  () => `Locking your schedule keeps your price. Text 0956-371-3390. -SalinasSolar`,
 
-Please Call our Consultant at:
-${params.consultantName}
-${params.consultantPhone}
+  () => `You can always upgrade your solar power system po later—but your savings should start now. Message us on FB. -SalinasSolar`,
 
-(automated sms, do not reply)`,
+  () => `Busy kaya hindi makapagset ng schedule of installation? We can align timing if needed. Call 0956-371-3390. -SalinasSolar`,
+
+  () => `What's holding you back from installing your solar power system—budget or timing? Let's help you. Message us on FB or call our dedicated Area System consultants. -SalinasSolar`,
+
+  () => `Want a smaller starter solar power system? We can always adjust po. Text 0956-371-3390. -SalinasSolar`,
+
+  () => `We can realign payment terms to fit you. Chat us sa FB or call 0956-371-3390. -SalinasSolar`,
+
+  () => `Sign the solar power system agreement, then pay after install. Easy as 1-2-3. Call 0956-371-3390. -SalinasSolar`,
+
+  () => `60 months to pay? We can convert your project cost into small installments for your convenience. Text 0956-371-3390. -SalinasSolar`,
 ];
 
 /**
@@ -1145,27 +1141,14 @@ export const getFollowUpStageOpportunities = internalQuery({
       )
       .collect();
 
-    // Get contact and consultant info for each opportunity
-    const opportunitiesWithDetails = await Promise.all(
+    // Get contact info for each opportunity
+    const opportunitiesWithContacts = await Promise.all(
       opportunities.map(async (opp) => {
         const contact = await ctx.db.get(opp.contactId);
-        let consultantName = "Salinas Solar";
-        let consultantPhone = "09215565857";
-
-        if (opp.assignedTo) {
-          const consultant = await ctx.db.get(opp.assignedTo);
-          if (consultant) {
-            consultantName = `${consultant.firstName} ${consultant.lastName}`;
-            consultantPhone = consultant.phone || "09215565857";
-          }
-        }
-
         return {
           opportunityId: opp._id,
           contactPhone: contact?.phone,
           contactFirstName: contact?.firstName,
-          consultantName,
-          consultantPhone,
           lastSmsIndex: opp.lastFollowUpSmsIndex ?? -1,
           lastSmsAt: opp.lastFollowUpSmsAt,
         };
@@ -1173,7 +1156,7 @@ export const getFollowUpStageOpportunities = internalQuery({
     );
 
     // Filter to only those with valid phone numbers
-    return opportunitiesWithDetails.filter(
+    return opportunitiesWithContacts.filter(
       (opp) => opp.contactPhone && opp.contactFirstName
     );
   },
@@ -1217,8 +1200,8 @@ export const sendDidNotBookCallFollowUps = internalAction({
 
     for (const opp of opportunities) {
       if (opp.contactPhone && opp.contactFirstName) {
-        // Rotate to next template
-        const nextIndex = (opp.lastSmsIndex + 1) % 4;
+        // Rotate to next template (25 templates)
+        const nextIndex = (opp.lastSmsIndex + 1) % 25;
 
         const message = generateDidNotBookCallSms(
           { firstName: opp.contactFirstName },
@@ -1273,15 +1256,11 @@ export const sendFollowUpStageFollowUps = internalAction({
 
     for (const opp of opportunities) {
       if (opp.contactPhone && opp.contactFirstName) {
-        // Rotate to next template
-        const nextIndex = (opp.lastSmsIndex + 1) % 4;
+        // Rotate to next template (25 templates)
+        const nextIndex = (opp.lastSmsIndex + 1) % 25;
 
         const message = generateFollowUpStageSms(
-          {
-            firstName: opp.contactFirstName,
-            consultantName: opp.consultantName,
-            consultantPhone: opp.consultantPhone,
-          },
+          { firstName: opp.contactFirstName },
           nextIndex
         );
 
@@ -1334,7 +1313,7 @@ export const sendScheduledFollowUpSms = internalAction({
     let didNotBookSent = 0;
     for (const opp of didNotBookOpps) {
       if (opp.contactPhone && opp.contactFirstName) {
-        const nextIndex = (opp.lastSmsIndex + 1) % 4;
+        const nextIndex = (opp.lastSmsIndex + 1) % 25;
         const message = generateDidNotBookCallSms({ firstName: opp.contactFirstName }, nextIndex);
         const result = await sendSms(opp.contactPhone, message);
 
@@ -1359,13 +1338,9 @@ export const sendScheduledFollowUpSms = internalAction({
     let followUpSent = 0;
     for (const opp of followUpOpps) {
       if (opp.contactPhone && opp.contactFirstName) {
-        const nextIndex = (opp.lastSmsIndex + 1) % 4;
+        const nextIndex = (opp.lastSmsIndex + 1) % 25;
         const message = generateFollowUpStageSms(
-          {
-            firstName: opp.contactFirstName,
-            consultantName: opp.consultantName,
-            consultantPhone: opp.consultantPhone,
-          },
+          { firstName: opp.contactFirstName },
           nextIndex
         );
         const result = await sendSms(opp.contactPhone, message);
