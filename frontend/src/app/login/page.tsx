@@ -53,6 +53,8 @@ export default function LoginPage() {
   // Verification state
   const [verificationSent, setVerificationSent] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loginMutation = useMutation(api.auth.login);
   const selectDualAccountUser = useMutation(api.auth.selectDualAccountUser);
@@ -64,6 +66,7 @@ export default function LoginPage() {
   const skipPasswordChangeMutation = useMutation(api.auth.skipPasswordChange);
   const requestVerificationMutation = useMutation(api.auth.requestEmailVerification);
   const sendVerificationEmailAction = useAction(api.email.sendVerificationEmail);
+  const verifyEmailCodeMutation = useMutation(api.auth.verifyEmailCode);
 
   // Update linked users when query returns
   useEffect(() => {
@@ -208,15 +211,14 @@ export default function LoginPage() {
     try {
       const result = await requestVerificationMutation({ sessionToken });
 
-      if (result.success && result.token && result.email) {
-        // Send the verification email
-        const baseUrl = window.location.origin;
+      if (result.success && result.code && result.email) {
+        // Send the verification email with code
         await sendVerificationEmailAction({
           to: result.email,
-          verificationToken: result.token,
-          baseUrl,
+          verificationCode: result.code,
         });
         setVerificationSent(true);
+        setVerificationCode(""); // Clear any previous code input
       } else {
         setError(result.error || "Failed to send verification email");
       }
@@ -227,9 +229,28 @@ export default function LoginPage() {
     }
   };
 
-  const handleSkipVerification = () => {
-    // Allow user to proceed without verification (they'll be reminded again later)
-    router.replace("/dashboard");
+  const handleVerifyCode = async () => {
+    if (!sessionToken || !verificationCode) return;
+    setIsVerifying(true);
+    setError("");
+
+    try {
+      const result = await verifyEmailCodeMutation({
+        sessionToken,
+        code: verificationCode,
+      });
+
+      if (result.success) {
+        // Verification successful, proceed to dashboard
+        router.replace("/dashboard");
+      } else {
+        setError(result.error || "Invalid verification code");
+      }
+    } catch {
+      setError("An error occurred. Please try again.");
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const formatRole = (role: string) => {
@@ -391,30 +412,46 @@ export default function LoginPage() {
             )}
 
             {verificationSent ? (
-              <div className="text-center space-y-4">
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm">
-                  Verification email sent to <strong>{verificationEmail}</strong>
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm text-center">
+                  Verification code sent to <strong>{verificationEmail}</strong>
                 </div>
-                <p className="text-sm text-gray-600">
-                  Please check your email and click the verification link. The link expires in 24 hours.
+                <p className="text-sm text-gray-600 text-center">
+                  Enter the 6-digit code from your email. The code expires in 10 minutes.
                 </p>
-                <div className="flex gap-3">
-                  <Button
+                <div className="space-y-2">
+                  <label htmlFor="verificationCode" className="text-sm font-medium">
+                    Verification Code
+                  </label>
+                  <Input
+                    id="verificationCode"
+                    type="text"
+                    placeholder="Enter 6-digit code"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    maxLength={6}
+                    className="text-center text-2xl tracking-widest font-mono"
+                    autoComplete="one-time-code"
+                    disabled={isVerifying}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  className="w-full bg-[#ff5603] hover:bg-[#e04d03]"
+                  onClick={handleVerifyCode}
+                  disabled={isVerifying || verificationCode.length !== 6}
+                >
+                  {isVerifying ? "Verifying..." : "Verify Code"}
+                </Button>
+                <div className="text-center">
+                  <button
                     type="button"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={handleSkipVerification}
-                  >
-                    Continue Later
-                  </Button>
-                  <Button
-                    type="button"
-                    className="flex-1 bg-[#ff5603] hover:bg-[#e04d03]"
+                    className="text-sm text-[#ff5603] hover:underline disabled:opacity-50"
                     onClick={handleSendVerification}
                     disabled={isLoading}
                   >
-                    Resend Email
-                  </Button>
+                    {isLoading ? "Sending..." : "Resend Code"}
+                  </button>
                 </div>
               </div>
             ) : (
@@ -422,24 +459,17 @@ export default function LoginPage() {
                 <p className="text-sm text-gray-600 text-center">
                   We need to verify your email address ({verificationEmail}) every 30 days for security purposes.
                 </p>
-                <div className="flex gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={handleSkipVerification}
-                  >
-                    Skip for Now
-                  </Button>
-                  <Button
-                    type="button"
-                    className="flex-1 bg-[#ff5603] hover:bg-[#e04d03]"
-                    onClick={handleSendVerification}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Sending..." : "Send Verification"}
-                  </Button>
-                </div>
+                <p className="text-sm text-gray-600 text-center">
+                  A 6-digit verification code will be sent to your email.
+                </p>
+                <Button
+                  type="button"
+                  className="w-full bg-[#ff5603] hover:bg-[#e04d03]"
+                  onClick={handleSendVerification}
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Sending..." : "Send Verification Code"}
+                </Button>
               </div>
             )}
           </CardContent>

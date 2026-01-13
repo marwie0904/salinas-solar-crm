@@ -131,8 +131,10 @@ export default defineSchema({
     lastLoginAt: v.optional(v.number()),
     // Email verification (every 30 days)
     emailVerifiedAt: v.optional(v.number()),
-    emailVerificationToken: v.optional(v.string()),
-    emailVerificationExpiresAt: v.optional(v.number()),
+    emailVerificationToken: v.optional(v.string()), // Legacy: link-based verification
+    emailVerificationExpiresAt: v.optional(v.number()), // Legacy: link-based verification
+    emailVerificationCode: v.optional(v.string()), // 6-digit code verification
+    emailVerificationCodeExpiresAt: v.optional(v.number()), // Code expiry (10 minutes)
     // Password change tracking
     hasChangedPassword: v.optional(v.boolean()),
     // Dual account support (e.g., sales@ with Kim and Betina)

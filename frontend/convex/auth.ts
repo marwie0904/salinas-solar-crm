@@ -807,9 +807,14 @@ export const skipPasswordChange = mutation({
 // ============================================
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-const VERIFICATION_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+const VERIFICATION_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
-// Generate verification token
+// Generate 6-digit verification code
+function generateVerificationCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Generate verification token (for backward compatibility with link-based verification)
 function generateVerificationToken(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let token = "";
@@ -856,7 +861,7 @@ export const checkVerificationNeeded = query({
   },
 });
 
-// Request email verification (sends email)
+// Request email verification (sends email with 6-digit code)
 export const requestEmailVerification = mutation({
   args: {
     sessionToken: v.string(),
@@ -877,23 +882,23 @@ export const requestEmailVerification = mutation({
     }
 
     const now = Date.now();
-    const token = generateVerificationToken();
+    const code = generateVerificationCode();
 
     await ctx.db.patch(authUser._id, {
-      emailVerificationToken: token,
-      emailVerificationExpiresAt: now + VERIFICATION_TOKEN_EXPIRY_MS,
+      emailVerificationCode: code,
+      emailVerificationCodeExpiresAt: now + VERIFICATION_CODE_EXPIRY_MS,
       updatedAt: now,
     });
 
     return {
       success: true,
-      token, // Return token so action can send email
+      code, // Return code so action can send email
       email: authUser.email,
     };
   },
 });
 
-// Verify email with token
+// Verify email with token (legacy - for link-based verification)
 export const verifyEmail = mutation({
   args: {
     token: v.string(),
@@ -917,6 +922,50 @@ export const verifyEmail = mutation({
       emailVerifiedAt: now,
       emailVerificationToken: undefined,
       emailVerificationExpiresAt: undefined,
+      updatedAt: now,
+    });
+
+    return { success: true, email: authUser.email };
+  },
+});
+
+// Verify email with 6-digit code
+export const verifyEmailCode = mutation({
+  args: {
+    sessionToken: v.string(),
+    code: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("sessionToken", args.sessionToken))
+      .first();
+
+    if (!session) {
+      return { success: false, error: "Invalid session" };
+    }
+
+    const authUser = await ctx.db.get(session.authUserId);
+    if (!authUser) {
+      return { success: false, error: "User not found" };
+    }
+
+    // Check if code matches
+    if (!authUser.emailVerificationCode || authUser.emailVerificationCode !== args.code) {
+      return { success: false, error: "Invalid verification code" };
+    }
+
+    // Check if code has expired
+    const now = Date.now();
+    if (authUser.emailVerificationCodeExpiresAt && authUser.emailVerificationCodeExpiresAt < now) {
+      return { success: false, error: "Verification code has expired. Please request a new one." };
+    }
+
+    // Mark email as verified
+    await ctx.db.patch(authUser._id, {
+      emailVerifiedAt: now,
+      emailVerificationCode: undefined,
+      emailVerificationCodeExpiresAt: undefined,
       updatedAt: now,
     });
 

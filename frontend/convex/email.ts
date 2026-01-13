@@ -262,7 +262,7 @@ function generateReceiptEmailHtml(
 // ============================================
 
 function generateVerificationEmailHtml(
-  verificationUrl: string
+  verificationCode: string
 ): string {
   return `
 <!DOCTYPE html>
@@ -280,14 +280,17 @@ function generateVerificationEmailHtml(
   <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 12px 12px;">
     <p style="font-size: 16px; margin-bottom: 20px;">Hi there,</p>
 
-    <p style="font-size: 16px; margin-bottom: 24px;">Please verify your email address to continue using the Salinas Solar CRM. This verification is required every 30 days for security purposes.</p>
+    <p style="font-size: 16px; margin-bottom: 24px;">Please use the verification code below to verify your email address. This verification is required every 30 days for security purposes.</p>
 
     <div style="text-align: center; margin: 32px 0;">
-      <a href="${verificationUrl}" style="display: inline-block; background: #ff5603; color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">Verify Email</a>
+      <div style="background: #f5f5f5; border: 2px dashed #ff5603; border-radius: 12px; padding: 24px; display: inline-block;">
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #666;">Your verification code:</p>
+        <p style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #ff5603;">${verificationCode}</p>
+      </div>
     </div>
 
-    <p style="font-size: 14px; color: #666; margin-bottom: 16px;">
-      This verification link will expire in 24 hours. If you did not request this verification, you can safely ignore this email.
+    <p style="font-size: 14px; color: #666; margin-bottom: 16px; text-align: center;">
+      This code will expire in <strong>10 minutes</strong>. If you did not request this verification, you can safely ignore this email.
     </p>
 
     <p style="font-size: 14px; color: #666; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
@@ -309,13 +312,12 @@ function generateVerificationEmailHtml(
 // ============================================
 
 /**
- * Send email verification email
+ * Send email verification email with 6-digit code
  */
 export const sendVerificationEmail = action({
   args: {
     to: v.string(),
-    verificationToken: v.string(),
-    baseUrl: v.string(),
+    verificationCode: v.string(),
   },
   handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
     const apiKey = process.env.RESEND_API_KEY;
@@ -329,8 +331,7 @@ export const sendVerificationEmail = action({
       return { success: false, error: "No email address provided" };
     }
 
-    const verificationUrl = `${args.baseUrl}/verify-email?token=${args.verificationToken}`;
-    const html = generateVerificationEmailHtml(verificationUrl);
+    const html = generateVerificationEmailHtml(args.verificationCode);
 
     // TEST MODE: Forward to test email
     const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
