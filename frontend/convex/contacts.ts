@@ -313,6 +313,33 @@ export const getRecent = query({
 });
 
 /**
+ * Get contacts created this month (for dashboard)
+ */
+export const getThisMonth = query({
+  args: {},
+  handler: async (ctx) => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    const contacts = await ctx.db
+      .query("contacts")
+      .withIndex("by_deleted_created", (q) => q.eq("isDeleted", false))
+      .order("desc")
+      .collect();
+
+    // Filter contacts created this month
+    const thisMonthContacts = contacts.filter(
+      (contact) => contact.createdAt >= startOfMonth
+    );
+
+    return thisMonthContacts.map((contact) => ({
+      ...contact,
+      fullName: getFullName(contact.firstName, contact.lastName),
+    }));
+  },
+});
+
+/**
  * Get contacts with unread messages
  */
 export const getWithUnreadMessages = query({
