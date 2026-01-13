@@ -210,7 +210,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 gap-3 md:gap-6">
+      <div className="grid grid-cols-2 gap-3 md:gap-6" data-tour="dashboard-stats">
         {/* New Leads This Week */}
         <div className="bg-white rounded-lg border p-4 md:p-6">
           <div className="flex items-center justify-between">
@@ -317,7 +317,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent Notifications */}
-        <div className="bg-white rounded-lg border">
+        <div className="bg-white rounded-lg border" data-tour="notifications">
           <div className="p-4 border-b">
             <div className="flex items-center gap-2">
               <Bell className="h-5 w-5 text-[#ff5603]" />

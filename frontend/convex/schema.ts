@@ -173,6 +173,9 @@ export default defineSchema({
     role: v.optional(userRole),
     avatarUrl: v.optional(v.string()),
     isActive: v.boolean(),
+    // Onboarding tracking
+    hasCompletedOnboarding: v.optional(v.boolean()),
+    onboardingCompletedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

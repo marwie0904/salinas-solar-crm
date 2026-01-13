@@ -258,3 +258,45 @@ export const activate = mutation({
     return args.id;
   },
 });
+
+/**
+ * Complete onboarding for a user
+ */
+export const completeOnboarding = mutation({
+  args: { id: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.id);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(args.id, {
+      hasCompletedOnboarding: true,
+      onboardingCompletedAt: now(),
+      updatedAt: now(),
+    });
+
+    return args.id;
+  },
+});
+
+/**
+ * Reset onboarding for a user (allows re-watching tour)
+ */
+export const resetOnboarding = mutation({
+  args: { id: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.id);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(args.id, {
+      hasCompletedOnboarding: false,
+      onboardingCompletedAt: undefined,
+      updatedAt: now(),
+    });
+
+    return args.id;
+  },
+});

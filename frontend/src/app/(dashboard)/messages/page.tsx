@@ -286,7 +286,7 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-64px-32px)] md:h-[calc(100vh-64px-48px)] flex overflow-hidden -mx-4 md:mx-0">
+    <div className="h-[calc(100vh-64px-32px)] md:h-[calc(100vh-64px-48px)] flex overflow-hidden -mx-4 md:mx-0" data-tour="messages-list">
       {/* Left Sidebar - Contact List */}
       <div className={cn(
         "w-full md:w-80 border-r bg-white flex flex-col h-full",

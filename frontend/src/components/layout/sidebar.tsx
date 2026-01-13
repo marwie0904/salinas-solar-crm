@@ -25,7 +25,10 @@ import {
   User,
   LogOut,
   X,
+  HelpCircle,
 } from "lucide-react";
+import { useOnboardingContext } from "@/components/onboarding/onboarding-tour";
+import { OnboardingFaqSheet } from "@/components/onboarding/onboarding-faq-sheet";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -35,19 +38,20 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/tasks", label: "Task List", icon: CheckSquare },
-  { href: "/pipeline", label: "Pipeline", icon: GitBranch },
-  { href: "/contacts", label: "Contacts", icon: Users },
-  { href: "/messages", label: "Messages", icon: MessageSquare },
-  { href: "/appointments", label: "Appointments", icon: Calendar },
-  { href: "/invoices", label: "Invoices", icon: FileText },
-  { href: "/agreements", label: "Generate Agreement", icon: FileSignature },
-  { href: "/users", label: "Company Users", icon: UsersRound },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tourId: "nav-dashboard" },
+  { href: "/tasks", label: "Task List", icon: CheckSquare, tourId: "nav-tasks" },
+  { href: "/pipeline", label: "Pipeline", icon: GitBranch, tourId: "nav-pipeline" },
+  { href: "/contacts", label: "Contacts", icon: Users, tourId: "nav-contacts" },
+  { href: "/messages", label: "Messages", icon: MessageSquare, tourId: "nav-messages" },
+  { href: "/appointments", label: "Appointments", icon: Calendar, tourId: "nav-appointments" },
+  { href: "/invoices", label: "Invoices", icon: FileText, tourId: "nav-invoices" },
+  { href: "/agreements", label: "Generate Agreement", icon: FileSignature, tourId: "nav-agreements" },
+  { href: "/users", label: "Company Users", icon: UsersRound, tourId: "nav-users" },
 ];
 
 export function Sidebar({ collapsed, mobileOpen, onMobileClose, isMobile }: SidebarProps) {
   const pathname = usePathname();
+  const { isFaqOpen, openFaq, closeFaq } = useOnboardingContext();
 
   // On mobile, always show expanded sidebar in drawer
   const isCollapsed = isMobile ? false : collapsed;
@@ -103,6 +107,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, isMobile }: Side
               <Link
                 href={item.href}
                 onClick={handleLinkClick}
+                data-tour={item.tourId}
                 className={cn(
                   "flex items-center gap-3 px-3 py-3 md:py-2.5 rounded-lg transition-colors touch-target tap-transparent",
                   isActive
@@ -134,10 +139,22 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, isMobile }: Side
 
         <Separator />
 
-        {/* Bottom Section - User & Logout */}
+        {/* Bottom Section - Help, User & Logout */}
         <div className="p-3 space-y-1 safe-area-inset-bottom">
           {isCollapsed && !isMobile ? (
             <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    onClick={openFaq}
+                    className="w-full justify-center px-3 py-2.5 h-auto text-[#ff5603] hover:text-[#ff5603] hover:bg-orange-50 touch-target"
+                  >
+                    <HelpCircle className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Help & FAQ</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -165,6 +182,14 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, isMobile }: Side
             <>
               <Button
                 variant="ghost"
+                onClick={openFaq}
+                className="w-full justify-start gap-3 px-3 py-3 md:py-2.5 h-auto text-[#ff5603] hover:text-[#ff5603] hover:bg-orange-50 touch-target"
+              >
+                <HelpCircle className="h-5 w-5" />
+                <span className="text-sm font-medium">Help & FAQ</span>
+              </Button>
+              <Button
+                variant="ghost"
                 className="w-full justify-start gap-3 px-3 py-3 md:py-2.5 h-auto text-muted-foreground hover:text-foreground touch-target"
               >
                 <User className="h-5 w-5" />
@@ -180,6 +205,9 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, isMobile }: Side
             </>
           )}
         </div>
+
+        {/* FAQ Sheet */}
+        <OnboardingFaqSheet open={isFaqOpen} onOpenChange={closeFaq} />
       </aside>
     </TooltipProvider>
   );

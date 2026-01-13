@@ -89,7 +89,7 @@ function AgreementsContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-tour="agreements-form">
       <div className="flex items-center gap-3">
         <div className="p-2 bg-muted rounded-lg">
           <FileSignature className="h-6 w-6 text-muted-foreground" />

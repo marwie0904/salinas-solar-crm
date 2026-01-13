@@ -244,7 +244,7 @@ export default function AppointmentsPage() {
   });
 
   return (
-    <div className="space-y-4 md:space-y-6 -mx-4 px-4 md:mx-0 md:px-0">
+    <div className="space-y-4 md:space-y-6 -mx-4 px-4 md:mx-0 md:px-0" data-tour="appointments-list">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>

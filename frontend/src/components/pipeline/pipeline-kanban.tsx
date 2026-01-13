@@ -360,6 +360,7 @@ export function PipelineKanban({
           return (
             <div
               key={stageConfig.stage}
+              data-tour={`stage-${stageConfig.stage}`}
               className="flex-shrink-0 w-[260px] md:w-[280px] flex flex-col kanban-column"
             >
               <div className="mb-3">
@@ -423,6 +424,7 @@ export function PipelineKanban({
           return (
             <div
               key={stageConfig.stage}
+              data-tour={`stage-${stageConfig.stage}`}
               className="flex-shrink-0 w-[260px] md:w-[280px] flex flex-col kanban-column"
             >
               <div className="mb-3">
