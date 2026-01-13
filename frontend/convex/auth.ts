@@ -929,6 +929,75 @@ export const verifyEmail = mutation({
   },
 });
 
+// ============================================
+// USER CREATION WITH AUTH
+// ============================================
+
+// Create a new user with auth credentials
+export const createUserWithAuth = mutation({
+  args: {
+    firstName: v.string(),
+    lastName: v.string(),
+    email: v.string(),
+    phone: v.optional(v.string()),
+    role: v.optional(v.string()),
+    temporaryPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const email = args.email.toLowerCase().trim();
+
+    // Check if email already exists in authUsers
+    const existingAuthUser = await ctx.db
+      .query("authUsers")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (existingAuthUser) {
+      return { success: false, error: "An account with this email already exists" };
+    }
+
+    // Check if email already exists in users
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+
+    if (existingUser) {
+      return { success: false, error: "A user profile with this email already exists" };
+    }
+
+    // Create auth user
+    const authUserId = await ctx.db.insert("authUsers", {
+      email,
+      passwordHash: simpleHash(args.temporaryPassword),
+      isActive: true,
+      hasChangedPassword: false, // Force password change on first login
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Create CRM user
+    const userId = await ctx.db.insert("users", {
+      firstName: args.firstName.trim(),
+      lastName: args.lastName.trim(),
+      email,
+      phone: args.phone?.trim(),
+      role: args.role as "admin" | "sales" | "head_sales" | "technician" | "project_manager" | "developer" | "system_consultant" | "system_associate" | "finance_manager" | undefined,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return {
+      success: true,
+      authUserId,
+      userId,
+      message: `User ${args.firstName} ${args.lastName} created successfully`,
+    };
+  },
+});
+
 // Verify email with 6-digit code
 export const verifyEmailCode = mutation({
   args: {

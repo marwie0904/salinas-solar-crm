@@ -69,10 +69,13 @@ export type PaymentType =
 export type UserRole =
   | "admin"
   | "sales"
+  | "head_sales"
   | "technician"
   | "project_manager"
   | "developer"
-  | "system_consultant";
+  | "system_consultant"
+  | "system_associate"
+  | "finance_manager";
 
 // ============================================
 // LABEL MAPS
@@ -179,10 +182,25 @@ export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin",
   sales: "Sales",
+  head_sales: "Head Sales",
   technician: "Technician",
   project_manager: "Project Manager",
   developer: "Developer",
   system_consultant: "System Consultant",
+  system_associate: "System Associate",
+  finance_manager: "Finance Manager",
+};
+
+export const USER_ROLE_COLORS: Record<UserRole, string> = {
+  admin: "bg-purple-500",
+  sales: "bg-blue-500",
+  head_sales: "bg-indigo-500",
+  technician: "bg-green-500",
+  project_manager: "bg-orange-500",
+  developer: "bg-cyan-500",
+  system_consultant: "bg-amber-500",
+  system_associate: "bg-teal-500",
+  finance_manager: "bg-pink-500",
 };
 
 // ============================================

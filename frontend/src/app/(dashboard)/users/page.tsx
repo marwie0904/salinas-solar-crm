@@ -34,26 +34,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-type UserRole = "admin" | "sales" | "technician" | "project_manager" | "developer" | "system_consultant";
-
-const roleLabels: Record<UserRole, string> = {
-  admin: "Admin",
-  sales: "Sales",
-  technician: "Technician",
-  project_manager: "Project Manager",
-  developer: "Developer",
-  system_consultant: "System Consultant",
-};
-
-const roleColors: Record<UserRole, string> = {
-  admin: "bg-purple-500",
-  sales: "bg-blue-500",
-  technician: "bg-green-500",
-  project_manager: "bg-orange-500",
-  developer: "bg-cyan-500",
-  system_consultant: "bg-amber-500",
-};
+import { UserCreateModal } from "@/components/users";
+import { UserRole, USER_ROLE_LABELS, USER_ROLE_COLORS } from "@/lib/types";
 
 function getInitials(firstName: string, lastName: string): string {
   return `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase();
@@ -69,6 +51,7 @@ function formatDate(timestamp: number): string {
 
 export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [userToToggle, setUserToToggle] = useState<{
     id: Id<"users">;
     name: string;
@@ -86,7 +69,7 @@ export default function UsersPage() {
       fullName.includes(query) ||
       user.email.toLowerCase().includes(query) ||
       (user.phone && user.phone.includes(searchQuery)) ||
-      (user.role && roleLabels[user.role as UserRole]?.toLowerCase().includes(query))
+      (user.role && USER_ROLE_LABELS[user.role as UserRole]?.toLowerCase().includes(query))
     );
   });
 
@@ -117,7 +100,10 @@ export default function UsersPage() {
             Manage your team members and their roles.
           </p>
         </div>
-        <Button className="bg-[#ff5603] hover:bg-[#ff5603]/90 h-10 touch-target w-full sm:w-auto">
+        <Button
+          className="bg-[#ff5603] hover:bg-[#ff5603]/90 h-10 touch-target w-full sm:w-auto"
+          onClick={() => setIsCreateModalOpen(true)}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add User
         </Button>
@@ -170,8 +156,8 @@ export default function UsersPage() {
                   </TableCell>
                   <TableCell>
                     {user.role ? (
-                      <Badge className={`${roleColors[user.role as UserRole]} text-white`}>
-                        {roleLabels[user.role as UserRole]}
+                      <Badge className={`${USER_ROLE_COLORS[user.role as UserRole]} text-white`}>
+                        {USER_ROLE_LABELS[user.role as UserRole]}
                       </Badge>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -278,6 +264,12 @@ export default function UsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create User Modal */}
+      <UserCreateModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+      />
     </div>
   );
 }
