@@ -27,7 +27,7 @@ import {
 import { useDroppable } from "@dnd-kit/core";
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calendar, User, DollarSign, HelpCircle } from "lucide-react";
+import { Calendar, User, DollarSign, HelpCircle, Lock } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -38,6 +38,7 @@ interface PipelineKanbanProps {
   opportunities: PipelineOpportunity[];
   onOpportunityClick: (opportunity: PipelineOpportunity) => void;
   onStageChange: (opportunityId: string, newStage: PipelineStage) => void;
+  userRole?: string;
 }
 
 const stages: { stage: PipelineStage; color: string }[] = [
@@ -210,7 +211,9 @@ export function PipelineKanban({
   opportunities,
   onOpportunityClick,
   onStageChange,
+  userRole,
 }: PipelineKanbanProps) {
+  const canAccessClosedStage = userRole === "project_manager";
   const [isMounted, setIsMounted] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -282,10 +285,20 @@ export function PipelineKanban({
     if (over) {
       const isStage = stages.some((s) => s.stage === over.id);
       if (isStage) {
+        // Don't show drop indicator on closed stage for non-project managers
+        if (over.id === "closed" && !canAccessClosedStage) {
+          setOverId(null);
+          return;
+        }
         setOverId(over.id as string);
       } else {
         const overOpportunity = localOpportunities.find((opp) => opp._id === over.id);
         if (overOpportunity) {
+          // Don't show drop indicator on closed stage for non-project managers
+          if (overOpportunity.stage === "closed" && !canAccessClosedStage) {
+            setOverId(null);
+            return;
+          }
           setOverId(overOpportunity.stage);
         }
       }
@@ -315,6 +328,13 @@ export function PipelineKanban({
         }
 
         // Only update if stage actually changed
+        // Prevent non-project managers from moving to "closed" stage
+        if (newStage === "closed" && !canAccessClosedStage) {
+          setActiveId(null);
+          setOverId(null);
+          return;
+        }
+
         if (newStage && activeOpp.stage !== newStage) {
           // Optimistic update: immediately update local state
           setLocalOpportunities((current) =>
@@ -356,34 +376,63 @@ export function PipelineKanban({
         {stages.map((stageConfig) => {
           const stageOpportunities = getOpportunitiesByStage(stageConfig.stage);
           const stageTotal = getStageTotal(stageConfig.stage);
+          const isClosedStageRestricted = stageConfig.stage === "closed" && !canAccessClosedStage;
 
           return (
             <div
               key={stageConfig.stage}
               data-tour={`stage-${stageConfig.stage}`}
-              className="flex-shrink-0 w-[260px] md:w-[280px] flex flex-col kanban-column"
+              className={cn(
+                "flex-shrink-0 w-[260px] md:w-[280px] flex flex-col kanban-column",
+                isClosedStageRestricted && "opacity-50"
+              )}
             >
               <div className="mb-3">
                 <div className="flex items-center gap-2 mb-1">
                   <div
-                    className={cn("w-3 h-3 rounded-full", stageConfig.color)}
+                    className={cn(
+                      "w-3 h-3 rounded-full",
+                      isClosedStageRestricted ? "bg-gray-400" : stageConfig.color
+                    )}
                   />
-                  <h3 className="font-semibold text-sm">{PIPELINE_STAGE_LABELS[stageConfig.stage]}</h3>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-[250px]">
-                      <p>{PIPELINE_STAGE_DESCRIPTIONS[stageConfig.stage]}</p>
-                    </TooltipContent>
-                  </Tooltip>
+                  <h3 className={cn(
+                    "font-semibold text-sm",
+                    isClosedStageRestricted && "text-muted-foreground"
+                  )}>
+                    {PIPELINE_STAGE_LABELS[stageConfig.stage]}
+                  </h3>
+                  {isClosedStageRestricted ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[250px]">
+                        <p>Project Manager Restricted Stage</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[250px]">
+                        <p>{PIPELINE_STAGE_DESCRIPTIONS[stageConfig.stage]}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                   <Badge variant="secondary" className="ml-auto text-xs">
                     {stageOpportunities.length}
                   </Badge>
                 </div>
-                <p className="text-xs text-muted-foreground pl-5">
-                  {formatCurrency(stageTotal)}
-                </p>
+                {isClosedStageRestricted ? (
+                  <p className="text-xs text-muted-foreground pl-5 italic">
+                    Project Manager Restricted Stage
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground pl-5">
+                    {formatCurrency(stageTotal)}
+                  </p>
+                )}
               </div>
               <div className="flex-1 space-y-3 p-2 bg-muted/30 rounded-lg overflow-y-auto">
                 {stageOpportunities.map((opportunity) => (
@@ -420,34 +469,63 @@ export function PipelineKanban({
           const stageOpportunities = getOpportunitiesByStage(stageConfig.stage);
           const stageTotal = getStageTotal(stageConfig.stage);
           const isOver = overId === stageConfig.stage;
+          const isClosedStageRestricted = stageConfig.stage === "closed" && !canAccessClosedStage;
 
           return (
             <div
               key={stageConfig.stage}
               data-tour={`stage-${stageConfig.stage}`}
-              className="flex-shrink-0 w-[260px] md:w-[280px] flex flex-col kanban-column"
+              className={cn(
+                "flex-shrink-0 w-[260px] md:w-[280px] flex flex-col kanban-column",
+                isClosedStageRestricted && "opacity-50"
+              )}
             >
               <div className="mb-3">
                 <div className="flex items-center gap-2 mb-1">
                   <div
-                    className={cn("w-3 h-3 rounded-full", stageConfig.color)}
+                    className={cn(
+                      "w-3 h-3 rounded-full",
+                      isClosedStageRestricted ? "bg-gray-400" : stageConfig.color
+                    )}
                   />
-                  <h3 className="font-semibold text-sm">{PIPELINE_STAGE_LABELS[stageConfig.stage]}</h3>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-[250px]">
-                      <p>{PIPELINE_STAGE_DESCRIPTIONS[stageConfig.stage]}</p>
-                    </TooltipContent>
-                  </Tooltip>
+                  <h3 className={cn(
+                    "font-semibold text-sm",
+                    isClosedStageRestricted && "text-muted-foreground"
+                  )}>
+                    {PIPELINE_STAGE_LABELS[stageConfig.stage]}
+                  </h3>
+                  {isClosedStageRestricted ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[250px]">
+                        <p>Project Manager Restricted Stage</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[250px]">
+                        <p>{PIPELINE_STAGE_DESCRIPTIONS[stageConfig.stage]}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                   <Badge variant="secondary" className="ml-auto text-xs">
                     {stageOpportunities.length}
                   </Badge>
                 </div>
-                <p className="text-xs text-muted-foreground pl-5">
-                  {formatCurrency(stageTotal)}
-                </p>
+                {isClosedStageRestricted ? (
+                  <p className="text-xs text-muted-foreground pl-5 italic">
+                    Project Manager Restricted Stage
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground pl-5">
+                    {formatCurrency(stageTotal)}
+                  </p>
+                )}
               </div>
 
               <SortableContext

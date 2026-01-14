@@ -10,6 +10,7 @@ import { PipelineKanban } from "@/components/pipeline/pipeline-kanban";
 import { OpportunityDetailModal } from "@/components/pipeline/opportunity-detail-modal";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
+import { useAuth } from "@/components/providers/auth-provider";
 
 // Type for pipeline opportunity from Convex query
 export type PipelineOpportunity = {
@@ -61,6 +62,7 @@ function PipelineContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
 
   // Fetch opportunities from Convex
   const opportunities = useQuery(api.opportunities.listForPipeline, {});
@@ -90,6 +92,7 @@ function PipelineContent() {
       await updateStage({
         id: opportunityId as Id<"opportunities">,
         stage: newStage,
+        updatedBy: user?.id as Id<"users"> | undefined,
       });
     } catch (error) {
       console.error("Failed to update stage:", error);
@@ -155,6 +158,7 @@ function PipelineContent() {
         opportunities={opportunities as PipelineOpportunity[]}
         onOpportunityClick={handleOpportunityClick}
         onStageChange={handleStageChange}
+        userRole={user?.role}
       />
 
       {/* Opportunity Detail Modal */}
