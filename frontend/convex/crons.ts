@@ -9,6 +9,45 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
+// ============================================
+// MESSAGE QUEUE PROCESSING
+// Process queued emails and SMS with rate limiting
+// ============================================
+
+/**
+ * Process email queue every minute
+ * Rate limited to 10 emails per minute
+ */
+crons.interval(
+  "process-email-queue",
+  { seconds: 60 },
+  internal.messageQueue.processEmailQueue
+);
+
+/**
+ * Process SMS queue every minute
+ * Rate limited to 60 SMS per minute (conservative, API allows 120)
+ */
+crons.interval(
+  "process-sms-queue",
+  { seconds: 60 },
+  internal.messageQueue.processSmsQueue
+);
+
+/**
+ * Clean up old queue items weekly
+ * Removes completed/failed items older than 7 days
+ */
+crons.weekly(
+  "cleanup-message-queue",
+  { dayOfWeek: "sunday", hourUTC: 2, minuteUTC: 0 },
+  internal.messageQueue.weeklyCleanup
+);
+
+// ============================================
+// APPOINTMENT & NOTIFICATION CRONS
+// ============================================
+
 /**
  * Send daily appointment reminders at 7:00 AM Philippine Time (PHT)
  *

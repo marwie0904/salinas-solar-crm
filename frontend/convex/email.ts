@@ -6,7 +6,8 @@
  */
 
 import { v } from "convex/values";
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 const RESEND_API_URL = "https://api.resend.com/emails";
 
@@ -313,75 +314,21 @@ function generateVerificationEmailHtml(
 
 /**
  * Send email verification email with 6-digit code
+ * Note: Verification emails are sent directly (not queued) for immediate delivery
  */
 export const sendVerificationEmail = action({
   args: {
     to: v.string(),
     verificationCode: v.string(),
   },
-  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
-    const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = "Salinas Solar <info@otomatelegal.com>";
-
-    if (!apiKey) {
-      return { success: false, error: "RESEND_API_KEY not configured" };
-    }
-
-    if (!args.to) {
-      return { success: false, error: "No email address provided" };
-    }
-
-    const html = generateVerificationEmailHtml(args.verificationCode);
-
-    // TEST MODE: Forward to test email
-    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
-    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Verify Your Email - Salinas Solar CRM` : "Verify Your Email - Salinas Solar CRM";
-
-    const body = {
-      from: fromEmail,
-      to: [actualTo],
-      subject: actualSubject,
-      html,
-    };
-
-    try {
-      const response = await fetch(RESEND_API_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("[Resend API] Send failed:", data);
-        return {
-          success: false,
-          error: data.message || "Failed to send email",
-        };
-      }
-
-      console.log("[Resend API] Verification email sent successfully:", data.id);
-
-      return {
-        success: true,
-        emailId: data.id,
-      };
-    } catch (error) {
-      console.error("[Resend API] Network error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Network error",
-      };
-    }
+  handler: async (ctx, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    // Verification emails are time-sensitive, send directly
+    return await ctx.runAction(internal.email.sendVerificationEmailInternal, args);
   },
 });
 
 /**
- * Send an invoice email with PDF attachment
+ * Send an invoice email with PDF attachment (queued)
  */
 export const sendInvoiceEmail = action({
   args: {
@@ -391,85 +338,23 @@ export const sendInvoiceEmail = action({
     pdfBase64: v.optional(v.string()),
     pdfFilename: v.optional(v.string()),
   },
-  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
-    const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = "Salinas Solar <info@salinassolar.ph>";
-
-    if (!apiKey) {
-      return { success: false, error: "RESEND_API_KEY not configured" };
-    }
-
+  handler: async (ctx, args): Promise<{ success: boolean; queued?: boolean; error?: string }> => {
     if (!args.to) {
       return { success: false, error: "No email address provided" };
     }
 
-    const html = generateInvoiceEmailHtml(args.firstName, args.invoiceUrl);
+    await ctx.runMutation(internal.messageQueue.internalQueueEmail, {
+      actionName: "sendInvoiceEmail",
+      payload: JSON.stringify(args),
+      priority: 3, // Higher priority for customer-facing emails
+    });
 
-    // TEST MODE: Forward to test email
-    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
-    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Invoice from Salinas Solar` : "Invoice from Salinas Solar";
-
-    const body: {
-      from: string;
-      to: string[];
-      subject: string;
-      html: string;
-      attachments?: { filename: string; content: string }[];
-    } = {
-      from: fromEmail,
-      to: [actualTo],
-      subject: actualSubject,
-      html,
-    };
-
-    // Add PDF attachment if provided
-    if (args.pdfBase64 && args.pdfFilename) {
-      body.attachments = [
-        {
-          filename: args.pdfFilename,
-          content: args.pdfBase64,
-        },
-      ];
-    }
-
-    try {
-      const response = await fetch(RESEND_API_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("[Resend API] Send failed:", data);
-        return {
-          success: false,
-          error: data.message || "Failed to send email",
-        };
-      }
-
-      console.log("[Resend API] Invoice email sent successfully:", data.id);
-
-      return {
-        success: true,
-        emailId: data.id,
-      };
-    } catch (error) {
-      console.error("[Resend API] Network error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Network error",
-      };
-    }
+    return { success: true, queued: true };
   },
 });
 
 /**
- * Send an agreement email with signing link
+ * Send an agreement email with signing link (queued)
  */
 export const sendAgreementEmail = action({
   args: {
@@ -478,69 +363,23 @@ export const sendAgreementEmail = action({
     location: v.string(),
     signingUrl: v.string(),
   },
-  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
-    const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = "Salinas Solar <info@salinassolar.ph>";
-
-    if (!apiKey) {
-      return { success: false, error: "RESEND_API_KEY not configured" };
-    }
-
+  handler: async (ctx, args): Promise<{ success: boolean; queued?: boolean; error?: string }> => {
     if (!args.to) {
       return { success: false, error: "No email address provided" };
     }
 
-    const html = generateAgreementEmailHtml(args.firstName, args.location, args.signingUrl);
+    await ctx.runMutation(internal.messageQueue.internalQueueEmail, {
+      actionName: "sendAgreementEmail",
+      payload: JSON.stringify(args),
+      priority: 3, // Higher priority for customer-facing emails
+    });
 
-    // TEST MODE: Forward to test email
-    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
-    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Sign Your Solar Installation Agreement - Salinas Solar` : "Sign Your Solar Installation Agreement - Salinas Solar";
-
-    const body = {
-      from: fromEmail,
-      to: [actualTo],
-      subject: actualSubject,
-      html,
-    };
-
-    try {
-      const response = await fetch(RESEND_API_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("[Resend API] Send failed:", data);
-        return {
-          success: false,
-          error: data.message || "Failed to send email",
-        };
-      }
-
-      console.log("[Resend API] Agreement email sent successfully:", data.id);
-
-      return {
-        success: true,
-        emailId: data.id,
-      };
-    } catch (error) {
-      console.error("[Resend API] Network error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Network error",
-      };
-    }
+    return { success: true, queued: true };
   },
 });
 
 /**
- * Send an appointment confirmation email
+ * Send an appointment confirmation email (queued)
  */
 export const sendAppointmentEmail = action({
   args: {
@@ -550,83 +389,23 @@ export const sendAppointmentEmail = action({
     date: v.string(),
     time: v.string(),
   },
-  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
-    const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = "Salinas Solar <info@salinassolar.ph>";
-
-    if (!apiKey) {
-      return { success: false, error: "RESEND_API_KEY not configured" };
-    }
-
+  handler: async (ctx, args): Promise<{ success: boolean; queued?: boolean; error?: string }> => {
     if (!args.to) {
       return { success: false, error: "No email address provided" };
     }
 
-    // Format the date nicely
-    const dateObj = new Date(args.date);
-    const formattedDate = dateObj.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
+    await ctx.runMutation(internal.messageQueue.internalQueueEmail, {
+      actionName: "sendAppointmentEmail",
+      payload: JSON.stringify(args),
+      priority: 3, // Higher priority for customer-facing emails
     });
 
-    const html = generateAppointmentEmailHtml(
-      args.firstName,
-      args.assignedUserName,
-      formattedDate,
-      args.time
-    );
-
-    // TEST MODE: Forward to test email
-    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
-    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Appointment Confirmation - Salinas Solar` : "Appointment Confirmation - Salinas Solar";
-
-    const body = {
-      from: fromEmail,
-      to: [actualTo],
-      subject: actualSubject,
-      html,
-    };
-
-    try {
-      const response = await fetch(RESEND_API_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("[Resend API] Send failed:", data);
-        return {
-          success: false,
-          error: data.message || "Failed to send email",
-        };
-      }
-
-      console.log("[Resend API] Appointment email sent successfully:", data.id);
-
-      return {
-        success: true,
-        emailId: data.id,
-      };
-    } catch (error) {
-      console.error("[Resend API] Network error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Network error",
-      };
-    }
+    return { success: true, queued: true };
   },
 });
 
 /**
- * Send a consultant assignment notification email
+ * Send a consultant assignment notification email (queued)
  */
 export const sendConsultantAssignmentEmail = action({
   args: {
@@ -635,74 +414,23 @@ export const sendConsultantAssignmentEmail = action({
     opportunityName: v.string(),
     opportunityUrl: v.string(),
   },
-  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
-    const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = "Salinas Solar <notification@salinassolar.ph>";
-
-    if (!apiKey) {
-      return { success: false, error: "RESEND_API_KEY not configured" };
-    }
-
+  handler: async (ctx, args): Promise<{ success: boolean; queued?: boolean; error?: string }> => {
     if (!args.to) {
       return { success: false, error: "No email address provided" };
     }
 
-    const html = generateConsultantAssignmentEmailHtml(
-      args.consultantFirstName,
-      args.opportunityName,
-      args.opportunityUrl
-    );
+    await ctx.runMutation(internal.messageQueue.internalQueueEmail, {
+      actionName: "sendConsultantAssignmentEmail",
+      payload: JSON.stringify(args),
+      priority: 5, // Normal priority for internal emails
+    });
 
-    // TEST MODE: Forward to test email
-    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
-    const subject = `New Assignment: ${args.opportunityName} - Salinas Solar`;
-    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] ${subject}` : subject;
-
-    const body = {
-      from: fromEmail,
-      to: [actualTo],
-      subject: actualSubject,
-      html,
-    };
-
-    try {
-      const response = await fetch(RESEND_API_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("[Resend API] Send failed:", data);
-        return {
-          success: false,
-          error: data.message || "Failed to send email",
-        };
-      }
-
-      console.log("[Resend API] Consultant assignment email sent successfully:", data.id);
-
-      return {
-        success: true,
-        emailId: data.id,
-      };
-    } catch (error) {
-      console.error("[Resend API] Network error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Network error",
-      };
-    }
+    return { success: true, queued: true };
   },
 });
 
 /**
- * Send a receipt email with PDF attachment
+ * Send a receipt email with PDF attachment (queued)
  */
 export const sendReceiptEmail = action({
   args: {
@@ -711,70 +439,18 @@ export const sendReceiptEmail = action({
     pdfBase64: v.string(),
     pdfFilename: v.string(),
   },
-  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
-    const apiKey = process.env.RESEND_API_KEY;
-    const fromEmail = "Salinas Solar <sales@salinassolar.ph>";
-
-    if (!apiKey) {
-      return { success: false, error: "RESEND_API_KEY not configured" };
-    }
-
+  handler: async (ctx, args): Promise<{ success: boolean; queued?: boolean; error?: string }> => {
     if (!args.to) {
       return { success: false, error: "No email address provided" };
     }
 
-    const html = generateReceiptEmailHtml(args.firstName);
+    await ctx.runMutation(internal.messageQueue.internalQueueEmail, {
+      actionName: "sendReceiptEmail",
+      payload: JSON.stringify(args),
+      priority: 3, // Higher priority for customer-facing emails
+    });
 
-    // TEST MODE: Forward to test email
-    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
-    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Receipt from Salinas Solar - Project Complete` : "Receipt from Salinas Solar - Project Complete";
-
-    const body = {
-      from: fromEmail,
-      to: [actualTo],
-      subject: actualSubject,
-      html,
-      attachments: [
-        {
-          filename: args.pdfFilename,
-          content: args.pdfBase64,
-        },
-      ],
-    };
-
-    try {
-      const response = await fetch(RESEND_API_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error("[Resend API] Send failed:", data);
-        return {
-          success: false,
-          error: data.message || "Failed to send email",
-        };
-      }
-
-      console.log("[Resend API] Receipt email sent successfully:", data.id);
-
-      return {
-        success: true,
-        emailId: data.id,
-      };
-    } catch (error) {
-      console.error("[Resend API] Network error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Network error",
-      };
-    }
+    return { success: true, queued: true };
   },
 });
 
@@ -942,13 +618,440 @@ function generateInstallationStageEmailHtml(
 }
 
 // ============================================
-// INTERNAL TEAM EMAIL ACTIONS
+// INTERNAL TEAM EMAIL ACTIONS (Queued)
 // ============================================
 
 /**
- * Send appointment notification email to consultant
+ * Send appointment notification email to consultant (queued)
  */
 export const sendConsultantAppointmentEmail = action({
+  args: {
+    to: v.string(),
+    consultantFirstName: v.string(),
+    contactName: v.string(),
+    appointmentType: v.string(),
+    date: v.string(),
+    time: v.string(),
+    location: v.string(),
+    appointmentUrl: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; queued?: boolean; error?: string }> => {
+    if (!args.to) {
+      return { success: false, error: "No email address provided" };
+    }
+
+    await ctx.runMutation(internal.messageQueue.internalQueueEmail, {
+      actionName: "sendConsultantAppointmentEmail",
+      payload: JSON.stringify(args),
+      priority: 5, // Normal priority for internal emails
+    });
+
+    return { success: true, queued: true };
+  },
+});
+
+/**
+ * Send agreement signed notification email to project manager (queued)
+ */
+export const sendAgreementSignedPmEmail = action({
+  args: {
+    to: v.string(),
+    pmFirstName: v.string(),
+    clientName: v.string(),
+    opportunityName: v.string(),
+    opportunityUrl: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; queued?: boolean; error?: string }> => {
+    if (!args.to) {
+      return { success: false, error: "No email address provided" };
+    }
+
+    await ctx.runMutation(internal.messageQueue.internalQueueEmail, {
+      actionName: "sendAgreementSignedPmEmail",
+      payload: JSON.stringify(args),
+      priority: 5, // Normal priority for internal emails
+    });
+
+    return { success: true, queued: true };
+  },
+});
+
+/**
+ * Send installation stage notification email to operations team (queued)
+ */
+export const sendInstallationStageEmail = action({
+  args: {
+    to: v.string(),
+    firstName: v.string(),
+    clientName: v.string(),
+    opportunityName: v.string(),
+    location: v.string(),
+    opportunityUrl: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; queued?: boolean; error?: string }> => {
+    if (!args.to) {
+      return { success: false, error: "No email address provided" };
+    }
+
+    await ctx.runMutation(internal.messageQueue.internalQueueEmail, {
+      actionName: "sendInstallationStageEmail",
+      payload: JSON.stringify(args),
+      priority: 5, // Normal priority for internal emails
+    });
+
+    return { success: true, queued: true };
+  },
+});
+
+// ============================================
+// INTERNAL ACTIONS (Called by Queue Processor)
+// These actually send the emails via Resend API
+// ============================================
+
+/**
+ * Internal: Send verification email (not queued - time sensitive)
+ */
+export const sendVerificationEmailInternal = internalAction({
+  args: {
+    to: v.string(),
+    verificationCode: v.string(),
+  },
+  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = "Salinas Solar <info@otomatelegal.com>";
+
+    if (!apiKey) {
+      return { success: false, error: "RESEND_API_KEY not configured" };
+    }
+
+    const html = generateVerificationEmailHtml(args.verificationCode);
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Verify Your Email - Salinas Solar CRM` : "Verify Your Email - Salinas Solar CRM";
+
+    try {
+      const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [actualTo],
+          subject: actualSubject,
+          html,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Resend API] Send failed:", data);
+        return { success: false, error: data.message || "Failed to send email" };
+      }
+
+      console.log("[Resend API] Verification email sent successfully:", data.id);
+      return { success: true, emailId: data.id };
+    } catch (error) {
+      console.error("[Resend API] Network error:", error);
+      return { success: false, error: error instanceof Error ? error.message : "Network error" };
+    }
+  },
+});
+
+/**
+ * Internal: Send invoice email
+ */
+export const sendInvoiceEmailInternal = internalAction({
+  args: {
+    to: v.string(),
+    firstName: v.string(),
+    invoiceUrl: v.string(),
+    pdfBase64: v.optional(v.string()),
+    pdfFilename: v.optional(v.string()),
+  },
+  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = "Salinas Solar <info@salinassolar.ph>";
+
+    if (!apiKey) {
+      return { success: false, error: "RESEND_API_KEY not configured" };
+    }
+
+    const html = generateInvoiceEmailHtml(args.firstName, args.invoiceUrl);
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Invoice from Salinas Solar` : "Invoice from Salinas Solar";
+
+    const body: {
+      from: string;
+      to: string[];
+      subject: string;
+      html: string;
+      attachments?: { filename: string; content: string }[];
+    } = {
+      from: fromEmail,
+      to: [actualTo],
+      subject: actualSubject,
+      html,
+    };
+
+    if (args.pdfBase64 && args.pdfFilename) {
+      body.attachments = [{ filename: args.pdfFilename, content: args.pdfBase64 }];
+    }
+
+    try {
+      const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Resend API] Send failed:", data);
+        return { success: false, error: data.message || "Failed to send email" };
+      }
+
+      console.log("[Resend API] Invoice email sent successfully:", data.id);
+      return { success: true, emailId: data.id };
+    } catch (error) {
+      console.error("[Resend API] Network error:", error);
+      return { success: false, error: error instanceof Error ? error.message : "Network error" };
+    }
+  },
+});
+
+/**
+ * Internal: Send agreement email
+ */
+export const sendAgreementEmailInternal = internalAction({
+  args: {
+    to: v.string(),
+    firstName: v.string(),
+    location: v.string(),
+    signingUrl: v.string(),
+  },
+  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = "Salinas Solar <info@salinassolar.ph>";
+
+    if (!apiKey) {
+      return { success: false, error: "RESEND_API_KEY not configured" };
+    }
+
+    const html = generateAgreementEmailHtml(args.firstName, args.location, args.signingUrl);
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Sign Your Solar Installation Agreement - Salinas Solar` : "Sign Your Solar Installation Agreement - Salinas Solar";
+
+    try {
+      const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [actualTo],
+          subject: actualSubject,
+          html,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Resend API] Send failed:", data);
+        return { success: false, error: data.message || "Failed to send email" };
+      }
+
+      console.log("[Resend API] Agreement email sent successfully:", data.id);
+      return { success: true, emailId: data.id };
+    } catch (error) {
+      console.error("[Resend API] Network error:", error);
+      return { success: false, error: error instanceof Error ? error.message : "Network error" };
+    }
+  },
+});
+
+/**
+ * Internal: Send appointment email
+ */
+export const sendAppointmentEmailInternal = internalAction({
+  args: {
+    to: v.string(),
+    firstName: v.string(),
+    assignedUserName: v.string(),
+    date: v.string(),
+    time: v.string(),
+  },
+  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = "Salinas Solar <info@salinassolar.ph>";
+
+    if (!apiKey) {
+      return { success: false, error: "RESEND_API_KEY not configured" };
+    }
+
+    const dateObj = new Date(args.date);
+    const formattedDate = dateObj.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    const html = generateAppointmentEmailHtml(args.firstName, args.assignedUserName, formattedDate, args.time);
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Appointment Confirmation - Salinas Solar` : "Appointment Confirmation - Salinas Solar";
+
+    try {
+      const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [actualTo],
+          subject: actualSubject,
+          html,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Resend API] Send failed:", data);
+        return { success: false, error: data.message || "Failed to send email" };
+      }
+
+      console.log("[Resend API] Appointment email sent successfully:", data.id);
+      return { success: true, emailId: data.id };
+    } catch (error) {
+      console.error("[Resend API] Network error:", error);
+      return { success: false, error: error instanceof Error ? error.message : "Network error" };
+    }
+  },
+});
+
+/**
+ * Internal: Send consultant assignment email
+ */
+export const sendConsultantAssignmentEmailInternal = internalAction({
+  args: {
+    to: v.string(),
+    consultantFirstName: v.string(),
+    opportunityName: v.string(),
+    opportunityUrl: v.string(),
+  },
+  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = "Salinas Solar <notification@salinassolar.ph>";
+
+    if (!apiKey) {
+      return { success: false, error: "RESEND_API_KEY not configured" };
+    }
+
+    const html = generateConsultantAssignmentEmailHtml(args.consultantFirstName, args.opportunityName, args.opportunityUrl);
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const subject = `New Assignment: ${args.opportunityName} - Salinas Solar`;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] ${subject}` : subject;
+
+    try {
+      const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [actualTo],
+          subject: actualSubject,
+          html,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Resend API] Send failed:", data);
+        return { success: false, error: data.message || "Failed to send email" };
+      }
+
+      console.log("[Resend API] Consultant assignment email sent successfully:", data.id);
+      return { success: true, emailId: data.id };
+    } catch (error) {
+      console.error("[Resend API] Network error:", error);
+      return { success: false, error: error instanceof Error ? error.message : "Network error" };
+    }
+  },
+});
+
+/**
+ * Internal: Send receipt email
+ */
+export const sendReceiptEmailInternal = internalAction({
+  args: {
+    to: v.string(),
+    firstName: v.string(),
+    pdfBase64: v.string(),
+    pdfFilename: v.string(),
+  },
+  handler: async (_, args): Promise<{ success: boolean; emailId?: string; error?: string }> => {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = "Salinas Solar <sales@salinassolar.ph>";
+
+    if (!apiKey) {
+      return { success: false, error: "RESEND_API_KEY not configured" };
+    }
+
+    const html = generateReceiptEmailHtml(args.firstName);
+    const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
+    const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] Receipt from Salinas Solar - Project Complete` : "Receipt from Salinas Solar - Project Complete";
+
+    try {
+      const response = await fetch(RESEND_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [actualTo],
+          subject: actualSubject,
+          html,
+          attachments: [{ filename: args.pdfFilename, content: args.pdfBase64 }],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Resend API] Send failed:", data);
+        return { success: false, error: data.message || "Failed to send email" };
+      }
+
+      console.log("[Resend API] Receipt email sent successfully:", data.id);
+      return { success: true, emailId: data.id };
+    } catch (error) {
+      console.error("[Resend API] Network error:", error);
+      return { success: false, error: error instanceof Error ? error.message : "Network error" };
+    }
+  },
+});
+
+/**
+ * Internal: Send consultant appointment email
+ */
+export const sendConsultantAppointmentEmailInternal = internalAction({
   args: {
     to: v.string(),
     consultantFirstName: v.string(),
@@ -967,11 +1070,6 @@ export const sendConsultantAppointmentEmail = action({
       return { success: false, error: "RESEND_API_KEY not configured" };
     }
 
-    if (!args.to) {
-      return { success: false, error: "No email address provided" };
-    }
-
-    // Format the date nicely
     const dateObj = new Date(args.date);
     const formattedDate = dateObj.toLocaleDateString("en-US", {
       weekday: "long",
@@ -990,18 +1088,9 @@ export const sendConsultantAppointmentEmail = action({
       args.location,
       args.appointmentUrl
     );
-
-    // TEST MODE: Forward to test email
     const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
     const subject = `New ${typeLabel} Scheduled - ${args.contactName}`;
     const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] ${subject}` : subject;
-
-    const body = {
-      from: fromEmail,
-      to: [actualTo],
-      subject: actualSubject,
-      html,
-    };
 
     try {
       const response = await fetch(RESEND_API_URL, {
@@ -1010,39 +1099,34 @@ export const sendConsultantAppointmentEmail = action({
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [actualTo],
+          subject: actualSubject,
+          html,
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
         console.error("[Resend API] Send failed:", data);
-        return {
-          success: false,
-          error: data.message || "Failed to send email",
-        };
+        return { success: false, error: data.message || "Failed to send email" };
       }
 
       console.log("[Resend API] Consultant appointment email sent successfully:", data.id);
-
-      return {
-        success: true,
-        emailId: data.id,
-      };
+      return { success: true, emailId: data.id };
     } catch (error) {
       console.error("[Resend API] Network error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Network error",
-      };
+      return { success: false, error: error instanceof Error ? error.message : "Network error" };
     }
   },
 });
 
 /**
- * Send agreement signed notification email to project manager
+ * Internal: Send agreement signed PM email
  */
-export const sendAgreementSignedPmEmail = action({
+export const sendAgreementSignedPmEmailInternal = internalAction({
   args: {
     to: v.string(),
     pmFirstName: v.string(),
@@ -1058,28 +1142,10 @@ export const sendAgreementSignedPmEmail = action({
       return { success: false, error: "RESEND_API_KEY not configured" };
     }
 
-    if (!args.to) {
-      return { success: false, error: "No email address provided" };
-    }
-
-    const html = generateAgreementSignedPmEmailHtml(
-      args.pmFirstName,
-      args.clientName,
-      args.opportunityName,
-      args.opportunityUrl
-    );
-
-    // TEST MODE: Forward to test email
+    const html = generateAgreementSignedPmEmailHtml(args.pmFirstName, args.clientName, args.opportunityName, args.opportunityUrl);
     const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
     const subject = `Agreement Signed: ${args.opportunityName} - Salinas Solar`;
     const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] ${subject}` : subject;
-
-    const body = {
-      from: fromEmail,
-      to: [actualTo],
-      subject: actualSubject,
-      html,
-    };
 
     try {
       const response = await fetch(RESEND_API_URL, {
@@ -1088,39 +1154,34 @@ export const sendAgreementSignedPmEmail = action({
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [actualTo],
+          subject: actualSubject,
+          html,
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
         console.error("[Resend API] Send failed:", data);
-        return {
-          success: false,
-          error: data.message || "Failed to send email",
-        };
+        return { success: false, error: data.message || "Failed to send email" };
       }
 
       console.log("[Resend API] Agreement signed PM email sent successfully:", data.id);
-
-      return {
-        success: true,
-        emailId: data.id,
-      };
+      return { success: true, emailId: data.id };
     } catch (error) {
       console.error("[Resend API] Network error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Network error",
-      };
+      return { success: false, error: error instanceof Error ? error.message : "Network error" };
     }
   },
 });
 
 /**
- * Send installation stage notification email to operations team
+ * Internal: Send installation stage email
  */
-export const sendInstallationStageEmail = action({
+export const sendInstallationStageEmailInternal = internalAction({
   args: {
     to: v.string(),
     firstName: v.string(),
@@ -1137,29 +1198,10 @@ export const sendInstallationStageEmail = action({
       return { success: false, error: "RESEND_API_KEY not configured" };
     }
 
-    if (!args.to) {
-      return { success: false, error: "No email address provided" };
-    }
-
-    const html = generateInstallationStageEmailHtml(
-      args.firstName,
-      args.clientName,
-      args.opportunityName,
-      args.location,
-      args.opportunityUrl
-    );
-
-    // TEST MODE: Forward to test email
+    const html = generateInstallationStageEmailHtml(args.firstName, args.clientName, args.opportunityName, args.location, args.opportunityUrl);
     const actualTo = TEST_MODE ? TEST_EMAIL : args.to;
     const subject = `Project Ready for Installation: ${args.opportunityName} - Salinas Solar`;
     const actualSubject = TEST_MODE ? `[TEST - Original: ${args.to}] ${subject}` : subject;
-
-    const body = {
-      from: fromEmail,
-      to: [actualTo],
-      subject: actualSubject,
-      html,
-    };
 
     try {
       const response = await fetch(RESEND_API_URL, {
@@ -1168,31 +1210,26 @@ export const sendInstallationStageEmail = action({
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [actualTo],
+          subject: actualSubject,
+          html,
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
         console.error("[Resend API] Send failed:", data);
-        return {
-          success: false,
-          error: data.message || "Failed to send email",
-        };
+        return { success: false, error: data.message || "Failed to send email" };
       }
 
       console.log("[Resend API] Installation stage email sent successfully:", data.id);
-
-      return {
-        success: true,
-        emailId: data.id,
-      };
+      return { success: true, emailId: data.id };
     } catch (error) {
       console.error("[Resend API] Network error:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Network error",
-      };
+      return { success: false, error: error instanceof Error ? error.message : "Network error" };
     }
   },
 });

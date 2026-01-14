@@ -26,6 +26,7 @@ import type * as lib_invoicePdfGenerator from "../lib/invoicePdfGenerator.js";
 import type * as lib_receiptPdfGenerator from "../lib/receiptPdfGenerator.js";
 import type * as lib_stageOrder from "../lib/stageOrder.js";
 import type * as lib_validators from "../lib/validators.js";
+import type * as messageQueue from "../messageQueue.js";
 import type * as messages from "../messages.js";
 import type * as meta from "../meta.js";
 import type * as notifications from "../notifications.js";
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   "lib/receiptPdfGenerator": typeof lib_receiptPdfGenerator;
   "lib/stageOrder": typeof lib_stageOrder;
   "lib/validators": typeof lib_validators;
+  messageQueue: typeof messageQueue;
   messages: typeof messages;
   meta: typeof meta;
   notifications: typeof notifications;

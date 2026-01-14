@@ -575,4 +575,41 @@ export default defineSchema({
     .index("by_type", ["type"])
     .index("by_task", ["taskId"])
     .index("by_task_type", ["taskId", "type"]),
+
+  // ----------------------------------------
+  // MESSAGE QUEUE TABLE
+  // Queue for rate-limited email and SMS sending
+  // ----------------------------------------
+  messageQueue: defineTable({
+    // Message type
+    type: v.union(v.literal("email"), v.literal("sms")),
+    // Status tracking
+    status: v.union(
+      v.literal("pending"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed")
+    ),
+    // Priority (lower = higher priority)
+    priority: v.number(), // 0 = highest, 10 = lowest
+    // Payload stored as JSON string
+    payload: v.string(),
+    // Action to call (e.g., "sendVerificationEmail", "sendMessage")
+    actionName: v.string(),
+    // Retry tracking
+    retryCount: v.number(),
+    maxRetries: v.number(),
+    lastError: v.optional(v.string()),
+    nextRetryAt: v.optional(v.number()),
+    // Timestamps
+    scheduledFor: v.number(), // When to send (allows delayed sends)
+    processedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_type_status", ["type", "status"])
+    .index("by_scheduled", ["status", "scheduledFor"])
+    .index("by_next_retry", ["status", "nextRetryAt"])
+    .index("by_created_at", ["createdAt"]),
 });
