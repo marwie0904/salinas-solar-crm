@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 
 interface AuthUser {
   id: string;
@@ -11,6 +12,10 @@ interface AuthUser {
   lastName?: string;
   role?: string;
 }
+
+// Activity tracking constants
+const ACTIVITY_UPDATE_INTERVAL = 60 * 1000; // Update activity every 60 seconds max
+const ACTIVITY_EVENTS = ["mousedown", "keydown", "touchstart", "scroll"] as const;
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -46,6 +51,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginMutation = useMutation(api.auth.login);
   const logoutMutation = useMutation(api.auth.logout);
+  const updateActivityMutation = useMutation(api.users.updateActivity);
+
+  // Activity tracking
+  const lastActivityUpdate = useRef<number>(0);
+  const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const updateActivity = useCallback(async () => {
+    if (!sessionData?.user?.id) return;
+
+    const now = Date.now();
+    // Only update if enough time has passed since last update
+    if (now - lastActivityUpdate.current < ACTIVITY_UPDATE_INTERVAL) return;
+
+    lastActivityUpdate.current = now;
+    try {
+      await updateActivityMutation({ id: sessionData.user.id as Id<"users"> });
+    } catch (error) {
+      // Silently fail - activity tracking is not critical
+      console.error("Failed to update activity:", error);
+    }
+  }, [sessionData?.user?.id, updateActivityMutation]);
+
+  // Track user activity events
+  useEffect(() => {
+    if (!sessionData?.valid || !sessionData?.user?.id) return;
+
+    const handleActivity = () => {
+      // Clear existing timeout
+      if (activityTimeoutRef.current) {
+        clearTimeout(activityTimeoutRef.current);
+      }
+      // Debounce activity updates
+      activityTimeoutRef.current = setTimeout(() => {
+        updateActivity();
+      }, 1000); // Wait 1 second after activity stops before updating
+    };
+
+    // Add event listeners
+    ACTIVITY_EVENTS.forEach((event) => {
+      window.addEventListener(event, handleActivity, { passive: true });
+    });
+
+    // Initial activity update when component mounts
+    updateActivity();
+
+    // Update activity when page becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        updateActivity();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      // Cleanup event listeners
+      ACTIVITY_EVENTS.forEach((event) => {
+        window.removeEventListener(event, handleActivity);
+      });
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (activityTimeoutRef.current) {
+        clearTimeout(activityTimeoutRef.current);
+      }
+    };
+  }, [sessionData?.valid, sessionData?.user?.id, updateActivity]);
 
   // Handle expired sessions
   useEffect(() => {

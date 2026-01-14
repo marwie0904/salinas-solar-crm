@@ -300,3 +300,87 @@ export const resetOnboarding = mutation({
     return args.id;
   },
 });
+
+// ============================================
+// ACTIVITY TRACKING
+// ============================================
+
+const INACTIVE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes in milliseconds
+
+/**
+ * Update user's last activity timestamp
+ * Call this when the user performs any action
+ */
+export const updateActivity = mutation({
+  args: { id: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.id);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(args.id, {
+      lastActivityAt: now(),
+    });
+
+    return args.id;
+  },
+});
+
+/**
+ * Get user status (active/inactive based on last activity)
+ * Active = last activity within 15 minutes
+ */
+export const getStatus = query({
+  args: { id: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.id);
+    if (!user) return null;
+
+    const currentTime = Date.now();
+    const lastActivity = user.lastActivityAt;
+
+    // If no activity recorded, consider inactive
+    if (!lastActivity) {
+      return {
+        status: "offline" as const,
+        lastActivityAt: null,
+      };
+    }
+
+    const timeSinceActivity = currentTime - lastActivity;
+    const isActive = timeSinceActivity < INACTIVE_THRESHOLD_MS;
+
+    return {
+      status: isActive ? "online" as const : "offline" as const,
+      lastActivityAt: lastActivity,
+    };
+  },
+});
+
+/**
+ * List all users with their online status
+ */
+export const listWithStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    const currentTime = Date.now();
+
+    return users.map((user) => {
+      const lastActivity = user.lastActivityAt;
+      let onlineStatus: "online" | "offline" = "offline";
+
+      if (lastActivity) {
+        const timeSinceActivity = currentTime - lastActivity;
+        onlineStatus = timeSinceActivity < INACTIVE_THRESHOLD_MS ? "online" : "offline";
+      }
+
+      return {
+        ...user,
+        fullName: getFullName(user.firstName, user.lastName),
+        onlineStatus,
+      };
+    });
+  },
+});

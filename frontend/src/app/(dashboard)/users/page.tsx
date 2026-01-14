@@ -49,6 +49,21 @@ function formatDate(timestamp: number): string {
   });
 }
 
+function formatLastActivity(timestamp: number | undefined): string {
+  if (!timestamp) return "Never";
+
+  const now = Date.now();
+  const diff = now - timestamp;
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${days}d ago`;
+}
+
 export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -58,8 +73,8 @@ export default function UsersPage() {
     isActive: boolean;
   } | null>(null);
 
-  // Fetch users from Convex
-  const users = useQuery(api.users.listAll, {});
+  // Fetch users from Convex with online status
+  const users = useQuery(api.users.listWithStatus, {});
   const toggleActive = useMutation(api.users.toggleActive);
 
   const filteredUsers = users?.filter((user) => {
@@ -139,15 +154,41 @@ export default function UsersPage() {
                 <TableRow key={user._id} className="hover:bg-muted/50">
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9">
-                        <AvatarFallback className="bg-slate-100 text-slate-600 text-sm font-medium">
-                          {getInitials(user.firstName, user.lastName)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className="relative">
+                        <Avatar className="h-9 w-9">
+                          <AvatarFallback className="bg-slate-100 text-slate-600 text-sm font-medium">
+                            {getInitials(user.firstName, user.lastName)}
+                          </AvatarFallback>
+                        </Avatar>
+                        {/* Online status indicator */}
+                        <span
+                          className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${
+                            user.onlineStatus === "online"
+                              ? "bg-green-500"
+                              : "bg-gray-400"
+                          }`}
+                          title={
+                            user.onlineStatus === "online"
+                              ? "Online"
+                              : `Offline - Last seen: ${formatLastActivity(user.lastActivityAt)}`
+                          }
+                        />
+                      </div>
                       <div>
-                        <p className="font-medium">
-                          {user.firstName} {user.lastName}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">
+                            {user.firstName} {user.lastName}
+                          </p>
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded-full ${
+                              user.onlineStatus === "online"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-gray-100 text-gray-500"
+                            }`}
+                          >
+                            {user.onlineStatus === "online" ? "Online" : formatLastActivity(user.lastActivityAt)}
+                          </span>
+                        </div>
                         <p className="text-sm text-muted-foreground md:hidden">
                           {user.email}
                         </p>

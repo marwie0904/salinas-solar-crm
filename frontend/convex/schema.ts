@@ -176,12 +176,15 @@ export default defineSchema({
     // Onboarding tracking
     hasCompletedOnboarding: v.optional(v.boolean()),
     onboardingCompletedAt: v.optional(v.number()),
+    // Activity tracking
+    lastActivityAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_email", ["email"])
     .index("by_role", ["role"])
-    .index("by_active", ["isActive"]),
+    .index("by_active", ["isActive"])
+    .index("by_last_activity", ["lastActivityAt"]),
 
   // ----------------------------------------
   // CONTACTS TABLE
