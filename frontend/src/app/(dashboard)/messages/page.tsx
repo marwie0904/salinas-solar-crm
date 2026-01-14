@@ -498,6 +498,13 @@ export default function MessagesPage() {
                           : "bg-white border"
                       )}
                     >
+                      {/* Automated SMS indicator */}
+                      {message.isAutomated && (
+                        <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-medium text-white/90 bg-green-600/50 rounded px-1.5 py-0.5 w-fit">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse" />
+                          Automated SMS
+                        </div>
+                      )}
                       <MessageContent
                         content={message.content}
                         isOutgoing={message.isOutgoing}

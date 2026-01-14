@@ -443,6 +443,7 @@ export const send = mutation({
           phoneNumber: contact.phone,
           firstName: contact.firstName,
           email: contact.email,
+          contactId: opportunity.contactId,
         });
 
         // Schedule 3-day reminder if not paid
@@ -451,6 +452,7 @@ export const send = mutation({
           invoiceId: args.id,
           phoneNumber: contact.phone,
           firstName: contact.firstName,
+          contactId: opportunity.contactId,
         });
       }
     }

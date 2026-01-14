@@ -328,6 +328,9 @@ export default defineSchema({
     sentBy: v.optional(v.id("users")),
     externalMessageId: v.optional(v.string()),
     isRead: v.boolean(),
+    // Automated SMS tracking
+    isAutomated: v.optional(v.boolean()),
+    automatedType: v.optional(v.string()), // "follow_up", "appointment_reminder", "agreement_sent", etc.
     createdAt: v.number(),
   })
     .index("by_contact", ["contactId"])

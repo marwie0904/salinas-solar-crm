@@ -630,8 +630,9 @@ export const internalSendAppointmentSetSms = internalAction({
     time: v.string(),
     location: v.string(),
     systemConsultantFullName: v.string(),
+    contactId: v.optional(v.id("contacts")),
   },
-  handler: async (_, args) => {
+  handler: async (ctx, args) => {
     const message = generateAppointmentSetSms({
       firstName: args.firstName,
       date: args.date,
@@ -642,6 +643,17 @@ export const internalSendAppointmentSetSms = internalAction({
 
     const result = await sendSms(args.phoneNumber, message);
     console.log("[Auto SMS] Appointment set SMS result:", result);
+
+    // Store in messages table if contactId provided and send succeeded
+    if (result.success && args.contactId) {
+      await ctx.runMutation(internal.autoSms.storeAutomatedSms, {
+        contactId: args.contactId,
+        content: message,
+        automatedType: "appointment_set",
+        externalMessageId: result.messageId,
+      });
+    }
+
     return result;
   },
 });
@@ -654,8 +666,9 @@ export const internalSendAppointmentReminderSms = internalAction({
     phoneNumber: v.string(),
     firstName: v.string(),
     time: v.string(),
+    contactId: v.optional(v.id("contacts")),
   },
-  handler: async (_, args) => {
+  handler: async (ctx, args) => {
     const message = generateAppointmentReminderSms({
       firstName: args.firstName,
       time: args.time,
@@ -663,6 +676,16 @@ export const internalSendAppointmentReminderSms = internalAction({
 
     const result = await sendSms(args.phoneNumber, message);
     console.log("[Auto SMS] Appointment reminder SMS result:", result);
+
+    if (result.success && args.contactId) {
+      await ctx.runMutation(internal.autoSms.storeAutomatedSms, {
+        contactId: args.contactId,
+        content: message,
+        automatedType: "appointment_reminder",
+        externalMessageId: result.messageId,
+      });
+    }
+
     return result;
   },
 });
@@ -675,8 +698,9 @@ export const internalSendAgreementSentSms = internalAction({
     phoneNumber: v.string(),
     firstName: v.string(),
     email: v.string(),
+    contactId: v.optional(v.id("contacts")),
   },
-  handler: async (_, args) => {
+  handler: async (ctx, args) => {
     const message = generateAgreementSentSms({
       firstName: args.firstName,
       email: args.email,
@@ -684,6 +708,16 @@ export const internalSendAgreementSentSms = internalAction({
 
     const result = await sendSms(args.phoneNumber, message);
     console.log("[Auto SMS] Agreement sent SMS result:", result);
+
+    if (result.success && args.contactId) {
+      await ctx.runMutation(internal.autoSms.storeAutomatedSms, {
+        contactId: args.contactId,
+        content: message,
+        automatedType: "agreement_sent",
+        externalMessageId: result.messageId,
+      });
+    }
+
     return result;
   },
 });
@@ -696,8 +730,9 @@ export const internalSendInvoiceSentSms = internalAction({
     phoneNumber: v.string(),
     firstName: v.string(),
     email: v.string(),
+    contactId: v.optional(v.id("contacts")),
   },
-  handler: async (_, args) => {
+  handler: async (ctx, args) => {
     const message = generateInvoiceSentSms({
       firstName: args.firstName,
       email: args.email,
@@ -705,6 +740,16 @@ export const internalSendInvoiceSentSms = internalAction({
 
     const result = await sendSms(args.phoneNumber, message);
     console.log("[Auto SMS] Invoice sent SMS result:", result);
+
+    if (result.success && args.contactId) {
+      await ctx.runMutation(internal.autoSms.storeAutomatedSms, {
+        contactId: args.contactId,
+        content: message,
+        automatedType: "invoice_sent",
+        externalMessageId: result.messageId,
+      });
+    }
+
     return result;
   },
 });
@@ -716,14 +761,25 @@ export const internalSendAgreementInvoiceReminderSms = internalAction({
   args: {
     phoneNumber: v.string(),
     firstName: v.string(),
+    contactId: v.optional(v.id("contacts")),
   },
-  handler: async (_, args) => {
+  handler: async (ctx, args) => {
     const message = generateAgreementInvoiceReminderSms({
       firstName: args.firstName,
     });
 
     const result = await sendSms(args.phoneNumber, message);
     console.log("[Auto SMS] Agreement/Invoice reminder SMS result:", result);
+
+    if (result.success && args.contactId) {
+      await ctx.runMutation(internal.autoSms.storeAutomatedSms, {
+        contactId: args.contactId,
+        content: message,
+        automatedType: "agreement_invoice_reminder",
+        externalMessageId: result.messageId,
+      });
+    }
+
     return result;
   },
 });
@@ -736,8 +792,9 @@ export const internalSendReceiptSentSms = internalAction({
     phoneNumber: v.string(),
     firstName: v.string(),
     email: v.string(),
+    contactId: v.optional(v.id("contacts")),
   },
-  handler: async (_, args) => {
+  handler: async (ctx, args) => {
     const message = generateReceiptSentSms({
       firstName: args.firstName,
       email: args.email,
@@ -745,6 +802,16 @@ export const internalSendReceiptSentSms = internalAction({
 
     const result = await sendSms(args.phoneNumber, message);
     console.log("[Auto SMS] Receipt sent SMS result:", result);
+
+    if (result.success && args.contactId) {
+      await ctx.runMutation(internal.autoSms.storeAutomatedSms, {
+        contactId: args.contactId,
+        content: message,
+        automatedType: "receipt_sent",
+        externalMessageId: result.messageId,
+      });
+    }
+
     return result;
   },
 });
@@ -977,6 +1044,7 @@ export const getTodaysAppointments = internalQuery({
         const contact = await ctx.db.get(apt.contactId);
         return {
           appointmentId: apt._id,
+          contactId: apt.contactId,
           time: apt.time,
           contactPhone: contact?.phone,
           contactFirstName: contact?.firstName,
@@ -1002,6 +1070,7 @@ export const internalCheckAndSendAgreementReminder = internalAction({
     agreementId: v.id("agreements"),
     phoneNumber: v.string(),
     firstName: v.string(),
+    contactId: v.optional(v.id("contacts")),
   },
   handler: async (ctx, args) => {
     // Check agreement status
@@ -1017,6 +1086,16 @@ export const internalCheckAndSendAgreementReminder = internalAction({
 
       const result = await sendSms(args.phoneNumber, message);
       console.log("[Auto SMS] Agreement 3-day reminder SMS result:", result);
+
+      if (result.success && args.contactId) {
+        await ctx.runMutation(internal.autoSms.storeAutomatedSms, {
+          contactId: args.contactId,
+          content: message,
+          automatedType: "agreement_reminder",
+          externalMessageId: result.messageId,
+        });
+      }
+
       return result;
     }
 
@@ -1033,6 +1112,7 @@ export const internalCheckAndSendInvoiceReminder = internalAction({
     invoiceId: v.id("invoices"),
     phoneNumber: v.string(),
     firstName: v.string(),
+    contactId: v.optional(v.id("contacts")),
   },
   handler: async (ctx, args) => {
     // Check invoice status
@@ -1052,6 +1132,16 @@ export const internalCheckAndSendInvoiceReminder = internalAction({
 
       const result = await sendSms(args.phoneNumber, message);
       console.log("[Auto SMS] Invoice 3-day reminder SMS result:", result);
+
+      if (result.success && args.contactId) {
+        await ctx.runMutation(internal.autoSms.storeAutomatedSms, {
+          contactId: args.contactId,
+          content: message,
+          automatedType: "invoice_reminder",
+          externalMessageId: result.messageId,
+        });
+      }
+
       return result;
     }
 
@@ -1085,6 +1175,17 @@ export const sendDailyAppointmentReminders = internalAction({
         });
 
         const result = await sendSms(apt.contactPhone, message);
+
+        // Store in messages table if send succeeded
+        if (result.success) {
+          await ctx.runMutation(internal.autoSms.storeAutomatedSms, {
+            contactId: apt.contactId,
+            content: message,
+            automatedType: "appointment_reminder",
+            externalMessageId: result.messageId,
+          });
+        }
+
         results.push({
           appointmentId: apt.appointmentId,
           success: result.success,
@@ -1124,6 +1225,7 @@ export const getDidNotBookCallOpportunities = internalQuery({
         const contact = await ctx.db.get(opp.contactId);
         return {
           opportunityId: opp._id,
+          contactId: opp.contactId,
           contactPhone: contact?.phone,
           contactFirstName: contact?.firstName,
           lastSmsIndex: opp.lastFollowUpSmsIndex ?? -1,
@@ -1158,6 +1260,7 @@ export const getFollowUpStageOpportunities = internalQuery({
         const contact = await ctx.db.get(opp.contactId);
         return {
           opportunityId: opp._id,
+          contactId: opp.contactId,
           contactPhone: contact?.phone,
           contactFirstName: contact?.firstName,
           lastSmsIndex: opp.lastFollowUpSmsIndex ?? -1,
@@ -1187,6 +1290,32 @@ export const updateOpportunitySmsTracking = internalMutation({
       lastFollowUpSmsIndex: args.smsIndex,
       lastFollowUpSmsAt: args.sentAt,
       updatedAt: args.sentAt,
+    });
+  },
+});
+
+/**
+ * Internal mutation to store automated SMS in messages table
+ */
+export const storeAutomatedSms = internalMutation({
+  args: {
+    contactId: v.id("contacts"),
+    content: v.string(),
+    automatedType: v.string(),
+    externalMessageId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("messages", {
+      content: args.content,
+      contactId: args.contactId,
+      channel: "sms",
+      isOutgoing: true,
+      senderName: "System",
+      isRead: true,
+      isAutomated: true,
+      automatedType: args.automatedType,
+      externalMessageId: args.externalMessageId,
+      createdAt: Date.now(),
     });
   },
 });
@@ -1333,6 +1462,13 @@ export const sendScheduledFollowUpSms = internalAction({
             opportunityId: opp.opportunityId,
             smsIndex: nextIndex,
             sentAt: Date.now(),
+          });
+          // Store in messages table
+          await ctx.runMutation(internal.autoSms.storeAutomatedSms, {
+            contactId: opp.contactId,
+            content: message,
+            automatedType: "follow_up",
+            externalMessageId: result.messageId,
           });
           didNotBookSent++;
         }

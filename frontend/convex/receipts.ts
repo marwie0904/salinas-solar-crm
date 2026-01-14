@@ -43,6 +43,7 @@ export const getReceiptData = internalQuery({
     return {
       opportunity,
       contact,
+      contactId: opportunity.contactId,
       agreement,
       totalPaid,
       totalAmount,
@@ -101,7 +102,7 @@ export const sendReceiptOnClose = internalAction({
       return { success: false, error: "Opportunity data not found" };
     }
 
-    const { opportunity, contact, agreement, totalAmount } = data;
+    const { opportunity, contact, contactId, agreement, totalAmount } = data;
 
     if (!contact) {
       console.error("[Send Receipt] Contact not found");
@@ -202,6 +203,7 @@ export const sendReceiptOnClose = internalAction({
           phoneNumber: contact.phone,
           firstName: contact.firstName,
           email: contact.email,
+          contactId: contactId,
         });
         smsSent = true;
         console.log("[Send Receipt] SMS scheduled");

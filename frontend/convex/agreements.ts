@@ -104,6 +104,7 @@ export const markSent = mutation({
         phoneNumber: contact.phone,
         firstName: contact.firstName,
         email: contact.email,
+        contactId: agreement.contactId,
       });
 
       // Schedule 3-day reminder if not signed
@@ -112,6 +113,7 @@ export const markSent = mutation({
         agreementId: args.agreementId,
         phoneNumber: contact.phone,
         firstName: contact.firstName,
+        contactId: agreement.contactId,
       });
     }
 

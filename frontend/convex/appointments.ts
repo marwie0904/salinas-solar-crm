@@ -453,6 +453,7 @@ export const create = mutation({
         time: args.time,
         location: appointmentLocation,
         systemConsultantFullName: assignedUserFullName,
+        contactId: args.contactId,
       });
     }
 
