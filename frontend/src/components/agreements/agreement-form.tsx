@@ -37,7 +37,7 @@ import {
   CASH_SUB_TYPE_LABELS,
   formatPHP,
 } from "@/lib/types";
-import { generateAgreementPDF, GeneratedPDF } from "./pdf-generator";
+import { generateAgreementPDF, generateContractText, generatePDFFromText, GeneratedPDF } from "./pdf-generator";
 import {
   Plus,
   Trash2,
@@ -56,6 +56,7 @@ import {
   Sun,
   Target,
   Send,
+  Eye,
 } from "lucide-react";
 import {
   Tooltip,
@@ -265,8 +266,12 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
   };
 
   const [formData, setFormData] = useState<AgreementFormData>(initialFormData);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+
+  // Preview mode state
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [editableContractText, setEditableContractText] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   // Selected opportunity state
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<string>(
@@ -418,7 +423,8 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleGenerate = async () => {
+  // Step 1: Generate preview - validates and shows editable contract text
+  const handleGeneratePreview = () => {
     if (!validateForm()) {
       return;
     }
@@ -428,14 +434,32 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
       return;
     }
 
-    setIsGenerating(true);
+    // Generate the contract text for preview/editing
+    const contractText = generateContractText(formData);
+    setEditableContractText(contractText);
+    setShowPreviewModal(true);
+  };
+
+  // Step 2: Send the agreement (called from preview modal)
+  const handleSendAgreement = async () => {
+    if (!selectedOpportunity?.contact?._id) {
+      alert("Please select an opportunity with a valid contact.");
+      return;
+    }
+
+    setIsSending(true);
     setSavedToDocuments(false);
     setEmailSent(false);
     setEmailError(null);
 
     try {
-      // Generate the PDF
-      const pdf = generateAgreementPDF(formData);
+      // Generate the PDF from the (possibly edited) text
+      const pdf = generatePDFFromText(
+        editableContractText,
+        formData.clientName,
+        formData.systemSize,
+        formData.systemType
+      );
       setGeneratedPdf(pdf);
 
       let documentId: Id<"documents"> | undefined;
@@ -534,13 +558,14 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
         }
       }
 
-      // Show success dialog
+      // Close preview modal and show success dialog
+      setShowPreviewModal(false);
       setShowSuccessDialog(true);
     } catch (error) {
       console.error("Error generating agreement:", error);
       alert("Error generating agreement. Please try again.");
     } finally {
-      setIsGenerating(false);
+      setIsSending(false);
     }
   };
 
@@ -1030,6 +1055,23 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
           {/* Auto-generation Section */}
           <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
             <p className="text-sm font-medium text-muted-foreground">Auto-generate Payment Schedule</p>
+            {/* Summary row showing Total, Upfront, and Remaining */}
+            {formData.totalAmount > 0 && (
+              <div className="grid grid-cols-3 gap-4 p-3 bg-background rounded-lg border">
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Total Contract</p>
+                  <p className="text-sm font-semibold">{formatPHP(formData.totalAmount)}</p>
+                </div>
+                <div className="text-center border-x">
+                  <p className="text-xs text-muted-foreground">Upfront Payment</p>
+                  <p className="text-sm font-semibold text-orange-600">- {formatPHP(upfrontPaymentAmount)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Remaining to Schedule</p>
+                  <p className="text-sm font-semibold text-green-600">{formatPHP(formData.totalAmount - upfrontPaymentAmount)}</p>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-1">
@@ -1406,18 +1448,66 @@ export function AgreementForm({ prefillData }: AgreementFormProps) {
         </CardContent>
       </Card>
 
-      {/* Generate Button */}
+      {/* Generate Preview Button */}
       <div className="flex justify-center md:justify-end sticky bottom-0 bg-background py-4 border-t md:border-0 -mx-4 px-4 md:mx-0 md:px-0 md:relative md:py-0 safe-area-inset-bottom">
         <Button
-          onClick={handleGenerate}
-          disabled={isGenerating}
+          onClick={handleGeneratePreview}
           size="lg"
           className="bg-[#ff5603] hover:bg-[#e64d00] w-full md:w-auto h-12 md:h-11 touch-target"
         >
-          <Send className="h-5 w-5 mr-2" />
-          {isGenerating ? "Generating & Sending..." : "Generate & Send"}
+          <Eye className="h-5 w-5 mr-2" />
+          Generate Preview
         </Button>
       </div>
+
+      {/* Contract Preview Modal */}
+      <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+        <DialogContent className="w-[calc(100%-1rem)] max-w-4xl h-[90vh] flex flex-col mx-auto rounded-lg p-0">
+          <DialogHeader className="px-6 py-4 border-b shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Contract Preview
+            </DialogTitle>
+            <DialogDescription>
+              Review and edit the contract before sending. Changes made here will be reflected in the final PDF.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden p-4">
+            <textarea
+              value={editableContractText}
+              onChange={(e) => setEditableContractText(e.target.value)}
+              className="w-full h-full resize-none font-mono text-sm bg-muted/30 border rounded-lg p-4 focus:outline-none focus:ring-2 focus:ring-[#ff5603] focus:border-transparent"
+              spellCheck={false}
+            />
+          </div>
+          <div className="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-background">
+            <Button
+              variant="outline"
+              onClick={() => setShowPreviewModal(false)}
+              disabled={isSending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendAgreement}
+              disabled={isSending}
+              className="bg-[#ff5603] hover:bg-[#e64d00]"
+            >
+              {isSending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Agreement
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Success Dialog */}
       <Dialog open={showSuccessDialog} onOpenChange={handleCloseSuccessDialog}>

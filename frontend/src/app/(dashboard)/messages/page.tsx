@@ -22,9 +22,11 @@ import {
   Building2,
   ExternalLink,
   ArrowLeft,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MessageContent } from "@/components/messages/message-content";
+import { ContactOpportunityCreateModal } from "@/components/messages/contact-opportunity-create-modal";
 
 type Channel = "facebook" | "instagram" | "sms";
 
@@ -121,6 +123,9 @@ export default function MessagesPage() {
 
   // Mobile state - show contact list or message view
   const [showMobileMessages, setShowMobileMessages] = useState(false);
+
+  // Modal state for creating new contact/opportunity
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Convex queries
   const conversations = useQuery(api.messages.getConversations) as Conversation[] | undefined;
@@ -304,6 +309,13 @@ export default function MessagesPage() {
               className="pl-9 h-10"
             />
           </div>
+          <Button
+            onClick={() => setShowCreateModal(true)}
+            className="w-full mt-3 bg-[#ff5603] hover:bg-[#ff5603]/90 gap-2"
+          >
+            <UserPlus className="h-4 w-4" />
+            Contact and Opportunity
+          </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0 touch-scroll">
@@ -605,6 +617,12 @@ export default function MessagesPage() {
           </div>
         )}
       </div>
+
+      {/* Create Contact & Opportunity Modal */}
+      <ContactOpportunityCreateModal
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
+      />
     </div>
   );
 }

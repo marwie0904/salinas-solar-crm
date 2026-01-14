@@ -474,3 +474,411 @@ export interface GeneratedPDF {
   filename: string;
   download: () => void;
 }
+
+// Generate contract as editable plain text
+export function generateContractText(data: AgreementFormData): string {
+  const systemTypeLabel = data.systemType === "hybrid" ? "Hybrid" : "Grid Tied";
+  const batteryInfo = data.batteryCapacity ? ` with ${data.batteryCapacity}kWh Battery` : "";
+  const projectName = `Installation of a ${data.systemSize}kW ${systemTypeLabel} Solar Power System${batteryInfo}`;
+  const amountInWords = numberToWords(Math.floor(data.totalAmount));
+
+  let text = `AGREEMENT FOR PHOTOVOLTAIC SYSTEM INSTALLATION PROJECT
+
+This Agreement for Solar Power Project (the "Agreement") is made and entered into ${formatDateLong(data.agreementDate) || "[Date]"} by and between:
+
+SALINAS SOLAR ENTERPRISES CORPORATION, a duly registered company in the Philippines, with office address at Roman Superhighway, Brgy. Bilolo, Orion, Bataan, represented by Mr. Jay-R Garado Salinas, hereinafter referred to as the "Contractor",
+
+${data.clientName.toUpperCase()}, with address at ${data.clientAddress}, hereinafter referred to as the "Client".
+
+WHEREAS, the Contractor is engaged in the design, supply, and installation of photovoltaic (PV) solar power systems;
+
+WHEREAS, the Client desires to procure the Contractor's services for the supply and installation of a solar power system at the Client's specified location;
+
+NOW, THEREFORE, in consideration of the mutual covenants herein contained, the parties agree as follows:
+
+═══════════════════════════════════════════════════════════════════════════════
+1. PROJECT DETAILS
+═══════════════════════════════════════════════════════════════════════════════
+
+• Project Name: ${projectName}
+• Project Location: ${data.projectLocation}
+• Project Description: The Contractor shall design, supply, install, test, and commission a solar power system.
+
+═══════════════════════════════════════════════════════════════════════════════
+2. CONTRACT AMOUNT
+═══════════════════════════════════════════════════════════════════════════════
+
+The total project cost is ${formatCurrencyForPDF(data.totalAmount)} (${amountInWords}), inclusive of all materials, mobilization, and installation.
+
+═══════════════════════════════════════════════════════════════════════════════
+3. SCOPE OF WORK
+═══════════════════════════════════════════════════════════════════════════════
+
+The contractor shall be responsible for the following:
+
+3.1 Site Assessment
+• Conduct preliminary evaluation of the installation site, including structural integrity assessment of the rooftop.
+• Perform shading analysis to optimize solar panel placement.
+• Assess electrical infrastructure compatibility with the solar system.
+
+3.2 Construction of Solar Rooftop Power System
+• Supply and installation of necessary materials.
+• Proper mounting and secure installation of the solar panels, inverter, and protection devices.
+
+3.3 Civil Works
+• Reinforcement and preparation of the roof structure to support the solar panels.
+• Installation of weatherproofing measures to protect the system components.
+
+3.4 Electrical Works
+• Wiring and cabling works from the solar panels to the inverter and electrical panel.
+• Installation of circuit breakers, protection devices, and grounding systems.
+• Ensuring compliance with relevant electrical codes and safety regulations.`;
+
+  if (data.includeNetMetering) {
+    text += `
+• Net metering provision and application (excluding PENELCO fees and charges).`;
+  }
+
+  text += `
+
+3.5 Training to System Owner
+• Provide a comprehensive orientation on system operation, monitoring, and basic troubleshooting.
+• Guide the owner on energy consumption optimization and system maintenance.`;
+
+  let sectionNum = 6;
+  if (data.includeNetMetering) {
+    text += `
+
+3.6 Net Metering Provision and Application
+• Service entrance modification.
+• Processing and application of net metering (permit fees apply).`;
+    sectionNum = 7;
+  }
+
+  if (data.includePanelCleaning || data.includeMaintenanceService) {
+    text += `
+
+3.${sectionNum} Others`;
+    if (data.includePanelCleaning) {
+      text += `
+• Free cleaning of solar panels for two (2) years; once a year.`;
+    }
+    if (data.includeMaintenanceService) {
+      text += `
+• Bi-annual system evaluation performance report/maintenance service for fifteen (15) years.`;
+    }
+  }
+
+  text += `
+
+List of Materials:`;
+  data.materials.forEach((material, index) => {
+    if (material.name) {
+      const specInfo = material.specifications ? ` ${material.specifications}` : "";
+      const modelInfo = material.model ? ` ${material.model}` : "";
+      text += `
+${index + 1}. ${material.name} - ${material.quantity} ${material.quantity > 1 ? "units" : "unit"}${modelInfo}${specInfo}`;
+    }
+  });
+
+  text += `
+
+═══════════════════════════════════════════════════════════════════════════════
+4. SCHEDULE OF PAYMENT
+═══════════════════════════════════════════════════════════════════════════════
+`;
+
+  data.payments.forEach((payment) => {
+    if (payment.description) {
+      let paymentText = `${payment.description}`;
+      if (payment.amount > 0) {
+        paymentText += ` - ${formatCurrencyForPDF(payment.amount)}`;
+      }
+      text += `
+${paymentText}`;
+      if (payment.dueDate) {
+        const formattedDate = formatDateLong(payment.dueDate);
+        if (formattedDate) {
+          text += `
+   Due Date: ${formattedDate}`;
+        }
+      }
+    }
+  });
+
+  text += `
+
+Payments shall be made via cash, bank deposit or check payable to:
+BPI Account: SALINAS SOLAR ENTERPRISES CORPORATION
+BPI Account No.: 2291-0004-98
+
+═══════════════════════════════════════════════════════════════════════════════
+5. COMMENCEMENT AND COMPLETION TIME
+═══════════════════════════════════════════════════════════════════════════════
+`;
+
+  data.phases.forEach((phase, index) => {
+    const phaseDate = formatDateLong(phase.date);
+    const dateDisplay = phaseDate || "To Be Determined";
+    text += `
+5.${index + 1} Phase ${index + 1} (${dateDisplay})`;
+    phase.tasks.forEach((task) => {
+      if (task.trim()) {
+        text += `
+• ${task}`;
+      }
+    });
+  });
+
+  text += `
+
+═══════════════════════════════════════════════════════════════════════════════
+6. WARRANTY
+═══════════════════════════════════════════════════════════════════════════════
+
+The Contractor guarantees the following warranties:
+
+1. Solar Panels: ${data.solarPanelWarranty} years performance warranty.
+2. Inverter: ${data.inverterWarranty} years manufacturer warranty.`;
+
+  let warrantyNum = 3;
+  if (data.systemType === "hybrid" && data.batteryCapacity) {
+    text += `
+${warrantyNum}. Battery: ${data.batteryWarranty} years manufacturer warranty.`;
+    warrantyNum++;
+  }
+  text += `
+${warrantyNum}. Mounting Structures and Installation Workmanship: ${data.mountingWarranty} year warranty against defects.
+
+Warranty covers repair or replacement of defective items due to manufacturing defects, improper installation, and force majeure excluding damage due to misuse by the Client.
+
+═══════════════════════════════════════════════════════════════════════════════
+7. OBLIGATIONS OF THE CLIENT
+═══════════════════════════════════════════════════════════════════════════════
+
+The Client agrees to:
+1. Provide access to the project site for installation and inspection.
+2. Ensure timely payment as per the terms of this contract.
+   a. Penalty fee of 8% of the total system price for every week of delayed payment from the due date.
+
+═══════════════════════════════════════════════════════════════════════════════
+8. TERMINATION
+═══════════════════════════════════════════════════════════════════════════════
+
+Either party may terminate this contract with a written notice within 5 (five) days. In case of termination:
+• Any materials delivered and installed remain the property of the Contractor until full payment.
+• The Client is liable for payment of completed work and procured materials.
+
+═══════════════════════════════════════════════════════════════════════════════
+9. FORCE MAJEURE
+═══════════════════════════════════════════════════════════════════════════════
+
+The Contractor shall not be held liable for delays or failure to perform due to circumstances beyond its control, including natural disasters, labor strikes, or government restrictions.
+
+═══════════════════════════════════════════════════════════════════════════════
+10. ENTIRE AGREEMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+This contract constitutes the entire agreement between the Contractor and the Client, superseding any prior agreements or understandings.
+
+═══════════════════════════════════════════════════════════════════════════════
+11. GOVERNING LAW
+═══════════════════════════════════════════════════════════════════════════════
+
+This contract shall be governed by and construed in accordance with the laws of the Republic of the Philippines.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+IN WITNESS WHEREOF, the parties hereto have executed this contract as of the date first written above.
+
+
+FOR THE CONTRACTOR:                         FOR THE CLIENT:
+SALINAS SOLAR ENTERPRISES CORPORATION       ${data.clientName.toUpperCase()}
+
+
+
+_________________________________           _________________________________
+Engr. Jay-R G. Salinas, ME, CEM             ${data.clientName}
+Authorized Representative                    Client / Property Owner
+
+Date: ____________________                  Date: ____________________
+`;
+
+  return text;
+}
+
+// Generate PDF from edited text content
+export function generatePDFFromText(text: string, clientName: string, systemSize: number, systemType: string): GeneratedPDF {
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginLeft = 25;
+  const marginRight = 25;
+  const marginTop = 20;
+  const marginBottom = 25;
+  const contentWidth = pageWidth - marginLeft - marginRight;
+  let y = marginTop;
+
+  // Check if we need a new page
+  function checkPageBreak(requiredSpace: number) {
+    if (y + requiredSpace > pageHeight - marginBottom) {
+      doc.addPage();
+      y = marginTop;
+    }
+  }
+
+  // Split text into lines and process
+  const lines = text.split('\n');
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    // Section headers (lines with ═══)
+    if (trimmedLine.startsWith('═════')) {
+      checkPageBreak(10);
+      y += 3;
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.5);
+      doc.line(marginLeft, y, pageWidth - marginRight, y);
+      y += 3;
+      continue;
+    }
+
+    // Main title
+    if (trimmedLine === 'AGREEMENT FOR PHOTOVOLTAIC SYSTEM INSTALLATION PROJECT') {
+      checkPageBreak(15);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      const titleWidth = doc.getTextWidth(trimmedLine);
+      doc.text(trimmedLine, (pageWidth - titleWidth) / 2, y);
+      y += 10;
+      continue;
+    }
+
+    // Section titles (numbered sections like "1. PROJECT DETAILS")
+    if (/^\d+\.\s+[A-Z\s]+$/.test(trimmedLine)) {
+      checkPageBreak(12);
+      y += 4;
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(trimmedLine, marginLeft, y);
+      y += 6;
+      continue;
+    }
+
+    // Subsection titles (like "3.1 Site Assessment")
+    if (/^\d+\.\d+\s+/.test(trimmedLine)) {
+      checkPageBreak(10);
+      y += 2;
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(trimmedLine, marginLeft, y);
+      y += 5;
+      continue;
+    }
+
+    // Bullet points
+    if (trimmedLine.startsWith('•')) {
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      const bulletText = trimmedLine.substring(1).trim();
+      const wrappedLines = doc.splitTextToSize(bulletText, contentWidth - 13);
+      const lineHeight = 11 * 0.45;
+
+      checkPageBreak(wrappedLines.length * lineHeight + 2);
+      doc.text("•", marginLeft + 8, y);
+
+      for (let i = 0; i < wrappedLines.length; i++) {
+        doc.text(wrappedLines[i], marginLeft + 13, y);
+        if (i < wrappedLines.length - 1) y += lineHeight;
+      }
+      y += lineHeight;
+      continue;
+    }
+
+    // Numbered items in lists (like "1. Solar Panels...")
+    if (/^\d+\.\s+\S/.test(trimmedLine) && !trimmedLine.match(/^\d+\.\s+[A-Z\s]+$/)) {
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      const match = trimmedLine.match(/^(\d+\.)\s+(.+)$/);
+      if (match) {
+        const [, num, itemText] = match;
+        const wrappedLines = doc.splitTextToSize(itemText, contentWidth - 16);
+        const lineHeight = 11 * 0.45;
+
+        checkPageBreak(wrappedLines.length * lineHeight + 2);
+        doc.text(num, marginLeft + 8, y);
+
+        for (let i = 0; i < wrappedLines.length; i++) {
+          doc.text(wrappedLines[i], marginLeft + 16, y);
+          if (i < wrappedLines.length - 1) y += lineHeight;
+        }
+        y += lineHeight;
+        continue;
+      }
+    }
+
+    // Bold lines (like bank account info, section headers in signature)
+    if (trimmedLine.startsWith('BPI Account') ||
+        trimmedLine.startsWith('FOR THE CONTRACTOR:') ||
+        trimmedLine.startsWith('FOR THE CLIENT:') ||
+        trimmedLine.startsWith('SALINAS SOLAR ENTERPRISES CORPORATION') ||
+        trimmedLine === 'List of Materials:' ||
+        trimmedLine === 'IN WITNESS WHEREOF, the parties hereto have executed this contract as of the date first written above.') {
+      checkPageBreak(8);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(trimmedLine, marginLeft, y);
+      y += 5;
+      continue;
+    }
+
+    // Signature line underscores
+    if (trimmedLine.startsWith('_____')) {
+      checkPageBreak(8);
+      y += 10;
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.3);
+      doc.line(marginLeft, y, marginLeft + 70, y);
+      y += 5;
+      continue;
+    }
+
+    // Empty lines
+    if (trimmedLine === '') {
+      y += 3;
+      continue;
+    }
+
+    // Regular paragraph text
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    const wrappedLines = doc.splitTextToSize(trimmedLine, contentWidth);
+    const lineHeight = 11 * 0.45;
+
+    for (const wrappedLine of wrappedLines) {
+      checkPageBreak(lineHeight + 2);
+      doc.text(wrappedLine, marginLeft, y);
+      y += lineHeight;
+    }
+  }
+
+  // Generate filename
+  const sanitizedName = clientName.replace(/[^a-zA-Z0-9]/g, "_");
+  const systemTypeLabel = systemType === "hybrid" ? "Hybrid" : "Grid_Tied";
+  const systemInfo = `${systemSize}kW_${systemTypeLabel}_System`;
+  const filename = `${sanitizedName}_${systemInfo}.pdf`;
+
+  const pdfBlob = doc.output("blob");
+
+  return {
+    blob: pdfBlob,
+    filename,
+    download: () => doc.save(filename),
+  };
+}

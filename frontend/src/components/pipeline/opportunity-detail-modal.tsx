@@ -180,6 +180,7 @@ export function OpportunityDetailModal({
   const updateStage = useMutation(api.opportunities.updateStage);
   const removeOpportunity = useMutation(api.opportunities.remove);
   const notifyPmForClosure = useMutation(api.opportunities.notifyPmForClosure);
+  const updateContact = useMutation(api.contacts.update);
 
   // PM notification state
   const [isNotifyingPm, setIsNotifyingPm] = useState(false);
@@ -279,28 +280,32 @@ export function OpportunityDetailModal({
   const handleSave = async () => {
     if (!editedOpportunity) return;
 
+    // Capture current state before any awaits to prevent race conditions
+    // (useEffect can reset editedOpportunity when opportunity prop updates from subscription)
+    const opportunityToSave = { ...editedOpportunity };
+
     setIsSaving(true);
     try {
       // Update stage if changed
-      if (editedOpportunity.stage !== opportunity?.stage) {
+      if (opportunityToSave.stage !== opportunity?.stage) {
         await updateStage({
-          id: editedOpportunity._id,
-          stage: editedOpportunity.stage,
+          id: opportunityToSave._id,
+          stage: opportunityToSave.stage,
         });
       }
 
       // Update other fields
       await updateOpportunity({
-        id: editedOpportunity._id,
-        name: editedOpportunity.name,
-        estimatedValue: editedOpportunity.estimatedValue,
-        location: editedOpportunity.location,
-        locationLat: editedOpportunity.locationLat,
-        locationLng: editedOpportunity.locationLng,
-        locationCapturedAt: editedOpportunity.locationCapturedAt,
-        openSolarProjectId: editedOpportunity.openSolarProjectId,
-        openSolarProjectUrl: editedOpportunity.openSolarProjectUrl,
-        notes: editedOpportunity.notes,
+        id: opportunityToSave._id,
+        name: opportunityToSave.name,
+        estimatedValue: opportunityToSave.estimatedValue,
+        location: opportunityToSave.location,
+        locationLat: opportunityToSave.locationLat,
+        locationLng: opportunityToSave.locationLng,
+        locationCapturedAt: opportunityToSave.locationCapturedAt,
+        openSolarProjectId: opportunityToSave.openSolarProjectId,
+        openSolarProjectUrl: opportunityToSave.openSolarProjectUrl,
+        notes: opportunityToSave.notes,
       });
 
       // Check if system consultant changed
@@ -308,7 +313,7 @@ export function OpportunityDetailModal({
       if (selectedConsultantId && selectedConsultantId !== originalConsultantId) {
         // Assign the new consultant
         await assignOpportunity({
-          id: editedOpportunity._id,
+          id: opportunityToSave._id,
           assignedTo: selectedConsultantId as any,
         });
 
@@ -320,14 +325,14 @@ export function OpportunityDetailModal({
         if (selectedConsultant && selectedConsultant.email) {
           // Build the opportunity URL
           const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-          const opportunityUrl = `${baseUrl}/pipeline?opportunityId=${editedOpportunity._id}`;
+          const opportunityUrl = `${baseUrl}/pipeline?opportunityId=${opportunityToSave._id}`;
 
           // Send notification email
           try {
             await sendConsultantAssignmentEmail({
               to: selectedConsultant.email,
               consultantFirstName: selectedConsultant.firstName,
-              opportunityName: editedOpportunity.name,
+              opportunityName: opportunityToSave.name,
               opportunityUrl,
             });
             console.log("Consultant assignment email sent successfully");
@@ -336,23 +341,9 @@ export function OpportunityDetailModal({
             // Don't block the save if email fails
           }
         }
-
-        // Update local state with new consultant info
-        setEditedOpportunity({
-          ...editedOpportunity,
-          systemConsultant: selectedConsultant
-            ? {
-                _id: selectedConsultant._id,
-                firstName: selectedConsultant.firstName,
-                lastName: selectedConsultant.lastName,
-                email: selectedConsultant.email,
-                phone: selectedConsultant.phone,
-              }
-            : editedOpportunity.systemConsultant,
-        });
       }
 
-      onSave(editedOpportunity);
+      onSave(opportunityToSave);
       onOpenChange(false);
     } catch (error) {
       console.error("Failed to save opportunity:", error);
@@ -384,6 +375,32 @@ export function OpportunityDetailModal({
       locationLng: location.lng,
       locationCapturedAt: Date.now(),
     });
+
+    // Update contact's address with the captured location (if contact exists)
+    if (editedOpportunity.contact?._id) {
+      try {
+        await updateContact({
+          id: editedOpportunity.contact._id,
+          address: location.address,
+        });
+        // Update local state to reflect the contact's new address
+        setEditedOpportunity((prev) =>
+          prev && prev.contact
+            ? {
+                ...prev,
+                contact: {
+                  ...prev.contact,
+                  address: location.address,
+                },
+              }
+            : prev
+        );
+        console.log("Contact address updated with captured location");
+      } catch (error) {
+        console.warn("Failed to update contact address:", error);
+        // Don't block the rest of the flow if contact update fails
+      }
+    }
 
     // Create OpenSolar project if not already created
     if (!editedOpportunity.openSolarProjectId) {

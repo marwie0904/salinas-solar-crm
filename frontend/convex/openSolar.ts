@@ -47,6 +47,94 @@ interface CreateProjectResult {
 }
 
 /**
+ * Normalize phone number for comparison
+ * Handles various formats: +63, 0, (63), etc.
+ */
+function normalizePhoneForComparison(phone: string): string {
+  if (!phone) return "";
+  // Remove all non-digit characters
+  const digits = phone.replace(/\D/g, "");
+  // Remove country code (63) if present at the start
+  if (digits.startsWith("63") && digits.length > 10) {
+    return digits.slice(2);
+  }
+  // Remove leading 0 if present
+  if (digits.startsWith("0")) {
+    return digits.slice(1);
+  }
+  return digits;
+}
+
+/**
+ * Search for an existing contact in OpenSolar by email or phone
+ */
+async function findExistingOpenSolarContact(contact: {
+  email?: string;
+  phone?: string;
+}): Promise<{ found: boolean; contactId?: number; contactUrl?: string }> {
+  try {
+    // If no email and no phone, can't search
+    if (!contact.email && !contact.phone) {
+      return { found: false };
+    }
+
+    // Fetch all contacts from OpenSolar (they may not have search endpoint)
+    const response = await fetch(
+      `${OPENSOLAR_API_URL}/orgs/${OPENSOLAR_ORG_ID}/contacts/`,
+      {
+        headers: {
+          "Authorization": `Bearer ${getToken()}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.warn("Failed to fetch OpenSolar contacts for search:", response.status);
+      return { found: false };
+    }
+
+    const contacts = await response.json();
+
+    // Normalize the search phone number
+    const searchPhone = contact.phone ? normalizePhoneForComparison(contact.phone) : "";
+    const searchEmail = contact.email?.toLowerCase().trim();
+
+    // Search for matching contact
+    for (const existingContact of contacts) {
+      // Check email match
+      if (searchEmail && existingContact.email) {
+        if (existingContact.email.toLowerCase().trim() === searchEmail) {
+          console.log(`Found existing OpenSolar contact by email: ${existingContact.id}`);
+          return {
+            found: true,
+            contactId: existingContact.id,
+            contactUrl: `${OPENSOLAR_API_URL}/orgs/${OPENSOLAR_ORG_ID}/contacts/${existingContact.id}/`,
+          };
+        }
+      }
+
+      // Check phone match
+      if (searchPhone && existingContact.phone) {
+        const existingPhone = normalizePhoneForComparison(existingContact.phone);
+        if (existingPhone === searchPhone) {
+          console.log(`Found existing OpenSolar contact by phone: ${existingContact.id}`);
+          return {
+            found: true,
+            contactId: existingContact.id,
+            contactUrl: `${OPENSOLAR_API_URL}/orgs/${OPENSOLAR_ORG_ID}/contacts/${existingContact.id}/`,
+          };
+        }
+      }
+    }
+
+    return { found: false };
+  } catch (error) {
+    console.warn("Error searching for existing OpenSolar contact:", error);
+    return { found: false };
+  }
+}
+
+/**
  * Create a contact in OpenSolar
  */
 async function createOpenSolarContact(contact: {
@@ -115,6 +203,7 @@ async function createOpenSolarContact(contact: {
 
 /**
  * Create a project in OpenSolar with contact
+ * First checks if contact already exists by phone/email, reuses if found
  */
 export const createProject = action({
   args: {
@@ -132,16 +221,35 @@ export const createProject = action({
   },
   handler: async (ctx, args): Promise<CreateProjectResult> => {
     try {
-      // Step 1: Create contact in OpenSolar
-      const contactResult = await createOpenSolarContact({
-        firstName: args.contactFirstName,
-        lastName: args.contactLastName,
+      // Step 1: Check if contact already exists in OpenSolar by phone or email
+      let contactResult: { success: boolean; contactId?: number; contactUrl?: string; error?: string };
+
+      const existingContact = await findExistingOpenSolarContact({
         email: args.contactEmail,
         phone: args.contactPhone,
       });
 
-      if (!contactResult.success) {
-        console.warn("Failed to create contact, proceeding with project creation:", contactResult.error);
+      if (existingContact.found && existingContact.contactId && existingContact.contactUrl) {
+        // Use existing contact
+        console.log(`Using existing OpenSolar contact: ${existingContact.contactId}`);
+        contactResult = {
+          success: true,
+          contactId: existingContact.contactId,
+          contactUrl: existingContact.contactUrl,
+        };
+      } else {
+        // Create new contact in OpenSolar
+        console.log("No existing contact found, creating new contact in OpenSolar");
+        contactResult = await createOpenSolarContact({
+          firstName: args.contactFirstName,
+          lastName: args.contactLastName,
+          email: args.contactEmail,
+          phone: args.contactPhone,
+        });
+
+        if (!contactResult.success) {
+          console.warn("Failed to create contact, proceeding with project creation:", contactResult.error);
+        }
       }
 
       // Step 2: Parse address components

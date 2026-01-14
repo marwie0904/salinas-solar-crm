@@ -500,7 +500,7 @@ export const seedSalinasTeam = mutation({
       results.push("Created CRM user: Jay-R G. Salinas (Head, Sales)");
     }
 
-    // 2. Sales dual account - Kim Lan Gan & Betina May Bugay
+    // 2. Sales dual account - Kim Ian Gan & Betina May Bugay
     const salesEmail = "sales@salinassolar.ph";
     const existingSales = await ctx.db
       .query("authUsers")
@@ -527,7 +527,7 @@ export const seedSalinasTeam = mutation({
 
       // Create Kim's CRM profile
       await ctx.db.insert("users", {
-        firstName: "Kim Lan",
+        firstName: "Kim Ian",
         lastName: "Gan",
         email: kimEmail,
         phone: "9563713390",
@@ -536,7 +536,7 @@ export const seedSalinasTeam = mutation({
         createdAt: now,
         updatedAt: now,
       });
-      results.push("Created CRM user: Kim Lan Gan (System Consultant)");
+      results.push("Created CRM user: Kim Ian Gan (System Consultant)");
 
       // Create Betina's CRM profile
       await ctx.db.insert("users", {

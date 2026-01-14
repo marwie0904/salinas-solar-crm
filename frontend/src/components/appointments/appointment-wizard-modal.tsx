@@ -108,6 +108,7 @@ export function AppointmentWizardModal({
   const users = useQuery(api.users.list, {});
   const contacts = useQuery(api.contacts.list, {});
   const opportunities = useQuery(api.opportunities.list, {});
+  const systemConsultants = useQuery(api.users.listSystemConsultants, {});
 
   const createAppointment = useMutation(api.appointments.create);
   const sendAppointmentEmail = useAction(api.email.sendAppointmentEmail);
@@ -512,12 +513,24 @@ export function AppointmentWizardModal({
                           ? "border-[#ff5603] bg-[#ff5603]/5"
                           : "hover:border-muted-foreground/30"
                       )}
-                      onClick={() =>
-                        setWizardData((prev) => ({
-                          ...prev,
-                          appointmentType: type.value as "discovery_call" | "field_inspection",
-                        }))
-                      }
+                      onClick={() => {
+                        const newType = type.value as "discovery_call" | "field_inspection";
+                        // If field_inspection is selected and no attendee is set, default to first system consultant
+                        if (newType === "field_inspection" && !wizardData.assignedTo && systemConsultants?.length) {
+                          const defaultConsultant = systemConsultants[0];
+                          setWizardData((prev) => ({
+                            ...prev,
+                            appointmentType: newType,
+                            assignedTo: defaultConsultant._id,
+                            assignedUserName: defaultConsultant.fullName,
+                          }));
+                        } else {
+                          setWizardData((prev) => ({
+                            ...prev,
+                            appointmentType: newType,
+                          }));
+                        }
+                      }}
                     >
                       <div
                         className={cn(

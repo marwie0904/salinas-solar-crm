@@ -126,6 +126,7 @@ export function AppointmentModal({
   const users = useQuery(api.users.list, {});
   const contacts = useQuery(api.contacts.list, {});
   const opportunities = useQuery(api.opportunities.list, {});
+  const systemConsultants = useQuery(api.users.listSystemConsultants, {});
 
   const createAppointment = useMutation(api.appointments.create);
   const updateAppointment = useMutation(api.appointments.update);
@@ -474,12 +475,23 @@ export function AppointmentModal({
             <label className="text-sm font-medium">Appointment Type *</label>
             <Select
               value={formData.appointmentType}
-              onValueChange={(value) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  appointmentType: value as "discovery_call" | "field_inspection",
-                }))
-              }
+              onValueChange={(value) => {
+                const newType = value as "discovery_call" | "field_inspection";
+                // If field_inspection is selected and no attendee is set, default to first system consultant
+                if (newType === "field_inspection" && !formData.assignedTo && systemConsultants?.length) {
+                  const defaultConsultant = systemConsultants[0];
+                  setFormData((prev) => ({
+                    ...prev,
+                    appointmentType: newType,
+                    assignedTo: defaultConsultant._id,
+                  }));
+                } else {
+                  setFormData((prev) => ({
+                    ...prev,
+                    appointmentType: newType,
+                  }));
+                }
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select type" />
