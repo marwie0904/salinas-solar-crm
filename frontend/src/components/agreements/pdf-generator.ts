@@ -407,9 +407,14 @@ export function generateAgreementPDF(data: AgreementFormData): GeneratedPDF {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.text("FOR THE CONTRACTOR:", leftCol, y);
-  y += 5;
-  doc.text("SALINAS SOLAR ENTERPRISES CORPORATION", leftCol, y);
-  y += 20;
+  y += 6;
+  // Use smaller font for company name to prevent overflow
+  doc.setFontSize(10);
+  doc.text("SALINAS SOLAR ENTERPRISES", leftCol, y);
+  y += 4;
+  doc.text("CORPORATION", leftCol, y);
+  doc.setFontSize(11);
+  y += 18;
 
   // Signature line
   doc.setFont("helvetica", "normal");
@@ -432,9 +437,14 @@ export function generateAgreementPDF(data: AgreementFormData): GeneratedPDF {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.text("FOR THE CLIENT:", rightCol, rightY);
-  rightY += 5;
-  doc.text(data.clientName.toUpperCase(), rightCol, rightY);
-  rightY += 20;
+  rightY += 6;
+  // Wrap client name if too long
+  const clientNameLines = doc.splitTextToSize(data.clientName.toUpperCase(), colWidth - 10);
+  for (const line of clientNameLines) {
+    doc.text(line, rightCol, rightY);
+    rightY += 4;
+  }
+  rightY += 14; // Adjust spacing to align with left column
 
   // Signature line
   doc.setFont("helvetica", "normal");
@@ -692,16 +702,26 @@ This contract shall be governed by and construed in accordance with the laws of 
 IN WITNESS WHEREOF, the parties hereto have executed this contract as of the date first written above.
 
 
-FOR THE CONTRACTOR:                         FOR THE CLIENT:
-SALINAS SOLAR ENTERPRISES CORPORATION       ${data.clientName.toUpperCase()}
+FOR THE CONTRACTOR:
+SALINAS SOLAR ENTERPRISES CORPORATION
 
 
+_________________________________
+Engr. Jay-R G. Salinas, ME, CEM
+Authorized Representative
 
-_________________________________           _________________________________
-Engr. Jay-R G. Salinas, ME, CEM             ${data.clientName}
-Authorized Representative                    Client / Property Owner
+Date: ____________________
 
-Date: ____________________                  Date: ____________________
+
+FOR THE CLIENT:
+${data.clientName.toUpperCase()}
+
+
+_________________________________
+${data.clientName}
+Client / Property Owner
+
+Date: ____________________
 `;
 
   return text;

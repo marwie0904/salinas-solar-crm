@@ -445,10 +445,10 @@ export const sign = action({
             }
             console.log("[Sign Agreement] Signature embedded successfully");
 
-            // Calculate signature dimensions (LARGER size for better visibility)
+            // Calculate signature dimensions (scaled for good visibility)
             const sigDims = signatureImage.scale(1);
-            const maxWidth = 180; // Increased from 150
-            const maxHeight = 60; // Increased from 50
+            const maxWidth = 100; // Compact width for signature
+            const maxHeight = 40; // Compact height for signature
             const scale = Math.min(maxWidth / sigDims.width, maxHeight / sigDims.height, 1);
             const sigWidth = sigDims.width * scale;
             const sigHeight = sigDims.height * scale;
@@ -459,58 +459,85 @@ export const sign = action({
             // A4 page: 297mm height = 841.89 points, width = 210mm = 595.28 points
             // 1mm = 2.835 points
             //
-            // Two-column layout from pdf-generator.ts:
-            // - marginLeft = 25mm, contentWidth = 160mm, colWidth = 70mm
-            // - Right column (Client): starts at marginLeft + colWidth + 20 = 115mm = 326 points
+            // PDF Generator layout (pdf-generator.ts):
+            // - marginLeft = 25mm, marginTop = 20mm, marginBottom = 25mm
+            // - contentWidth = 160mm, colWidth = 70mm
+            // - Right column starts at: marginLeft + colWidth + 20 = 115mm = 326 points
             //
-            // Right column layout (mm from signatureStartY):
-            // - +0: "FOR THE CLIENT:"
-            // - +5: Client name in caps
-            // - +25: Signature line (20mm space for signature above)
-            // - +30: Client name text below line
-            // - +35: "Client / Property Owner"
-            // - +45: "Date: ____________________"
+            // Signature section structure (from signatureStartY):
+            // - +0mm: "FOR THE CLIENT:"
+            // - +5mm: Client name (uppercase)
+            // - +25mm: Signature line (after 20mm gap for signature)
+            // - +30mm: Client name (normal case)
+            // - +35mm: "Client / Property Owner"
+            // - +45mm: "Date: ____________________"
+            //
+            // The signature section has checkPageBreak(90) before it:
+            // - If page break triggered: signature section starts at marginTop (20mm from top)
+            // - If no page break: signature section is above marginBottom (25mm from bottom)
 
-            // Right column X position - moved more to the right
-            const rightColX = 340; // Moved from 326 to 340 (5mm more to the right)
-            const signatureX = rightColX + 5; // Moved left from +15 to +5
-            const dateX = rightColX + 33; // After "Date: " text (~12mm / 33 points)
+            // Get page dimensions
+            const { width: pageWidth } = lastPage.getSize();
+
+            // Right column X position (115mm from left = ~326 points)
+            const rightColX = 326;
+            // Signature placed slightly indented in the signature area
+            const signatureX = rightColX + 5;
+            // Date text appears after "Date: " label (~12mm / ~34 points from column start)
+            const dateX = rightColX + 40;
+
+            // Determine positioning based on page count and layout
+            // The checkPageBreak(90) in pdf-generator.ts triggers a new page if less than 90mm available
+            // For most contracts (3+ pages), the signature section is on a new page starting at top
 
             let signatureY: number;
             let dateY: number;
 
+            // Signature section total height is approximately 45mm
+            // From signatureStartY to Date line = 45mm
+
             if (pages.length >= 3) {
-              // Signature section on dedicated last page
-              console.log("[Sign Agreement] Using NEW PAGE positioning (3+ pages)");
-              const sigLineFromTop = 85; // mm - signature line position
-              const dateTextFromTop = 99; // mm - date line position
+              // Multi-page document: signature section likely starts at top of last page
+              // signatureStartY ≈ marginTop = 20mm from top
+              // Signature line at signatureStartY + 25mm = 45mm from top
+              // Date line at signatureStartY + 45mm = 65mm from top
+              console.log("[Sign Agreement] Multi-page document - positioning from top");
 
-              // Place signature so its bottom sits just above the line
-              const sigLineY = pageHeight - (sigLineFromTop * 2.835);
-              signatureY = sigLineY + 8; // Signature bottom above line
+              const marginTop = 20; // mm
+              const signatureStartY = marginTop; // mm from top
 
-              // Date text baseline position
-              dateY = pageHeight - (dateTextFromTop * 2.835);
+              // Convert to points from bottom (pdf-lib coordinate system)
+              // Signature line is at signatureStartY + 25mm from top
+              const sigLineFromTop = signatureStartY + 25; // mm from top
+              // Place signature above the line
+              signatureY = pageHeight - (sigLineFromTop * 2.835) + 5;
+
+              // Date line is at signatureStartY + 45mm from top
+              const dateLineFromTop = signatureStartY + 45; // mm from top
+              dateY = pageHeight - (dateLineFromTop * 2.835) + 3;
             } else {
-              // Signature section at bottom of last page (content-dependent position)
-              console.log("[Sign Agreement] Using SAME PAGE positioning (1-2 pages)");
-              // Signature line typically around 220-225mm from top
-              // Date line around 240-245mm from top
+              // 1-2 page document: signature section is at bottom of last page
+              // The section ends at marginBottom = 25mm from bottom
+              // Date line is approximately 25-30mm from bottom
+              // Signature line is approximately 45-50mm from bottom
+              console.log("[Sign Agreement] Short document - positioning from bottom");
 
-              const sigLineFromTop = 223; // mm
-              const dateTextFromTop = 243; // mm
+              // Positions from bottom of page
+              const dateFromBottom = 30; // mm from bottom
+              dateY = dateFromBottom * 2.835;
 
-              const sigLineY = pageHeight - (sigLineFromTop * 2.835);
-              signatureY = sigLineY + 8;
-
-              dateY = pageHeight - (dateTextFromTop * 2.835);
+              const sigLineFromBottom = 50; // mm from bottom
+              // Place signature so bottom edge is just above the line
+              signatureY = sigLineFromBottom * 2.835;
             }
 
+            console.log("[Sign Agreement] Page dimensions - width:", pageWidth, "height:", pageHeight);
+            console.log("[Sign Agreement] Pages count:", pages.length);
             console.log("[Sign Agreement] Placing signature at x:", signatureX, "y:", signatureY);
             console.log("[Sign Agreement] Placing date at x:", dateX, "y:", dateY);
 
-            // Add signature on the "By:" line in "FOR THE CLIENT:" section
-            // The signature is drawn with its bottom-left corner at (x, y)
+            // Add signature on the signature line in "FOR THE CLIENT:" section
+            // pdf-lib uses bottom-left origin, so y is distance from bottom
             lastPage.drawImage(signatureImage, {
               x: signatureX,
               y: signatureY,
@@ -518,7 +545,7 @@ export const sign = action({
               height: sigHeight,
             });
 
-            // Add date on the "Date:" line (client name is already in the PDF)
+            // Add date on the "Date:" line
             const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
             const signedDate = new Date().toLocaleDateString("en-US", {
               year: "numeric",
@@ -526,7 +553,7 @@ export const sign = action({
               day: "numeric",
             });
 
-            // Draw date on the Date: line only
+            // Draw date after the "Date: " label
             lastPage.drawText(signedDate, {
               x: dateX,
               y: dateY,
