@@ -217,6 +217,11 @@ export async function POST(request: NextRequest) {
       let firstName = "Unknown";
       let lastName = "";
 
+      console.log("[Meta Webhook] Attempting to fetch user profile for:", {
+        senderId: event.senderId,
+        channel: event.channel,
+      });
+
       try {
         const profile = await getUserProfile(event.senderId, event.channel);
         if (event.channel === "facebook") {
@@ -230,8 +235,20 @@ export async function POST(request: NextRequest) {
           firstName = nameParts[0] || "Unknown";
           lastName = nameParts.slice(1).join(" ");
         }
+        console.log("[Meta Webhook] User profile resolved:", {
+          senderId: event.senderId,
+          firstName,
+          lastName,
+          senderName,
+        });
       } catch (error) {
-        console.warn("[Meta Webhook] Failed to get user profile:", error);
+        console.error("[Meta Webhook] FAILED to get user profile - contact will be 'Unknown':", {
+          senderId: event.senderId,
+          channel: event.channel,
+          error: error instanceof Error ? error.message : String(error),
+          errorDetails: error instanceof Error && 'details' in error ? (error as { details: unknown }).details : undefined,
+        });
+        console.error("[Meta Webhook] Full error object:", error);
       }
 
       // Build message content

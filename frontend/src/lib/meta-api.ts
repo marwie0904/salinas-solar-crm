@@ -284,17 +284,46 @@ export async function getUserProfile(
 
   const url = `${GRAPH_API_BASE}/${userId}?fields=${fields}&access_token=${accessToken}`;
 
+  console.log("[Meta API] Fetching user profile:", {
+    userId,
+    channel,
+    fields,
+    hasAccessToken: !!accessToken,
+    tokenPrefix: accessToken ? accessToken.substring(0, 10) + "..." : "none",
+  });
+
   const response = await fetch(url);
 
   if (!response.ok) {
     const error = await response.json();
+    console.error("[Meta API] User profile fetch FAILED:", {
+      userId,
+      channel,
+      status: response.status,
+      statusText: response.statusText,
+      error: JSON.stringify(error, null, 2),
+      errorCode: error?.error?.code,
+      errorType: error?.error?.type,
+      errorMessage: error?.error?.message,
+      errorSubcode: error?.error?.error_subcode,
+    });
     throw new MetaApiError(
       `Failed to get user profile: ${JSON.stringify(error)}`,
       error
     );
   }
 
-  return response.json();
+  const profile = await response.json();
+  console.log("[Meta API] User profile fetch SUCCESS:", {
+    userId,
+    channel,
+    firstName: profile.first_name,
+    lastName: profile.last_name,
+    name: profile.name,
+    hasProfilePic: !!profile.profile_pic,
+  });
+
+  return profile;
 }
 
 // ============================================
