@@ -74,18 +74,18 @@ crons.hourly(
 );
 
 /**
- * Send follow-up SMS on Monday at 9:00 AM Philippine Time (PHT)
+ * Send follow-up SMS on Wednesday at 9:00 AM Philippine Time (PHT)
  *
  * PHT is UTC+8, so 9:00 AM PHT = 1:00 AM UTC
  * This sends SMS to opportunities in:
  * - "did_not_book_call" stage (until booked for ocular visit)
  * - "follow_up" stage (until confirmed)
  *
- * Messages rotate through 4 different templates.
+ * Messages rotate through 25 different templates.
  */
 crons.weekly(
-  "follow-up-sms-monday",
-  { dayOfWeek: "monday", hourUTC: 1, minuteUTC: 0 }, // 9:00 AM PHT
+  "follow-up-sms-wednesday",
+  { dayOfWeek: "wednesday", hourUTC: 1, minuteUTC: 0 }, // 9:00 AM PHT
   internal.autoSms.sendScheduledFollowUpSms
 );
 

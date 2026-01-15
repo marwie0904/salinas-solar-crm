@@ -1478,33 +1478,38 @@ export const sendScheduledFollowUpSms = internalAction({
 
     // ====================================
     // Process "Follow Up" stage opportunities
-    // TEMPORARILY DISABLED
     // ====================================
-    // const followUpOpps = await ctx.runQuery(internal.autoSms.getFollowUpStageOpportunities, {});
-    // console.log(`[Auto SMS] Found ${followUpOpps.length} opportunities in 'follow_up' stage`);
+    const followUpOpps = await ctx.runQuery(internal.autoSms.getFollowUpStageOpportunities, {});
+    console.log(`[Auto SMS] Found ${followUpOpps.length} opportunities in 'follow_up' stage`);
 
     let followUpSent = 0;
-    console.log("[Auto SMS] Follow Up stage SMS is temporarily disabled");
-    // for (const opp of followUpOpps) {
-    //   if (opp.contactPhone && opp.contactFirstName) {
-    //     const nextIndex = (opp.lastSmsIndex + 1) % 25;
-    //     const message = generateFollowUpStageSms(
-    //       { firstName: opp.contactFirstName },
-    //       nextIndex
-    //     );
-    //     const result = await sendSms(opp.contactPhone, message);
+    for (const opp of followUpOpps) {
+      if (opp.contactPhone && opp.contactFirstName) {
+        const nextIndex = (opp.lastSmsIndex + 1) % 25;
+        const message = generateFollowUpStageSms(
+          { firstName: opp.contactFirstName },
+          nextIndex
+        );
+        const result = await sendSms(opp.contactPhone, message);
 
-    //     if (result.success) {
-    //       await ctx.runMutation(internal.autoSms.updateOpportunitySmsTracking, {
-    //         opportunityId: opp.opportunityId,
-    //         smsIndex: nextIndex,
-    //         sentAt: Date.now(),
-    //       });
-    //       followUpSent++;
-    //     }
-    //     await new Promise((resolve) => setTimeout(resolve, 500));
-    //   }
-    // }
+        if (result.success) {
+          await ctx.runMutation(internal.autoSms.updateOpportunitySmsTracking, {
+            opportunityId: opp.opportunityId,
+            smsIndex: nextIndex,
+            sentAt: Date.now(),
+          });
+          // Store in messages table
+          await ctx.runMutation(internal.autoSms.storeAutomatedSms, {
+            contactId: opp.contactId,
+            content: message,
+            automatedType: "follow_up",
+            externalMessageId: result.messageId,
+          });
+          followUpSent++;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
 
     console.log("[Auto SMS] Scheduled follow-up SMS completed");
     return {
