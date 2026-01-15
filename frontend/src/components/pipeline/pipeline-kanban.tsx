@@ -372,7 +372,7 @@ export function PipelineKanban({
   // Render static version during SSR
   if (!isMounted) {
     return (
-      <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 h-[calc(100vh-200px)] md:h-[calc(100vh-220px)] kanban-scroll touch-scroll scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex gap-3 md:gap-4 overflow-x-auto pb-6 h-[calc(100vh-200px)] md:h-[calc(100vh-220px)] kanban-scroll touch-scroll kanban-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
         {stages.map((stageConfig) => {
           const stageOpportunities = getOpportunitiesByStage(stageConfig.stage);
           const stageTotal = getStageTotal(stageConfig.stage);
@@ -464,7 +464,7 @@ export function PipelineKanban({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 h-[calc(100vh-200px)] md:h-[calc(100vh-220px)] kanban-scroll touch-scroll scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex gap-3 md:gap-4 overflow-x-auto pb-6 h-[calc(100vh-200px)] md:h-[calc(100vh-220px)] kanban-scroll touch-scroll kanban-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
         {stages.map((stageConfig) => {
           const stageOpportunities = getOpportunitiesByStage(stageConfig.stage);
           const stageTotal = getStageTotal(stageConfig.stage);

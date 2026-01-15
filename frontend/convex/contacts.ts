@@ -532,6 +532,7 @@ export const restore = mutation({
 
 /**
  * Batch create contacts (for import)
+ * Also creates an opportunity in "inbox" stage for each contact
  */
 export const batchCreate = mutation({
   args: {
@@ -544,6 +545,7 @@ export const batchCreate = mutation({
         address: v.optional(v.string()),
         company: v.optional(v.string()),
         source: contactSource,
+        notes: v.optional(v.string()),
       })
     ),
     createdBy: v.optional(v.id("users")),
@@ -552,15 +554,44 @@ export const batchCreate = mutation({
     const timestamp = now();
     const contactIds: Id<"contacts">[] = [];
 
+    // Get current opportunity count for numbering
+    const allOpportunities = await ctx.db.query("opportunities").collect();
+    let opportunityNumber = allOpportunities.length;
+
     for (const contact of args.contacts) {
+      // Create contact
       const contactId = await ctx.db.insert("contacts", {
-        ...contact,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        email: contact.email,
+        phone: contact.phone,
+        address: contact.address,
+        company: contact.company,
+        source: contact.source,
+        notes: contact.notes,
         isDeleted: false,
         createdBy: args.createdBy,
         createdAt: timestamp,
         updatedAt: timestamp,
       });
       contactIds.push(contactId);
+
+      // Create opportunity in inbox stage
+      opportunityNumber++;
+      const contactName = getFullName(contact.firstName, contact.lastName);
+      const opportunityName = `Opportunity #${opportunityNumber}: ${contactName}`;
+
+      await ctx.db.insert("opportunities", {
+        name: opportunityName,
+        contactId,
+        stage: "inbox",
+        estimatedValue: 0,
+        location: contact.address,
+        isDeleted: false,
+        createdBy: args.createdBy,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
     }
 
     return contactIds;
