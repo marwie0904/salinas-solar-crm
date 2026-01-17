@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
 import { ContactSource, PipelineStage, PIPELINE_STAGE_LABELS, PIPELINE_STAGE_DESCRIPTIONS } from "@/lib/types";
 import { usePageTitle } from "@/components/providers/page-title-context";
 import {
@@ -16,14 +17,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, Phone, Mail, Building2, Loader2, HelpCircle } from "lucide-react";
+import { Search, Plus, Phone, Mail, Building2, Loader2, HelpCircle, ChevronDown } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 const sourceLabels: Record<ContactSource, string> = {
   website: "Website",
@@ -62,9 +62,31 @@ const stageColors: Record<PipelineStage, string> = {
   closed: "bg-green-500",
 };
 
+// Type for contact with opportunity
+type ContactWithOpportunity = {
+  _id: Id<"contacts">;
+  _creationTime: number;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  source: ContactSource;
+  fullName: string;
+  opportunity: {
+    _id: Id<"opportunities">;
+    name: string;
+    stage: PipelineStage;
+  } | null;
+};
+
+const CONTACTS_PER_PAGE = 30;
+
 export default function ContactsPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const [cursor, setCursor] = useState<Id<"contacts"> | undefined>(undefined);
+  const [allContacts, setAllContacts] = useState<ContactWithOpportunity[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const { setPageTitle, setPageAction } = usePageTitle();
 
   // Handle add contact action (for header button)
@@ -83,20 +105,76 @@ export default function ContactsPage() {
     };
   }, [setPageTitle, setPageAction, handleAddContact]);
 
-  // Fetch contacts from Convex
-  const contacts = useQuery(api.contacts.listWithOpportunities, {});
-
-  const filteredContacts = contacts?.filter((contact) => {
-    const fullName = contact.fullName;
-    return (
-      fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.phone?.includes(searchQuery) ||
-      contact.opportunity?.name
-        ?.toLowerCase()
-        .includes(searchQuery.toLowerCase())
-    );
+  // Fetch contacts from Convex with pagination
+  const contactsData = useQuery(api.contacts.listWithOpportunities, {
+    limit: CONTACTS_PER_PAGE,
+    cursor: cursor,
   });
+
+  // Accumulate contacts as they load
+  useEffect(() => {
+    if (contactsData?.contacts) {
+      if (cursor === undefined) {
+        // Initial load
+        setAllContacts(contactsData.contacts as ContactWithOpportunity[]);
+      } else {
+        // Append new contacts (avoiding duplicates)
+        setAllContacts((prev) => {
+          const existingIds = new Set(prev.map((c) => c._id));
+          const newContacts = contactsData.contacts.filter(
+            (c) => !existingIds.has(c._id as Id<"contacts">)
+          ) as ContactWithOpportunity[];
+          return [...prev, ...newContacts];
+        });
+      }
+      setIsLoadingMore(false);
+    }
+  }, [contactsData, cursor]);
+
+  // Load more handler
+  const loadMore = useCallback(() => {
+    if (contactsData?.nextCursor && !isLoadingMore) {
+      setIsLoadingMore(true);
+      setCursor(contactsData.nextCursor);
+    }
+  }, [contactsData?.nextCursor, isLoadingMore]);
+
+  // Infinite scroll observer
+  const loadMoreRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node) return;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && contactsData?.nextCursor && !isLoadingMore) {
+            loadMore();
+          }
+        },
+        { threshold: 0.1 }
+      );
+
+      observer.observe(node);
+      return () => observer.disconnect();
+    },
+    [contactsData?.nextCursor, isLoadingMore, loadMore]
+  );
+
+  // Filter contacts based on search
+  const filteredContacts = useMemo(() => {
+    if (!searchQuery) return allContacts;
+
+    return allContacts.filter((contact) => {
+      const fullName = contact.fullName;
+      return (
+        fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        contact.phone?.includes(searchQuery) ||
+        contact.opportunity?.name
+          ?.toLowerCase()
+          .includes(searchQuery.toLowerCase())
+      );
+    });
+  }, [allContacts, searchQuery]);
 
   const handleContactClick = (contactId: string) => {
     router.push(`/contacts/${contactId}`);
@@ -141,7 +219,7 @@ export default function ContactsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {contacts === undefined ? (
+            {contactsData === undefined && allContacts.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={6}
@@ -258,6 +336,31 @@ export default function ContactsPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Infinite scroll trigger */}
+      {!searchQuery && contactsData?.nextCursor && (
+        <div
+          ref={loadMoreRef}
+          className="flex items-center justify-center py-4"
+        >
+          {isLoadingMore ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading more contacts...
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={loadMore}
+              className="text-muted-foreground"
+            >
+              <ChevronDown className="h-4 w-4 mr-1" />
+              Load more
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

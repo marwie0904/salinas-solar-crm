@@ -249,20 +249,36 @@ export const getBySource = query({
 
 /**
  * List contacts with their primary opportunity (for table view)
+ * Supports pagination with limit and cursor
  */
 export const listWithOpportunities = query({
   args: {
     limit: v.optional(v.number()),
+    cursor: v.optional(v.id("contacts")),
   },
   handler: async (ctx, args) => {
-    let query = ctx.db
+    const limit = args.limit || 30;
+
+    let contactsQuery = ctx.db
       .query("contacts")
       .withIndex("by_deleted_created", (q) => q.eq("isDeleted", false))
       .order("desc");
 
-    const contacts = args.limit
-      ? await query.take(args.limit)
-      : await query.collect();
+    // If we have a cursor, we need to skip past it
+    // Since Convex doesn't have built-in cursor support, we use take and filter
+    let contacts;
+    if (args.cursor) {
+      // Fetch extra to find cursor position, then take limit after
+      const allContacts = await contactsQuery.collect();
+      const cursorIndex = allContacts.findIndex(c => c._id === args.cursor);
+      if (cursorIndex !== -1) {
+        contacts = allContacts.slice(cursorIndex + 1, cursorIndex + 1 + limit);
+      } else {
+        contacts = allContacts.slice(0, limit);
+      }
+    } else {
+      contacts = await contactsQuery.take(limit);
+    }
 
     // Fetch primary opportunity for each contact
     const contactsWithOpportunities = await Promise.all(
@@ -289,7 +305,13 @@ export const listWithOpportunities = query({
       })
     );
 
-    return contactsWithOpportunities;
+    // Get next cursor (last item's id if there might be more)
+    const nextCursor = contacts.length === limit ? contacts[contacts.length - 1]?._id : undefined;
+
+    return {
+      contacts: contactsWithOpportunities,
+      nextCursor,
+    };
   },
 });
 

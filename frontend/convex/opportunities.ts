@@ -165,15 +165,33 @@ export const getWithRelations = query({
 
 /**
  * List opportunities for pipeline view (with contact and scheduled appointment)
+ * Supports optional limit per stage for lazy loading
  */
 export const listForPipeline = query({
-  args: {},
-  handler: async (ctx) => {
-    const opportunities = await ctx.db
-      .query("opportunities")
-      .withIndex("by_deleted", (q) => q.eq("isDeleted", false))
-      .order("desc")
-      .collect();
+  args: {
+    limitPerStage: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limitPerStage = args.limitPerStage || 30;
+
+    // Get opportunities grouped by stage with limit
+    const allStages: PipelineStage[] = [
+      "inbox", "to_call", "did_not_answer", "booked_call",
+      "did_not_book_call", "for_ocular", "follow_up",
+      "contract_sent", "for_installation", "closed"
+    ];
+
+    // Fetch limited opportunities per stage in parallel
+    const stageOpportunitiesPromises = allStages.map(async (stage) => {
+      return ctx.db
+        .query("opportunities")
+        .withIndex("by_deleted_stage", (q) => q.eq("isDeleted", false).eq("stage", stage))
+        .order("desc")
+        .take(limitPerStage);
+    });
+
+    const stageResults = await Promise.all(stageOpportunitiesPromises);
+    const opportunities = stageResults.flat();
 
     const enriched = await Promise.all(
       opportunities.map(async (opp) => {
@@ -233,13 +251,7 @@ export const listForPipeline = query({
                 email: assignedUser.email,
                 phone: assignedUser.phone,
               }
-            : {
-                _id: null as any,
-                firstName: "Juan",
-                lastName: "Dela Cruz",
-                email: "juan.delacruz@salinassolar.com",
-                phone: "+63 912 345 6789",
-              },
+            : null,
           scheduledAppointment: appointment
             ? {
                 _id: appointment._id,
