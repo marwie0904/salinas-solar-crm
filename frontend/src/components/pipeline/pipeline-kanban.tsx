@@ -249,8 +249,10 @@ export function PipelineKanban({
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 300,
-        tolerance: 5,
+        // Require user to hold still for 250ms without moving more than 3px
+        // This prevents accidental drags during scroll
+        delay: 250,
+        tolerance: 3,
       },
     })
   );

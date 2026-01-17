@@ -2,7 +2,7 @@
 
 import type { PipelineOpportunity } from "@/app/(dashboard)/pipeline/page";
 import { Card, CardContent } from "@/components/ui/card";
-import { Calendar, User, HardHat, MapPin } from "lucide-react";
+import { Calendar, User, HardHat, MapPin, GripVertical } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
@@ -46,14 +46,21 @@ export function OpportunityCard({ opportunity, onClick }: OpportunityCardProps) 
       ref={setNodeRef}
       style={style}
       {...attributes}
-      {...listeners}
       onClick={handleClick}
       className={cn(
-        "cursor-grab active:cursor-grabbing touch-none transition-all hover:shadow-md hover:border-[#ff5603]/30 bg-white",
+        "transition-all hover:shadow-md hover:border-[#ff5603]/30 bg-white relative",
         isDragging && "opacity-50 shadow-lg ring-2 ring-[#ff5603]"
       )}
     >
-      <CardContent className="px-2.5 py-0.5 sm:px-4 sm:py-1.5">
+      {/* Drag Handle - Mobile: visible grip icon on left, Desktop: invisible overlay */}
+      <div
+        {...listeners}
+        className="absolute left-0 top-0 bottom-0 w-8 sm:w-full sm:h-full sm:static sm:absolute flex items-center justify-center cursor-grab active:cursor-grabbing touch-none z-10 bg-muted/30 sm:bg-transparent rounded-l-lg sm:rounded-none"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground sm:hidden" />
+      </div>
+      <CardContent className="px-2.5 py-0.5 sm:px-4 sm:py-1.5 pl-9 sm:pl-4">
         {/* Opportunity Name */}
         <h4 className="font-semibold text-[11px] leading-tight line-clamp-1 sm:text-sm sm:leading-normal sm:mb-2 sm:line-clamp-2">
           {opportunity.name}
