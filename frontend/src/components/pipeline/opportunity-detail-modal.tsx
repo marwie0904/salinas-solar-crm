@@ -468,11 +468,11 @@ export function OpportunityDetailModal({
   };
 
   const renderDetails = () => (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Location */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-[#ff5603]" />
+      <div className="space-y-1.5 sm:space-y-2">
+        <label className="text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2">
+          <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#ff5603]" />
           Location
         </label>
         {editedOpportunity.locationLat && editedOpportunity.locationLng ? (
@@ -484,7 +484,7 @@ export function OpportunityDetailModal({
             onClear={handleClearLocation}
           />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5 sm:space-y-2">
             <Input
               value={editedOpportunity.location || ""}
               onChange={(e) =>
@@ -494,8 +494,9 @@ export function OpportunityDetailModal({
                 })
               }
               placeholder="Enter location address or use Capture Location button..."
+              className="text-xs sm:text-sm h-9 sm:h-10"
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[10px] sm:text-xs text-muted-foreground">
               Use the "Capture Location" button above to save GPS coordinates with a map preview.
             </p>
           </div>
@@ -503,9 +504,9 @@ export function OpportunityDetailModal({
       </div>
 
       {/* OpenSolar Integration */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium flex items-center gap-2">
-          <Sun className="h-4 w-4 text-yellow-500" />
+      <div className="space-y-1.5 sm:space-y-2">
+        <label className="text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2">
+          <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-500" />
           OpenSolar
         </label>
         {isCreatingOpenSolar ? (
@@ -558,9 +559,9 @@ export function OpportunityDetailModal({
       </div>
 
       {/* Contact */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium flex items-center gap-2">
-          <User className="h-4 w-4 text-[#ff5603]" />
+      <div className="space-y-1.5 sm:space-y-2">
+        <label className="text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2">
+          <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#ff5603]" />
           Contact
         </label>
         {editedOpportunity.contact ? (
@@ -609,9 +610,9 @@ export function OpportunityDetailModal({
       </div>
 
       {/* System Consultant */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium flex items-center gap-2">
-          <HardHat className="h-4 w-4 text-[#ff5603]" />
+      <div className="space-y-1.5 sm:space-y-2">
+        <label className="text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2">
+          <HardHat className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#ff5603]" />
           System Consultant
         </label>
         <Select
@@ -669,9 +670,9 @@ export function OpportunityDetailModal({
       </div>
 
       {/* Scheduled Appointment */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-[#ff5603]" />
+      <div className="space-y-1.5 sm:space-y-2">
+        <label className="text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2">
+          <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#ff5603]" />
           Scheduled Appointment
         </label>
         {editedOpportunity.scheduledAppointment ? (
@@ -726,9 +727,9 @@ export function OpportunityDetailModal({
       </div>
 
       {/* Estimated Value */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium flex items-center gap-2">
-          <DollarSign className="h-4 w-4 text-green-600" />
+      <div className="space-y-1.5 sm:space-y-2">
+        <label className="text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2">
+          <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-600" />
           Estimated Value
         </label>
         <Input
@@ -740,13 +741,13 @@ export function OpportunityDetailModal({
               estimatedValue: Number(e.target.value),
             })
           }
-          className="text-lg font-semibold"
+          className="text-sm sm:text-lg font-semibold h-9 sm:h-10"
         />
       </div>
 
       {/* Opportunity Notes */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Opportunity Notes</label>
+      <div className="space-y-1.5 sm:space-y-2">
+        <label className="text-xs sm:text-sm font-medium">Opportunity Notes</label>
         <Textarea
           value={editedOpportunity.notes || ""}
           onChange={(e) =>
@@ -756,7 +757,7 @@ export function OpportunityDetailModal({
             })
           }
           placeholder="Add notes about this opportunity..."
-          className="min-h-[150px] resize-none"
+          className="min-h-[100px] sm:min-h-[150px] resize-none text-xs sm:text-sm"
         />
       </div>
     </div>
@@ -1308,13 +1309,13 @@ export function OpportunityDetailModal({
         <DialogHeader className="p-4 md:p-6 pb-3 md:pb-4 border-b flex-shrink-0">
           <div className="flex items-start justify-between">
             <div className="flex-1 pr-2 md:pr-8 min-w-0">
-              <DialogTitle className="text-lg md:text-xl font-bold flex items-center gap-2">
+              <DialogTitle className="text-base sm:text-lg md:text-xl font-bold flex items-center gap-2">
                 {isEditingName ? (
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <Input
                       value={editedName}
                       onChange={(e) => setEditedName(e.target.value)}
-                      className="text-lg md:text-xl font-bold h-9 min-w-0"
+                      className="text-base sm:text-lg md:text-xl font-bold h-9 min-w-0"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && editedName.trim()) {
@@ -1354,29 +1355,129 @@ export function OpportunityDetailModal({
                   </div>
                 ) : (
                   <>
-                    <span className="truncate">{editedOpportunity.name}</span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0 flex-shrink-0"
+                      className="h-6 w-6 sm:h-7 sm:w-7 p-0 flex-shrink-0"
                       onClick={() => {
                         setEditedName(editedOpportunity.name);
                         setIsEditingName(true);
                       }}
                     >
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Pencil className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                     </Button>
+                    <span className="truncate">{editedOpportunity.name}</span>
                   </>
                 )}
               </DialogTitle>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-2">
+              {/* Mobile: inline row with dropdown and icons */}
+              <div className="flex items-center gap-2 mt-2 sm:hidden">
                 <Select
                   value={editedOpportunity.stage}
                   onValueChange={(value: PipelineStage) =>
                     setEditedOpportunity({ ...editedOpportunity, stage: value })
                   }
                 >
-                  <SelectTrigger className="w-full sm:w-[200px] h-10 sm:h-8 text-sm">
+                  <SelectTrigger className="flex-1 min-w-0 h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stageOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 flex-shrink-0"
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    if (editedOpportunity.contact) {
+                      params.set("clientName", `${editedOpportunity.contact.firstName} ${editedOpportunity.contact.lastName}`);
+                      params.set("contactId", editedOpportunity.contact._id);
+                      if (editedOpportunity.contact.address) {
+                        params.set("clientAddress", editedOpportunity.contact.address);
+                      }
+                    }
+                    if (editedOpportunity.location) {
+                      params.set("projectLocation", editedOpportunity.location);
+                    }
+                    if (editedOpportunity.estimatedValue) {
+                      params.set("totalAmount", editedOpportunity.estimatedValue.toString());
+                    }
+                    params.set("opportunityId", editedOpportunity._id);
+                    params.set("opportunityName", editedOpportunity.name);
+                    if (editedOpportunity.openSolarProjectId) {
+                      params.set("openSolarProjectId", editedOpportunity.openSolarProjectId.toString());
+                    }
+                    onOpenChange(false);
+                    router.push(`/agreements?${params.toString()}`);
+                  }}
+                  title="Generate Agreement"
+                >
+                  <FileText className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className={cn(
+                    "h-8 w-8 flex-shrink-0",
+                    editedOpportunity.locationLat && "text-[#ff5603] border-[#ff5603]"
+                  )}
+                  onClick={() => setIsLocationModalOpen(true)}
+                  title={editedOpportunity.locationLat ? "Update Location" : "Capture Location"}
+                >
+                  <MapPin className="h-4 w-4" />
+                </Button>
+                {editedOpportunity.stage === "for_installation" && (
+                  <Button
+                    variant={editedOpportunity.pmNotifiedForClose ? "secondary" : "default"}
+                    size="icon"
+                    className={cn(
+                      "h-8 w-8 flex-shrink-0",
+                      editedOpportunity.pmNotifiedForClose
+                        ? "bg-gray-400 hover:bg-gray-400 cursor-not-allowed text-white"
+                        : "bg-green-600 hover:bg-green-700 text-white"
+                    )}
+                    disabled={editedOpportunity.pmNotifiedForClose || isNotifyingPm}
+                    onClick={async () => {
+                      if (editedOpportunity.pmNotifiedForClose) return;
+                      setIsNotifyingPm(true);
+                      try {
+                        await notifyPmForClosure({ id: editedOpportunity._id });
+                        setEditedOpportunity({
+                          ...editedOpportunity,
+                          pmNotifiedForClose: true,
+                          pmNotifiedForCloseAt: Date.now(),
+                        });
+                      } catch (error) {
+                        console.error("Failed to notify PM:", error);
+                      } finally {
+                        setIsNotifyingPm(false);
+                      }
+                    }}
+                    title={editedOpportunity.pmNotifiedForClose ? "PM Notified" : "Notify PM"}
+                  >
+                    {isNotifyingPm ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
+              </div>
+              {/* Desktop: original layout */}
+              <div className="hidden sm:flex sm:flex-row sm:items-center sm:justify-between gap-2 mt-2">
+                <Select
+                  value={editedOpportunity.stage}
+                  onValueChange={(value: PipelineStage) =>
+                    setEditedOpportunity({ ...editedOpportunity, stage: value })
+                  }
+                >
+                  <SelectTrigger className="w-[200px] h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1391,12 +1492,9 @@ export function OpportunityDetailModal({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-10 sm:h-8 gap-2 flex-1 sm:flex-initial text-xs sm:text-sm"
+                    className="h-8 gap-2"
                     onClick={() => {
-                      // Build query params with opportunity data
                       const params = new URLSearchParams();
-
-                      // Client info
                       if (editedOpportunity.contact) {
                         params.set("clientName", `${editedOpportunity.contact.firstName} ${editedOpportunity.contact.lastName}`);
                         params.set("contactId", editedOpportunity.contact._id);
@@ -1404,51 +1502,39 @@ export function OpportunityDetailModal({
                           params.set("clientAddress", editedOpportunity.contact.address);
                         }
                       }
-
-                      // Location
                       if (editedOpportunity.location) {
                         params.set("projectLocation", editedOpportunity.location);
                       }
-
-                      // Estimated value as total amount
                       if (editedOpportunity.estimatedValue) {
                         params.set("totalAmount", editedOpportunity.estimatedValue.toString());
                       }
-
-                      // Opportunity reference
                       params.set("opportunityId", editedOpportunity._id);
                       params.set("opportunityName", editedOpportunity.name);
-
-                      // OpenSolar project ID for fetching system data
                       if (editedOpportunity.openSolarProjectId) {
                         params.set("openSolarProjectId", editedOpportunity.openSolarProjectId.toString());
                       }
-
                       onOpenChange(false);
                       router.push(`/agreements?${params.toString()}`);
                     }}
                   >
                     <FileText className="h-4 w-4" />
-                    <span className="hidden sm:inline">Generate Agreement</span>
-                    <span className="sm:hidden">Agreement</span>
+                    Generate Agreement
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-10 sm:h-8 gap-2 flex-1 sm:flex-initial text-xs sm:text-sm"
+                    className="h-8 gap-2"
                     onClick={() => setIsLocationModalOpen(true)}
                   >
                     <MapPin className="h-4 w-4" />
-                    <span className="hidden sm:inline">{editedOpportunity.locationLat ? "Update Location" : "Capture Location"}</span>
-                    <span className="sm:hidden">Location</span>
+                    {editedOpportunity.locationLat ? "Update Location" : "Capture Location"}
                   </Button>
-                  {/* Closed : Notify PM button - only show when in for_installation stage */}
                   {editedOpportunity.stage === "for_installation" && (
                     <Button
                       variant={editedOpportunity.pmNotifiedForClose ? "secondary" : "default"}
                       size="sm"
                       className={cn(
-                        "h-10 sm:h-8 gap-2 flex-1 sm:flex-initial text-xs sm:text-sm",
+                        "h-8 px-3 text-sm gap-2",
                         editedOpportunity.pmNotifiedForClose
                           ? "bg-gray-400 hover:bg-gray-400 cursor-not-allowed text-white"
                           : "bg-green-600 hover:bg-green-700 text-white"
@@ -1456,13 +1542,9 @@ export function OpportunityDetailModal({
                       disabled={editedOpportunity.pmNotifiedForClose || isNotifyingPm}
                       onClick={async () => {
                         if (editedOpportunity.pmNotifiedForClose) return;
-
                         setIsNotifyingPm(true);
                         try {
-                          await notifyPmForClosure({
-                            id: editedOpportunity._id,
-                          });
-                          // Update local state to reflect the change
+                          await notifyPmForClosure({ id: editedOpportunity._id });
                           setEditedOpportunity({
                             ...editedOpportunity,
                             pmNotifiedForClose: true,
@@ -1480,12 +1562,7 @@ export function OpportunityDetailModal({
                       ) : (
                         <Check className="h-4 w-4" />
                       )}
-                      <span className="hidden sm:inline">
-                        {editedOpportunity.pmNotifiedForClose ? "PM Notified" : "Closed : Notify PM"}
-                      </span>
-                      <span className="sm:hidden">
-                        {editedOpportunity.pmNotifiedForClose ? "Notified" : "Notify PM"}
-                      </span>
+                      {editedOpportunity.pmNotifiedForClose ? "PM Notified" : "Closed : Notify PM"}
                     </Button>
                   )}
                 </div>
@@ -1498,7 +1575,7 @@ export function OpportunityDetailModal({
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
           {/* Mobile/Tablet: Horizontal scrollable tabs at top */}
           <nav className="md:hidden border-b bg-muted/30 flex-shrink-0 overflow-x-auto scrollbar-hide">
-            <ul className="flex p-2 gap-1 min-w-max">
+            <ul className="flex px-2 py-1.5 sm:p-2 gap-1 min-w-max">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeNav === item.id;
@@ -1508,13 +1585,13 @@ export function OpportunityDetailModal({
                     <button
                       onClick={() => setActiveNav(item.id)}
                       className={cn(
-                        "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap touch-target tap-transparent",
+                        "flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-md sm:rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap",
                         isActive
                           ? "bg-[#ff5603] text-white"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted"
                       )}
                     >
-                      <Icon className="h-4 w-4 flex-shrink-0" />
+                      <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
                       <span>{item.label}</span>
                     </button>
                   </li>
@@ -1562,24 +1639,51 @@ export function OpportunityDetailModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-3 md:p-4 border-t flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 flex-shrink-0 safe-area-inset-bottom">
+        {/* Footer - compact on mobile, full buttons on desktop */}
+        <div className="px-3 pt-3 pb-8 sm:p-4 border-t flex items-center justify-between sm:justify-end gap-2 sm:gap-3 flex-shrink-0 safe-area-inset-bottom">
+          {/* Mobile: icon buttons */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleCancel}
+            className="h-9 w-9 text-muted-foreground hover:text-foreground sm:hidden"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+          <div className="flex items-center gap-2 sm:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDelete}
+              className="h-9 w-9 text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Trash2 className="h-5 w-5" />
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="bg-[#ff5603] hover:bg-[#e64d00] h-9 px-4"
+            >
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+            </Button>
+          </div>
+          {/* Desktop: full buttons */}
           <Button
             variant="destructive"
             onClick={handleDelete}
-            className="sm:mr-auto order-last sm:order-first h-10 touch-target"
+            className="hidden sm:flex sm:mr-auto h-10"
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Delete
           </Button>
-          <div className="flex gap-2 sm:gap-3">
-            <Button variant="outline" onClick={handleCancel} className="flex-1 sm:flex-initial h-10 touch-target">
+          <div className="hidden sm:flex gap-3">
+            <Button variant="outline" onClick={handleCancel} className="h-10">
               Cancel
             </Button>
             <Button
               onClick={handleSave}
               disabled={isSaving}
-              className="flex-1 sm:flex-initial bg-[#ff5603] hover:bg-[#e64d00] h-10 touch-target"
+              className="bg-[#ff5603] hover:bg-[#e64d00] h-10"
             >
               {isSaving ? "Saving..." : "Save Changes"}
             </Button>

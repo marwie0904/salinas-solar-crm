@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { cn } from "@/lib/utils";
+import { PageTitleProvider } from "@/components/providers/page-title-context";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -43,42 +44,44 @@ export function AppLayout({ children }: AppLayoutProps) {
   }, [mobileMenuOpen]);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Mobile overlay */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
-      {/* Sidebar - hidden on mobile, shown as drawer when open */}
-      <Sidebar
-        collapsed={sidebarCollapsed}
-        mobileOpen={mobileMenuOpen}
-        onMobileClose={() => setMobileMenuOpen(false)}
-        isMobile={isMobile}
-      />
-
-      <Header
-        sidebarCollapsed={sidebarCollapsed}
-        onMenuClick={() => setMobileMenuOpen(true)}
-        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-        isMobile={isMobile}
-      />
-
-      <main
-        className={cn(
-          "pt-16 min-h-screen transition-all duration-300",
-          // Desktop: adjust for sidebar width
-          "lg:pl-64",
-          sidebarCollapsed && "lg:pl-[72px]",
-          // Mobile/Tablet: no sidebar padding
-          "pl-0"
+    <PageTitleProvider>
+      <div className="min-h-screen bg-background">
+        {/* Mobile overlay */}
+        {mobileMenuOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
         )}
-      >
-        <div className="p-3 sm:p-4 md:p-6">{children}</div>
-      </main>
-    </div>
+
+        {/* Sidebar - hidden on mobile, shown as drawer when open */}
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          mobileOpen={mobileMenuOpen}
+          onMobileClose={() => setMobileMenuOpen(false)}
+          isMobile={isMobile}
+        />
+
+        <Header
+          sidebarCollapsed={sidebarCollapsed}
+          onMenuClick={() => setMobileMenuOpen(true)}
+          onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+          isMobile={isMobile}
+        />
+
+        <main
+          className={cn(
+            "pt-16 min-h-screen transition-all duration-300",
+            // Desktop: adjust for sidebar width
+            "lg:pl-64",
+            sidebarCollapsed && "lg:pl-[72px]",
+            // Mobile/Tablet: no sidebar padding
+            "pl-0"
+          )}
+        >
+          <div className="p-3 sm:p-4 md:p-6">{children}</div>
+        </main>
+      </div>
+    </PageTitleProvider>
   );
 }

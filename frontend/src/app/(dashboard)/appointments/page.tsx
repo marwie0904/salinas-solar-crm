@@ -1,9 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
+import { usePageTitle } from "@/components/providers/page-title-context";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -87,24 +95,39 @@ export default function AppointmentsPage() {
   const [calendarView, setCalendarView] = useState<CalendarView>("3day");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isMobile, setIsMobile] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const { setPageTitle, setPageAction } = usePageTitle();
+
+  // Modal states
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Handle add appointment action (for header button)
+  const handleAddAppointment = useCallback(() => {
+    setIsCreateModalOpen(true);
+  }, []);
+
+  // Set page title and action for mobile header
+  useEffect(() => {
+    setPageTitle("Appointments");
+    setPageAction(() => handleAddAppointment);
+    return () => {
+      setPageTitle("");
+      setPageAction(null);
+    };
+  }, [setPageTitle, setPageAction, handleAddAppointment]);
 
   // Check for mobile on mount and resize
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      // Set default view based on screen size
-      if (mobile && calendarView === "week") {
-        setCalendarView("3day");
-      }
     };
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
-  }, [calendarView]);
+  }, []);
 
-  // Modal states
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // Edit modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
@@ -244,17 +267,17 @@ export default function AppointmentsPage() {
   });
 
   return (
-    <div className="space-y-4 md:space-y-6 -mx-4 px-4 md:mx-0 md:px-0" data-tour="appointments-list">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
+    <div className="space-y-2 sm:space-y-4 md:space-y-6 -mx-4 px-2 sm:px-4 md:mx-0 md:px-0" data-tour="appointments-list">
+      {/* Header - Desktop only */}
+      <div className="hidden sm:flex items-center justify-between gap-3 px-4 sm:px-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-xl md:text-2xl font-bold text-foreground">Appointments</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
+          <p className="text-sm md:text-base text-muted-foreground truncate">
             Schedule and manage your appointments.
           </p>
         </div>
         <Button
-          className="bg-[#ff5603] hover:bg-[#ff5603]/90 h-10 touch-target w-full sm:w-auto"
+          className="bg-[#ff5603] hover:bg-[#ff5603]/90 h-10 px-4"
           onClick={() => setIsCreateModalOpen(true)}
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -262,14 +285,56 @@ export default function AppointmentsPage() {
         </Button>
       </div>
 
-      {/* View Toggle */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      {/* Mobile: Combined View Controls */}
+      <div className="sm:hidden flex items-center justify-between gap-2 px-2">
+        <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
+          <SelectTrigger className="w-[100px] h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="calendar">Calendar</SelectItem>
+            <SelectItem value="list">List</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {viewMode === "calendar" && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant={calendarView === "month" ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setCalendarView("month"); setSelectedDate(null); }}
+              className={cn("h-8 text-xs px-2", calendarView === "month" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
+            >
+              Month
+            </Button>
+            <Button
+              variant={calendarView === "week" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setCalendarView("week")}
+              className={cn("h-8 text-xs px-2", calendarView === "week" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
+            >
+              7 Day
+            </Button>
+            <Button
+              variant={calendarView === "3day" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setCalendarView("3day")}
+              className={cn("h-8 text-xs px-2", calendarView === "3day" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
+            >
+              3 Day
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: View Toggle */}
+      <div className="hidden sm:flex sm:items-center sm:justify-between gap-3 px-4 sm:px-0">
         <div className="flex items-center gap-2">
           <Button
             variant={viewMode === "calendar" ? "default" : "outline"}
             size="sm"
             onClick={() => setViewMode("calendar")}
-            className={cn("h-10 touch-target flex-1 sm:flex-initial", viewMode === "calendar" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
+            className={cn("h-10 touch-target", viewMode === "calendar" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
           >
             <CalendarIcon className="h-4 w-4 mr-2" />
             Calendar
@@ -278,7 +343,7 @@ export default function AppointmentsPage() {
             variant={viewMode === "list" ? "default" : "outline"}
             size="sm"
             onClick={() => setViewMode("list")}
-            className={cn("h-10 touch-target flex-1 sm:flex-initial", viewMode === "list" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
+            className={cn("h-10 touch-target", viewMode === "list" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
           >
             <List className="h-4 w-4 mr-2" />
             List
@@ -286,12 +351,12 @@ export default function AppointmentsPage() {
         </div>
 
         {viewMode === "calendar" && (
-          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
+          <div className="flex items-center gap-2">
             <Button
               variant={calendarView === "month" ? "default" : "outline"}
               size="sm"
               onClick={() => setCalendarView("month")}
-              className={cn("h-10 touch-target text-xs sm:text-sm px-2 sm:px-3", calendarView === "month" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
+              className={cn("h-10 touch-target text-sm px-3", calendarView === "month" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
             >
               Month
             </Button>
@@ -299,7 +364,7 @@ export default function AppointmentsPage() {
               variant={calendarView === "week" ? "default" : "outline"}
               size="sm"
               onClick={() => setCalendarView("week")}
-              className={cn("h-10 touch-target text-xs sm:text-sm px-2 sm:px-3 hidden sm:flex", calendarView === "week" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
+              className={cn("h-10 touch-target text-sm px-3", calendarView === "week" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
             >
               Week
             </Button>
@@ -307,7 +372,7 @@ export default function AppointmentsPage() {
               variant={calendarView === "3day" ? "default" : "outline"}
               size="sm"
               onClick={() => setCalendarView("3day")}
-              className={cn("h-10 touch-target text-xs sm:text-sm px-2 sm:px-3", calendarView === "3day" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
+              className={cn("h-10 touch-target text-sm px-3", calendarView === "3day" ? "bg-[#ff5603] hover:bg-[#ff5603]/90" : "")}
             >
               3 Day
             </Button>
@@ -317,33 +382,33 @@ export default function AppointmentsPage() {
 
       {/* Calendar View */}
       {viewMode === "calendar" && (
-        <div className="rounded-lg border bg-white">
+        <div className="sm:rounded-lg border bg-white sm:mx-0">
           {/* Calendar Header */}
-          <div className="flex items-center justify-between p-3 md:p-4 border-b">
-            <Button variant="ghost" size="sm" onClick={() => navigateMonth(-1)} className="h-10 w-10 touch-target p-0">
+          <div className="flex items-center justify-between px-2 py-1.5 sm:p-3 md:p-4 border-b">
+            <Button variant="ghost" size="sm" onClick={() => navigateMonth(-1)} className="h-8 w-8 sm:h-10 sm:w-10 p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h2 className="text-base md:text-lg font-semibold text-center">
+            <h2 className="text-sm sm:text-base md:text-lg font-semibold text-center">
               {calendarView === "month"
                 ? `${monthNames[month]} ${year}`
                 : calendarView === "week"
                 ? `Week of ${monthNames[weekDays[0].getMonth()]} ${weekDays[0].getDate()}`
                 : `${monthNames[threeDays[0].getMonth()]} ${threeDays[0].getDate()} - ${threeDays[2].getDate()}`}
             </h2>
-            <Button variant="ghost" size="sm" onClick={() => navigateMonth(1)} className="h-10 w-10 touch-target p-0">
+            <Button variant="ghost" size="sm" onClick={() => navigateMonth(1)} className="h-8 w-8 sm:h-10 sm:w-10 p-0">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
 
           {/* Calendar Grid */}
           {calendarView === "month" ? (
-            <div className="p-2 md:p-4">
+            <div className="p-1 sm:p-2 md:p-4">
               {/* Day Headers */}
-              <div className="grid grid-cols-7 gap-1 mb-2">
+              <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-1 sm:mb-2">
                 {(isMobile ? shortDayNames : dayNames).map((day, i) => (
                   <div
                     key={i}
-                    className="text-center text-xs md:text-sm font-medium text-muted-foreground py-2"
+                    className="text-center text-[10px] sm:text-xs md:text-sm font-medium text-muted-foreground py-1 sm:py-2"
                   >
                     {day}
                   </div>
@@ -351,12 +416,12 @@ export default function AppointmentsPage() {
               </div>
 
               {/* Calendar Days */}
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 border-t border-l">
                 {/* Empty cells for days before the first of the month */}
                 {Array.from({ length: startingDayOfWeek }).map((_, index) => (
                   <div
                     key={`empty-${index}`}
-                    className="min-h-[60px] md:min-h-[100px] p-1 md:p-2 bg-muted/30 rounded"
+                    className="h-12 sm:min-h-[60px] md:min-h-[100px] p-1 sm:p-1 md:p-2 bg-muted/20 border-r border-b"
                   />
                 ))}
 
@@ -366,28 +431,42 @@ export default function AppointmentsPage() {
                   const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                   const dayAppointments = getAppointmentsForDate(dateKey);
                   const isToday = dateKey === todayKey;
+                  const isSelected = selectedDate === dateKey;
 
                   return (
                     <div
                       key={day}
+                      onClick={() => isMobile && setSelectedDate(isSelected ? null : dateKey)}
                       className={cn(
-                        "min-h-[60px] md:min-h-[100px] p-1 md:p-2 rounded border",
-                        isToday ? "border-[#ff5603] bg-[#ff5603]/5" : "border-transparent"
+                        "h-12 sm:min-h-[60px] md:min-h-[100px] p-1 sm:p-1 md:p-2 border-r border-b cursor-pointer sm:cursor-default transition-colors",
+                        isToday && "bg-[#ff5603]/10",
+                        isSelected && isMobile && "bg-[#ff5603]/20"
                       )}
                     >
-                      <div
-                        className={cn(
-                          "text-xs md:text-sm font-medium mb-1",
-                          isToday ? "text-[#ff5603]" : ""
+                      <div className="flex sm:block items-center justify-between h-full sm:h-auto">
+                        <div
+                          className={cn(
+                            "text-xs sm:text-xs md:text-sm font-medium",
+                            isToday ? "text-[#ff5603]" : ""
+                          )}
+                        >
+                          {day}
+                        </div>
+                        {/* Mobile: Show event count */}
+                        {isMobile && dayAppointments.length > 0 && (
+                          <div className="flex items-center justify-center h-5 w-5 rounded-full bg-[#ff5603] text-white text-[10px] font-medium">
+                            {dayAppointments.length}
+                          </div>
                         )}
-                      >
-                        {day}
-                      </div>
-                      <div className="space-y-1">
-                        {dayAppointments.slice(0, isMobile ? 1 : 2).map((apt) => renderCalendarCard(apt, isMobile))}
-                        {dayAppointments.length > (isMobile ? 1 : 2) && (
-                          <div className="text-[10px] md:text-xs text-muted-foreground">
-                            +{dayAppointments.length - (isMobile ? 1 : 2)} more
+                        {/* Desktop: Show event cards */}
+                        {!isMobile && (
+                          <div className="space-y-0.5 sm:space-y-1 mt-1">
+                            {dayAppointments.slice(0, 2).map((apt) => renderCalendarCard(apt, false))}
+                            {dayAppointments.length > 2 && (
+                              <div className="text-[10px] md:text-xs text-muted-foreground">
+                                +{dayAppointments.length - 2} more
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -395,61 +474,113 @@ export default function AppointmentsPage() {
                   );
                 })}
               </div>
+
+              {/* Mobile: Selected Day Events */}
+              {isMobile && selectedDate && (
+                <div className="border-t mt-2 pt-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground mb-2 px-1">
+                    {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
+                      weekday: "long",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </h3>
+                  <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                    {getAppointmentsForDate(selectedDate).length > 0 ? (
+                      getAppointmentsForDate(selectedDate).map((apt) => (
+                        <div
+                          key={apt._id}
+                          className={cn(
+                            "p-2 rounded text-xs bg-white border cursor-pointer hover:shadow-sm transition-shadow mx-1",
+                            apt.status === "cancelled" || apt.status === "no_show"
+                              ? "opacity-50"
+                              : ""
+                          )}
+                          onClick={() => handleEditClick(apt)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="h-3 w-3 text-muted-foreground" />
+                              <span className="font-medium">{apt.time}</span>
+                            </div>
+                            <Badge className={cn("text-[9px] px-1 py-0 text-white", typeColors[apt.appointmentType])}>
+                              {apt.appointmentType === "discovery_call" ? "Call" : "Inspect"}
+                            </Badge>
+                          </div>
+                          <div className={cn(
+                            "font-medium truncate text-foreground mt-1",
+                            (apt.status === "cancelled" || apt.status === "no_show") && "line-through"
+                          )}>
+                            {apt.title}
+                          </div>
+                          <div className="truncate text-muted-foreground">
+                            {apt.contact?.fullName || "Unknown"}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs text-muted-foreground text-center py-4">
+                        No appointments for this day
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ) : calendarView === "week" ? (
-            /* Week View */
-            <div className="p-2 md:p-4 overflow-x-auto">
-              <div className="grid grid-cols-7 gap-1 md:gap-2 min-w-[600px]">
+            /* Week View (7-Day) */
+            <div className="p-1 sm:p-2 md:p-4 overflow-x-auto">
+              <div className="grid grid-cols-7 gap-0.5 sm:gap-1 md:gap-2">
                 {weekDays.map((day) => {
                   const dateKey = formatDateKey(day);
                   const dayAppointments = getAppointmentsForDate(dateKey);
                   const isToday = dateKey === todayKey;
 
                   return (
-                    <div key={dateKey} className="min-h-[300px]">
+                    <div key={dateKey} className="min-h-[calc(100vh-250px)] sm:min-h-[300px]">
                       <div
                         className={cn(
-                          "text-center p-2 rounded-t border-b",
+                          "text-center py-1 sm:p-2 rounded-t border-b",
                           isToday ? "bg-[#ff5603] text-white" : "bg-muted/50"
                         )}
                       >
-                        <div className="text-xs md:text-sm font-medium">
-                          {dayNames[day.getDay()]}
+                        <div className="text-[9px] sm:text-xs md:text-sm font-medium">
+                          {isMobile ? shortDayNames[day.getDay()] : dayNames[day.getDay()]}
                         </div>
-                        <div className="text-base md:text-lg font-bold">{day.getDate()}</div>
+                        <div className="text-sm sm:text-base md:text-lg font-bold">{day.getDate()}</div>
                       </div>
-                      <div className="p-1 md:p-2 space-y-2 border-l border-r border-b rounded-b min-h-[250px]">
+                      <div className="p-0.5 sm:p-1 md:p-2 space-y-1 sm:space-y-2 border-l border-r border-b rounded-b min-h-[calc(100vh-310px)] sm:min-h-[250px]">
                         {dayAppointments.map((apt) => (
                           <div
                             key={apt._id}
                             className={cn(
-                              "p-2 rounded text-xs bg-white border cursor-pointer hover:shadow-sm transition-shadow",
+                              "p-1 sm:p-2 rounded text-[10px] sm:text-xs bg-white border cursor-pointer hover:shadow-sm transition-shadow",
                               apt.status === "cancelled" || apt.status === "no_show"
                                 ? "opacity-50"
                                 : ""
                             )}
                             onClick={() => handleEditClick(apt)}
                           >
-                            <div className="font-medium flex items-center gap-1 mb-1 text-muted-foreground">
-                              <Clock className="h-3 w-3" />
+                            <div className="font-medium flex items-center gap-0.5 sm:gap-1 mb-0.5 sm:mb-1 text-muted-foreground">
+                              <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                               {apt.time}
                             </div>
                             <div className={cn(
-                              "font-medium truncate text-foreground",
+                              "font-medium truncate text-foreground text-[10px] sm:text-xs",
                               (apt.status === "cancelled" || apt.status === "no_show") && "line-through"
                             )}>
                               {apt.title}
                             </div>
-                            <div className="truncate text-muted-foreground">
+                            <div className="truncate text-muted-foreground hidden sm:block">
                               {apt.contact?.fullName || "Unknown"}
                             </div>
-                            <Badge className={cn("mt-1 text-[10px] px-1.5 py-0 text-white", typeColors[apt.appointmentType])}>
-                              {typeLabels[apt.appointmentType]}
+                            <Badge className={cn("mt-0.5 sm:mt-1 text-[8px] sm:text-[10px] px-1 sm:px-1.5 py-0 text-white", typeColors[apt.appointmentType])}>
+                              {apt.appointmentType === "discovery_call" ? "Call" : "Insp"}
                             </Badge>
                           </div>
                         ))}
                         {dayAppointments.length === 0 && (
-                          <div className="text-[10px] text-muted-foreground text-center py-4">
+                          <div className="text-[9px] sm:text-[10px] text-muted-foreground text-center py-2 sm:py-4">
                             —
                           </div>
                         )}
@@ -461,58 +592,58 @@ export default function AppointmentsPage() {
             </div>
           ) : (
             /* 3-Day View */
-            <div className="p-2 md:p-4">
-              <div className="grid grid-cols-3 gap-2">
+            <div className="p-1 sm:p-2 md:p-4">
+              <div className="grid grid-cols-3 gap-1 sm:gap-2">
                 {threeDays.map((day) => {
                   const dateKey = formatDateKey(day);
                   const dayAppointments = getAppointmentsForDate(dateKey);
                   const isToday = dateKey === todayKey;
 
                   return (
-                    <div key={dateKey} className="min-h-[300px]">
+                    <div key={dateKey} className="min-h-[calc(100vh-220px)] sm:min-h-[300px]">
                       <div
                         className={cn(
-                          "text-center p-2 rounded-t border-b",
+                          "text-center py-1.5 sm:p-2 rounded-t border-b",
                           isToday ? "bg-[#ff5603] text-white" : "bg-muted/50"
                         )}
                       >
-                        <div className="text-xs md:text-sm font-medium">
+                        <div className="text-[10px] sm:text-xs md:text-sm font-medium">
                           {dayNames[day.getDay()]}
                         </div>
-                        <div className="text-lg md:text-xl font-bold">{day.getDate()}</div>
+                        <div className="text-base sm:text-lg md:text-xl font-bold">{day.getDate()}</div>
                       </div>
-                      <div className="p-1.5 md:p-2 space-y-2 border-l border-r border-b rounded-b min-h-[250px]">
+                      <div className="p-1 sm:p-1.5 md:p-2 space-y-1.5 sm:space-y-2 border-l border-r border-b rounded-b min-h-[calc(100vh-280px)] sm:min-h-[250px]">
                         {dayAppointments.map((apt) => (
                           <div
                             key={apt._id}
                             className={cn(
-                              "p-2 rounded text-xs bg-white border cursor-pointer hover:shadow-sm transition-shadow active:bg-muted/50",
+                              "p-1.5 sm:p-2 rounded text-xs bg-white border cursor-pointer hover:shadow-sm transition-shadow active:bg-muted/50",
                               apt.status === "cancelled" || apt.status === "no_show"
                                 ? "opacity-50"
                                 : ""
                             )}
                             onClick={() => handleEditClick(apt)}
                           >
-                            <div className="font-medium flex items-center gap-1 mb-1 text-muted-foreground">
-                              <Clock className="h-3 w-3" />
+                            <div className="font-medium flex items-center gap-1 mb-0.5 sm:mb-1 text-muted-foreground text-[10px] sm:text-xs">
+                              <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                               {apt.time}
                             </div>
                             <div className={cn(
-                              "font-medium truncate text-foreground text-sm",
+                              "font-medium truncate text-foreground text-xs sm:text-sm",
                               (apt.status === "cancelled" || apt.status === "no_show") && "line-through"
                             )}>
                               {apt.title}
                             </div>
-                            <div className="truncate text-muted-foreground mt-0.5">
+                            <div className="truncate text-muted-foreground mt-0.5 text-[10px] sm:text-xs">
                               {apt.contact?.fullName || "Unknown"}
                             </div>
-                            <Badge className={cn("mt-1.5 text-[10px] px-1.5 py-0 text-white", typeColors[apt.appointmentType])}>
+                            <Badge className={cn("mt-1 sm:mt-1.5 text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 text-white", typeColors[apt.appointmentType])}>
                               {apt.appointmentType === "discovery_call" ? "Call" : "Inspect"}
                             </Badge>
                           </div>
                         ))}
                         {dayAppointments.length === 0 && (
-                          <div className="flex items-center justify-center h-full min-h-[200px] text-xs text-muted-foreground">
+                          <div className="flex items-center justify-center h-full min-h-[150px] sm:min-h-[200px] text-[10px] sm:text-xs text-muted-foreground">
                             No appointments
                           </div>
                         )}

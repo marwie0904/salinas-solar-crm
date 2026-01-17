@@ -69,7 +69,7 @@ function DroppableColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex-1 space-y-3 p-2 rounded-lg transition-colors overflow-y-auto",
+        "flex-1 space-y-2 sm:space-y-3 p-1.5 sm:p-2 rounded-lg transition-colors overflow-y-auto",
         isOver ? "bg-[#ff5603]/10 ring-2 ring-[#ff5603]/30" : "bg-muted/30"
       )}
     >
@@ -372,7 +372,7 @@ export function PipelineKanban({
   // Render static version during SSR
   if (!isMounted) {
     return (
-      <div className="flex gap-3 md:gap-4 overflow-x-auto pb-6 h-[calc(100vh-200px)] md:h-[calc(100vh-220px)] kanban-scroll touch-scroll kanban-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex gap-2 sm:gap-4 overflow-x-auto pb-4 sm:pb-6 h-[calc(100vh-120px)] sm:h-[calc(100vh-200px)] kanban-scroll touch-scroll kanban-scrollbar pl-1 pr-4 sm:pl-0 sm:pr-0 sm:-mx-4 sm:px-4 md:mx-0 md:px-0">
         {stages.map((stageConfig) => {
           const stageOpportunities = getOpportunitiesByStage(stageConfig.stage);
           const stageTotal = getStageTotal(stageConfig.stage);
@@ -383,20 +383,20 @@ export function PipelineKanban({
               key={stageConfig.stage}
               data-tour={`stage-${stageConfig.stage}`}
               className={cn(
-                "flex-shrink-0 w-[260px] md:w-[280px] flex flex-col kanban-column",
+                "flex-shrink-0 w-[200px] sm:w-[280px] flex flex-col kanban-column",
                 isClosedStageRestricted && "opacity-50"
               )}
             >
-              <div className="mb-3">
-                <div className="flex items-center gap-2 mb-1">
+              <div className="mb-2 sm:mb-3">
+                <div className="flex items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1">
                   <div
                     className={cn(
-                      "w-3 h-3 rounded-full",
+                      "w-2 h-2 sm:w-3 sm:h-3 rounded-full",
                       isClosedStageRestricted ? "bg-gray-400" : stageConfig.color
                     )}
                   />
                   <h3 className={cn(
-                    "font-semibold text-sm",
+                    "font-semibold text-[11px] sm:text-sm truncate",
                     isClosedStageRestricted && "text-muted-foreground"
                   )}>
                     {PIPELINE_STAGE_LABELS[stageConfig.stage]}
@@ -404,7 +404,7 @@ export function PipelineKanban({
                   {isClosedStageRestricted ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Lock className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                        <Lock className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-[250px]">
                         <p>Project Manager Restricted Stage</p>
@@ -413,28 +413,28 @@ export function PipelineKanban({
                   ) : (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                        <HelpCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground cursor-help hidden sm:block" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-[250px]">
                         <p>{PIPELINE_STAGE_DESCRIPTIONS[stageConfig.stage]}</p>
                       </TooltipContent>
                     </Tooltip>
                   )}
-                  <Badge variant="secondary" className="ml-auto text-xs">
+                  <Badge variant="secondary" className="ml-auto text-[10px] sm:text-xs px-1.5 sm:px-2">
                     {stageOpportunities.length}
                   </Badge>
                 </div>
                 {isClosedStageRestricted ? (
-                  <p className="text-xs text-muted-foreground pl-5 italic">
-                    Project Manager Restricted Stage
+                  <p className="text-[10px] sm:text-xs text-muted-foreground pl-3.5 sm:pl-5 italic">
+                    PM Restricted
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground pl-5">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground pl-3.5 sm:pl-5">
                     {formatCurrency(stageTotal)}
                   </p>
                 )}
               </div>
-              <div className="flex-1 space-y-3 p-2 bg-muted/30 rounded-lg overflow-y-auto">
+              <div className="flex-1 space-y-2 sm:space-y-3 p-1.5 sm:p-2 bg-muted/30 rounded-lg overflow-y-auto">
                 {stageOpportunities.map((opportunity) => (
                   <StaticOpportunityCard
                     key={opportunity._id}
@@ -443,7 +443,7 @@ export function PipelineKanban({
                   />
                 ))}
                 {stageOpportunities.length === 0 && (
-                  <div className="flex items-center justify-center h-24 text-sm text-muted-foreground">
+                  <div className="flex items-center justify-center h-16 sm:h-24 text-[11px] sm:text-sm text-muted-foreground">
                     No opportunities
                   </div>
                 )}
@@ -464,7 +464,7 @@ export function PipelineKanban({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-3 md:gap-4 overflow-x-auto pb-6 h-[calc(100vh-200px)] md:h-[calc(100vh-220px)] kanban-scroll touch-scroll kanban-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex gap-2 sm:gap-4 overflow-x-auto pb-4 sm:pb-6 h-[calc(100vh-120px)] sm:h-[calc(100vh-200px)] kanban-scroll touch-scroll kanban-scrollbar pl-1 pr-4 sm:pl-0 sm:pr-0 sm:-mx-4 sm:px-4 md:mx-0 md:px-0">
         {stages.map((stageConfig) => {
           const stageOpportunities = getOpportunitiesByStage(stageConfig.stage);
           const stageTotal = getStageTotal(stageConfig.stage);
@@ -476,20 +476,20 @@ export function PipelineKanban({
               key={stageConfig.stage}
               data-tour={`stage-${stageConfig.stage}`}
               className={cn(
-                "flex-shrink-0 w-[260px] md:w-[280px] flex flex-col kanban-column",
+                "flex-shrink-0 w-[200px] sm:w-[280px] flex flex-col kanban-column",
                 isClosedStageRestricted && "opacity-50"
               )}
             >
-              <div className="mb-3">
-                <div className="flex items-center gap-2 mb-1">
+              <div className="mb-2 sm:mb-3">
+                <div className="flex items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1">
                   <div
                     className={cn(
-                      "w-3 h-3 rounded-full",
+                      "w-2 h-2 sm:w-3 sm:h-3 rounded-full",
                       isClosedStageRestricted ? "bg-gray-400" : stageConfig.color
                     )}
                   />
                   <h3 className={cn(
-                    "font-semibold text-sm",
+                    "font-semibold text-[11px] sm:text-sm truncate",
                     isClosedStageRestricted && "text-muted-foreground"
                   )}>
                     {PIPELINE_STAGE_LABELS[stageConfig.stage]}
@@ -497,7 +497,7 @@ export function PipelineKanban({
                   {isClosedStageRestricted ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Lock className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                        <Lock className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-[250px]">
                         <p>Project Manager Restricted Stage</p>
@@ -506,23 +506,23 @@ export function PipelineKanban({
                   ) : (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                        <HelpCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground cursor-help hidden sm:block" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-[250px]">
                         <p>{PIPELINE_STAGE_DESCRIPTIONS[stageConfig.stage]}</p>
                       </TooltipContent>
                     </Tooltip>
                   )}
-                  <Badge variant="secondary" className="ml-auto text-xs">
+                  <Badge variant="secondary" className="ml-auto text-[10px] sm:text-xs px-1.5 sm:px-2">
                     {stageOpportunities.length}
                   </Badge>
                 </div>
                 {isClosedStageRestricted ? (
-                  <p className="text-xs text-muted-foreground pl-5 italic">
-                    Project Manager Restricted Stage
+                  <p className="text-[10px] sm:text-xs text-muted-foreground pl-3.5 sm:pl-5 italic">
+                    PM Restricted
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground pl-5">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground pl-3.5 sm:pl-5">
                     {formatCurrency(stageTotal)}
                   </p>
                 )}
@@ -541,12 +541,12 @@ export function PipelineKanban({
                     />
                   ))}
                   {stageOpportunities.length === 0 && !isOver && (
-                    <div className="flex items-center justify-center h-24 text-sm text-muted-foreground">
+                    <div className="flex items-center justify-center h-16 sm:h-24 text-[11px] sm:text-sm text-muted-foreground">
                       No opportunities
                     </div>
                   )}
                   {stageOpportunities.length === 0 && isOver && (
-                    <div className="flex items-center justify-center h-24 text-sm text-[#ff5603] font-medium">
+                    <div className="flex items-center justify-center h-16 sm:h-24 text-[11px] sm:text-sm text-[#ff5603] font-medium">
                       Drop here
                     </div>
                   )}

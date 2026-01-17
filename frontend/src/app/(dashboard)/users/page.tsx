@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
+import { usePageTitle } from "@/components/providers/page-title-context";
 import {
   Table,
   TableBody,
@@ -72,6 +73,13 @@ export default function UsersPage() {
     name: string;
     isActive: boolean;
   } | null>(null);
+  const { setPageTitle } = usePageTitle();
+
+  // Set page title for mobile header
+  useEffect(() => {
+    setPageTitle("Users");
+    return () => setPageTitle("");
+  }, [setPageTitle]);
 
   // Fetch users from Convex with online status
   const users = useQuery(api.users.listWithStatus, {});
@@ -108,19 +116,20 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Company Users</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="hidden sm:block text-xl md:text-2xl font-bold text-foreground">Users</h1>
+          <p className="text-xs sm:text-sm md:text-base text-muted-foreground truncate">
             Manage your team members and their roles.
           </p>
         </div>
         <Button
-          className="bg-[#ff5603] hover:bg-[#ff5603]/90 h-10 touch-target w-full sm:w-auto"
+          className="bg-[#ff5603] hover:bg-[#ff5603]/90 h-9 w-9 sm:h-10 sm:w-auto sm:px-4 touch-target flex-shrink-0"
+          size="icon"
           onClick={() => setIsCreateModalOpen(true)}
         >
-          <Plus className="h-4 w-4 mr-2" />
-          Add User
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline sm:ml-2">Add User</span>
         </Button>
       </div>
 

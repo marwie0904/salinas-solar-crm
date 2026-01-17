@@ -38,6 +38,7 @@ import {
   File,
   Loader2,
   X,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -47,6 +48,7 @@ import {
   INVOICE_STATUS_LABELS,
 } from "@/lib/types";
 import type { SearchResult, SearchResultType } from "../../../convex/search";
+import { usePageTitle } from "@/components/providers/page-title-context";
 
 type NotificationType =
   | "lead_assigned"
@@ -126,6 +128,7 @@ export function Header({
   const inputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
+  const { pageTitle, pageAction } = usePageTitle();
 
   // Fetch notifications from Convex
   const userId = user?.id as Id<"users"> | undefined;
@@ -429,6 +432,13 @@ export function Header({
         </Button>
       </div>
 
+      {/* Center - Page Title (mobile only) */}
+      {pageTitle && (
+        <h1 className="sm:hidden text-base font-semibold text-foreground truncate absolute left-1/2 -translate-x-1/2 max-w-[40%]">
+          {pageTitle}
+        </h1>
+      )}
+
       {/* Right - Icons */}
       <div className="flex items-center gap-1 md:gap-2">
         <Popover
@@ -504,13 +514,27 @@ export function Header({
           </PopoverContent>
         </Popover>
 
-        {/* User menu */}
+        {/* Mobile: Page action button (replaces user menu) */}
+        {pageAction && (
+          <Button
+            size="icon"
+            className="sm:hidden h-7 w-7 bg-[#ff5603] hover:bg-[#e64d00] p-0 rounded-md"
+            onClick={pageAction}
+          >
+            <Plus className="h-3.5 w-3.5 text-white" />
+          </Button>
+        )}
+
+        {/* User menu - hidden on mobile when page action exists */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="h-10 w-10 text-muted-foreground hover:text-[#ff5603] touch-target tap-transparent"
+              className={cn(
+                "h-10 w-10 text-muted-foreground hover:text-[#ff5603] touch-target tap-transparent",
+                pageAction && "hidden sm:flex"
+              )}
             >
               <User className="h-5 w-5" />
             </Button>

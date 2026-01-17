@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { ContactSource, PipelineStage, PIPELINE_STAGE_LABELS, PIPELINE_STAGE_DESCRIPTIONS } from "@/lib/types";
+import { usePageTitle } from "@/components/providers/page-title-context";
 import {
   Table,
   TableBody,
@@ -63,6 +65,23 @@ const stageColors: Record<PipelineStage, string> = {
 export default function ContactsPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const { setPageTitle, setPageAction } = usePageTitle();
+
+  // Handle add contact action (for header button)
+  const handleAddContact = useCallback(() => {
+    // TODO: Open add contact modal
+    console.log("Add contact clicked");
+  }, []);
+
+  // Set page title and action for mobile header
+  useEffect(() => {
+    setPageTitle("Contacts");
+    setPageAction(() => handleAddContact);
+    return () => {
+      setPageTitle("");
+      setPageAction(null);
+    };
+  }, [setPageTitle, setPageAction, handleAddContact]);
 
   // Fetch contacts from Convex
   const contacts = useQuery(api.contacts.listWithOpportunities, {});
@@ -84,16 +103,15 @@ export default function ContactsPage() {
   };
 
   return (
-    <div className="space-y-4 md:space-y-6" data-tour="contacts-list">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Contacts</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Manage your customer contacts and leads.
-          </p>
-        </div>
-        <Button className="bg-[#ff5603] hover:bg-[#ff5603]/90 h-10 touch-target w-full sm:w-auto">
-          <Plus className="h-4 w-4 mr-2" />
+    <div className="space-y-3 sm:space-y-4 md:space-y-6" data-tour="contacts-list">
+      {/* Header - Desktop only (mobile has button in header) */}
+      <div className="hidden sm:flex items-center justify-between">
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">Contacts</h1>
+        <Button
+          className="bg-[#ff5603] hover:bg-[#ff5603]/90 h-10 px-4 gap-2"
+          onClick={handleAddContact}
+        >
+          <Plus className="h-4 w-4" />
           Add Contact
         </Button>
       </div>
@@ -110,16 +128,16 @@ export default function ContactsPage() {
       </div>
 
       {/* Contacts Table */}
-      <div className="rounded-lg border bg-white">
-        <Table>
+      <div className="rounded-lg border bg-white overflow-x-auto">
+        <Table className="table-fixed sm:table-auto">
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Source</TableHead>
-              <TableHead>Number</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Associated Opportunity</TableHead>
-              <TableHead>Stage</TableHead>
+              <TableHead className="text-xs sm:text-sm w-[20%] sm:w-auto px-1 sm:px-4">Name</TableHead>
+              <TableHead className="hidden sm:table-cell">Source</TableHead>
+              <TableHead className="text-xs sm:text-sm w-[16%] sm:w-auto px-1 sm:px-4">Number</TableHead>
+              <TableHead className="hidden md:table-cell">Email</TableHead>
+              <TableHead className="text-xs sm:text-sm w-[25%] sm:w-auto px-1 sm:px-4"><span className="hidden sm:inline">Opportunity</span><span className="sm:hidden">Opp.</span></TableHead>
+              <TableHead className="text-xs sm:text-sm w-[20%] sm:w-auto px-1 sm:px-4">Stage</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -142,10 +160,12 @@ export default function ContactsPage() {
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => handleContactClick(contact._id)}
                 >
-                  <TableCell className="font-medium">
-                    {contact.fullName}
+                  <TableCell className="font-medium text-xs sm:text-sm py-2 sm:py-4 px-1 sm:px-4">
+                    <span className="block truncate">
+                      {contact.fullName}
+                    </span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {contact.source === "facebook" ? (
                       <div className="flex items-center gap-1.5">
                         <div className="h-4 w-4 rounded flex items-center justify-center bg-blue-600">
@@ -164,30 +184,27 @@ export default function ContactsPage() {
                       <Badge variant="outline">{sourceLabels[contact.source]}</Badge>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-xs sm:text-sm py-2 sm:py-4 px-1 sm:px-4">
                     {contact.phone ? (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>{contact.phone}</span>
-                      </div>
+                      <span className="block truncate">{contact.phone}</span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     {contact.email ? (
                       <div className="flex items-center gap-2">
                         <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>{contact.email}</span>
+                        <span className="max-w-[150px] truncate">{contact.email}</span>
                       </div>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-xs sm:text-sm py-2 sm:py-4 px-1 sm:px-4">
                     {contact.opportunity ? (
                       <div
-                        className="flex items-center gap-2 cursor-pointer hover:text-[#ff5603] transition-colors"
+                        className="cursor-pointer hover:text-[#ff5603] transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (contact.opportunity) {
@@ -195,26 +212,27 @@ export default function ContactsPage() {
                           }
                         }}
                       >
-                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="max-w-[200px] truncate underline">
-                          {contact.opportunity.name}
+                        <span className="block truncate underline">
+                          <span className="hidden sm:inline">{contact.opportunity.name}</span>
+                          <span className="sm:hidden">{contact.opportunity.name.replace(/^Opportunity\s*/i, '')}</span>
                         </span>
                       </div>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-2 sm:py-4 px-1 sm:px-4">
                     {contact.opportunity?.stage ? (
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1 sm:gap-1.5">
                         <Badge
-                          className={`${stageColors[contact.opportunity.stage]} text-white`}
+                          className={`${stageColors[contact.opportunity.stage]} text-white text-[10px] sm:text-xs px-1.5 sm:px-2`}
                         >
-                          {PIPELINE_STAGE_LABELS[contact.opportunity.stage]}
+                          <span className="hidden sm:inline">{PIPELINE_STAGE_LABELS[contact.opportunity.stage]}</span>
+                          <span className="sm:hidden">{PIPELINE_STAGE_LABELS[contact.opportunity.stage].split(' ')[0]}</span>
                         </Badge>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                            <HelpCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground cursor-help hidden sm:block" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-[280px]">
                             <p>{PIPELINE_STAGE_DESCRIPTIONS[contact.opportunity.stage]}</p>

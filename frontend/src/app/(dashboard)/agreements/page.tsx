@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { usePageTitle } from "@/components/providers/page-title-context";
 import { AgreementForm } from "@/components/agreements";
 import { FileSignature } from "lucide-react";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -23,6 +24,13 @@ interface OpenSolarPrefillData {
 function AgreementsContent() {
   const searchParams = useSearchParams();
   const getProjectForAgreement = useAction(api.openSolar.getProjectForAgreement);
+  const { setPageTitle } = usePageTitle();
+
+  // Set page title for mobile header
+  useEffect(() => {
+    setPageTitle("Agreement");
+    return () => setPageTitle("");
+  }, [setPageTitle]);
 
   // OpenSolar loading state
   const [isLoadingOpenSolar, setIsLoadingOpenSolar] = useState(false);
@@ -89,14 +97,14 @@ function AgreementsContent() {
   };
 
   return (
-    <div className="space-y-6" data-tour="agreements-form">
+    <div className="space-y-4 md:space-y-6" data-tour="agreements-form">
       <div className="flex items-center gap-3">
-        <div className="p-2 bg-muted rounded-lg">
+        <div className="hidden sm:block p-2 bg-muted rounded-lg">
           <FileSignature className="h-6 w-6 text-muted-foreground" />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Generate Agreement</h1>
-          <p className="text-muted-foreground">
+        <div className="min-w-0 flex-1">
+          <h1 className="hidden sm:block text-xl md:text-2xl font-bold text-foreground">Generate Agreement</h1>
+          <p className="text-xs sm:text-sm md:text-base text-muted-foreground truncate">
             {basePrefillData.opportunityName
               ? `Creating agreement for: ${basePrefillData.opportunityName}`
               : "Create a solar installation agreement document"}

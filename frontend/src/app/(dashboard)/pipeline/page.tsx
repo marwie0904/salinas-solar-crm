@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "../../../../convex/_generated/api";
@@ -11,6 +11,7 @@ import { OpportunityDetailModal } from "@/components/pipeline/opportunity-detail
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
+import { usePageTitle } from "@/components/providers/page-title-context";
 
 // Type for pipeline opportunity from Convex query
 export type PipelineOpportunity = {
@@ -63,6 +64,23 @@ function PipelineContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { setPageTitle, setPageAction } = usePageTitle();
+
+  // Handle add opportunity action (for header button)
+  const handleAddOpportunity = useCallback(() => {
+    // TODO: Open add opportunity modal
+    console.log("Add opportunity clicked");
+  }, []);
+
+  // Set page title and action for mobile header
+  useEffect(() => {
+    setPageTitle("Pipeline");
+    setPageAction(() => handleAddOpportunity);
+    return () => {
+      setPageTitle("");
+      setPageAction(null);
+    };
+  }, [setPageTitle, setPageAction, handleAddOpportunity]);
 
   // Fetch opportunities from Convex
   const opportunities = useQuery(api.opportunities.listForPipeline, {});
@@ -111,20 +129,6 @@ function PipelineContent() {
     setIsModalOpen(false);
   };
 
-  // Calculate totals
-  const totalOpportunities = opportunities?.length ?? 0;
-  const totalValue = opportunities?.reduce(
-    (sum, opp) => sum + opp.estimatedValue,
-    0
-  ) ?? 0;
-
-  const formatCurrency = (value: number) => {
-    return "₱" + new Intl.NumberFormat("en-PH", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
   if (opportunities === undefined) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -138,18 +142,15 @@ function PipelineContent() {
 
   return (
     <div className="space-y-4 md:space-y-6" data-tour="pipeline-board">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Pipeline</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            {totalOpportunities} opportunities • {formatCurrency(totalValue)}{" "}
-            total value
-          </p>
-        </div>
-        <Button className="bg-[#ff5603] hover:bg-[#e64d00] gap-2 h-10 touch-target w-full sm:w-auto">
+      {/* Header - Desktop only (mobile has button in header) */}
+      <div className="hidden sm:flex items-center justify-between">
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">Pipeline</h1>
+        <Button
+          className="bg-[#ff5603] hover:bg-[#e64d00] h-10 px-4 gap-2"
+          onClick={handleAddOpportunity}
+        >
           <Plus className="h-4 w-4" />
-          <span>Add Opportunity</span>
+          Add Opportunity
         </Button>
       </div>
 

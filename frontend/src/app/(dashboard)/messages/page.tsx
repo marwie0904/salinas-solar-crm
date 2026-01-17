@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
+import { usePageTitle } from "@/components/providers/page-title-context";
 import { MessageChannel, getFullName } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -120,6 +121,13 @@ export default function MessagesPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { setPageTitle } = usePageTitle();
+
+  // Set page title for mobile header
+  useEffect(() => {
+    setPageTitle("Messages");
+    return () => setPageTitle("");
+  }, [setPageTitle]);
 
   // Mobile state - show contact list or message view
   const [showMobileMessages, setShowMobileMessages] = useState(false);
@@ -299,7 +307,7 @@ export default function MessagesPage() {
         showMobileMessages ? "hidden md:flex" : "flex"
       )}>
         <div className="p-3 md:p-4 border-b shrink-0">
-          <h1 className="text-lg font-bold text-foreground mb-3">Messages</h1>
+          <h1 className="hidden sm:block text-lg font-bold text-foreground mb-3">Messages</h1>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input

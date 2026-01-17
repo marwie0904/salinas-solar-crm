@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Id } from "../../../../convex/_generated/dataModel";
+import { usePageTitle } from "@/components/providers/page-title-context";
 import { AppointmentType } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -63,6 +65,13 @@ function formatTimeAgo(timestamp: number): string {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { setPageTitle } = usePageTitle();
+
+  // Set page title for mobile header
+  useEffect(() => {
+    setPageTitle("Dashboard");
+    return () => setPageTitle("");
+  }, [setPageTitle]);
 
   // Fetch real data from Convex
   const leadsThisMonth = useQuery(api.contacts.getThisMonth);
@@ -128,8 +137,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-xl md:text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm md:text-base text-muted-foreground">
+        <h1 className="hidden sm:block text-xl md:text-2xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-xs sm:text-sm md:text-base text-muted-foreground">
           Welcome to Salinas Solar Services CRM
         </p>
       </div>

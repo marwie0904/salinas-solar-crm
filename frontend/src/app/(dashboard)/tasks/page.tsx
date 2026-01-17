@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
+import { usePageTitle } from "@/components/providers/page-title-context";
 import { TaskStatus } from "@/lib/types";
 import { TaskTable, Task } from "@/components/tasks/task-table";
 import { TaskKanban } from "@/components/tasks/task-kanban";
@@ -20,6 +21,13 @@ export default function TasksPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const { setPageTitle } = usePageTitle();
+
+  // Set page title for mobile header
+  useEffect(() => {
+    setPageTitle("Tasks");
+    return () => setPageTitle("");
+  }, [setPageTitle]);
 
   // Fetch tasks from database
   const tasks = useQuery(api.tasks.list);
@@ -63,10 +71,10 @@ export default function TasksPage() {
   return (
     <div className="space-y-4 md:space-y-6" data-tour="tasks-list">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Task List Management</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
+      <div className="flex items-center justify-between gap-3 sm:gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="hidden sm:block text-xl md:text-2xl font-bold text-foreground">Tasks</h1>
+          <p className="text-xs sm:text-sm md:text-base text-muted-foreground truncate">
             Manage and track your tasks efficiently.
           </p>
         </div>
