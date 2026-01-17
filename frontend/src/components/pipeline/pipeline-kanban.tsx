@@ -9,6 +9,7 @@ import {
   DndContext,
   DragEndEvent,
   DragOverEvent,
+  DragMoveEvent,
   DragOverlay,
   DragStartEvent,
   PointerSensor,
@@ -25,7 +26,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, User, DollarSign, HelpCircle, Lock } from "lucide-react";
 import {
@@ -217,6 +218,8 @@ export function PipelineKanban({
   const [isMounted, setIsMounted] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef<number | null>(null);
 
   // Optimistic updates: local copy of opportunities for instant UI updates
   const [localOpportunities, setLocalOpportunities] = useState(opportunities);
@@ -256,6 +259,72 @@ export function PipelineKanban({
     })
   );
 
+  // Auto-scroll when dragging near edges
+  const handleDragMove = useCallback((event: DragMoveEvent) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Get pointer position from the event
+    const { activatorEvent } = event;
+    let clientX: number;
+
+    if (activatorEvent instanceof TouchEvent) {
+      clientX = activatorEvent.touches[0]?.clientX ?? 0;
+    } else if (activatorEvent instanceof MouseEvent) {
+      clientX = activatorEvent.clientX;
+    } else {
+      return;
+    }
+
+    // Get container bounds
+    const rect = container.getBoundingClientRect();
+    const edgeThreshold = 80; // pixels from edge to start scrolling
+    const maxScrollSpeed = 15; // pixels per frame
+
+    // Calculate scroll speed based on distance from edge
+    let scrollSpeed = 0;
+
+    if (clientX < rect.left + edgeThreshold) {
+      // Near left edge - scroll left
+      const distance = rect.left + edgeThreshold - clientX;
+      scrollSpeed = -Math.min(maxScrollSpeed, (distance / edgeThreshold) * maxScrollSpeed);
+    } else if (clientX > rect.right - edgeThreshold) {
+      // Near right edge - scroll right
+      const distance = clientX - (rect.right - edgeThreshold);
+      scrollSpeed = Math.min(maxScrollSpeed, (distance / edgeThreshold) * maxScrollSpeed);
+    }
+
+    // Apply smooth scrolling
+    if (scrollSpeed !== 0) {
+      const scroll = () => {
+        if (scrollContainerRef.current && activeId) {
+          scrollContainerRef.current.scrollLeft += scrollSpeed;
+          autoScrollRef.current = requestAnimationFrame(scroll);
+        }
+      };
+
+      // Cancel any existing scroll animation
+      if (autoScrollRef.current) {
+        cancelAnimationFrame(autoScrollRef.current);
+      }
+      autoScrollRef.current = requestAnimationFrame(scroll);
+    } else {
+      // Stop scrolling when not near edges
+      if (autoScrollRef.current) {
+        cancelAnimationFrame(autoScrollRef.current);
+        autoScrollRef.current = null;
+      }
+    }
+  }, [activeId]);
+
+  // Clean up auto-scroll on drag end
+  const stopAutoScroll = useCallback(() => {
+    if (autoScrollRef.current) {
+      cancelAnimationFrame(autoScrollRef.current);
+      autoScrollRef.current = null;
+    }
+  }, []);
+
   const getOpportunitiesByStage = useCallback((stage: PipelineStage) =>
     localOpportunities.filter((opp) => opp.stage === stage), [localOpportunities]);
 
@@ -279,6 +348,7 @@ export function PipelineKanban({
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
+    stopAutoScroll();
   };
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -368,6 +438,7 @@ export function PipelineKanban({
 
     setActiveId(null);
     setOverId(null);
+    stopAutoScroll();
   };
 
   // Render static version during SSR
@@ -462,10 +533,14 @@ export function PipelineKanban({
       sensors={sensors}
       collisionDetection={columnFirstCollision}
       onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-2 sm:gap-4 overflow-x-auto pb-4 sm:pb-6 h-[calc(100vh-120px)] sm:h-[calc(100vh-200px)] kanban-scroll touch-scroll kanban-scrollbar pl-1 pr-4 sm:pl-0 sm:pr-0 sm:-mx-4 sm:px-4 md:mx-0 md:px-0">
+      <div
+        ref={scrollContainerRef}
+        className="flex gap-2 sm:gap-4 overflow-x-auto pb-4 sm:pb-6 h-[calc(100vh-120px)] sm:h-[calc(100vh-200px)] kanban-scroll touch-scroll kanban-scrollbar pl-1 pr-4 sm:pl-0 sm:pr-0 sm:-mx-4 sm:px-4 md:mx-0 md:px-0"
+      >
         {stages.map((stageConfig) => {
           const stageOpportunities = getOpportunitiesByStage(stageConfig.stage);
           const stageTotal = getStageTotal(stageConfig.stage);
